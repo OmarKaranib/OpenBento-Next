@@ -10,6 +10,7 @@ import {
   planFrameGeometry,
   translateFrameMembers,
 } from "@/lib/domain/membership";
+import { persistCreatedNoteCard } from "@/lib/domain/persist-created-note";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 
 function withFrameBounds(frames: Frame[], frameId: string, bounds: Frame["bounds"]): Frame[] {
@@ -42,20 +43,8 @@ export function useCanvasCommands() {
   );
 
   const persistCreatedNote = useCallback(
-    async (input: CreateCardInput) => {
-      const created = await commit([{ name: "createCard", input }]);
-      const card = created[0] as Card;
-      const membership = membershipCallsForCards([card], snapshot.frames);
-      if (membership.length > 0) {
-        await commit(
-          membership.map((change) => ({
-            name: "setCardFrame" as const,
-            input: change,
-          })),
-        );
-      }
-      return card;
-    },
+    (input: CreateCardInput) =>
+      persistCreatedNoteCard(commit, input, snapshot.frames),
     [commit, snapshot.frames],
   );
 

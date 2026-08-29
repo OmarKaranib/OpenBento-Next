@@ -4,7 +4,9 @@ AI-native live intelligence canvas (Canvas, Card, Frame, WatchBot).
 
 **Canonical context:** [docs/OPENBENTO_MASTER_CONTEXT.md](./docs/OPENBENTO_MASTER_CONTEXT.md)
 
-This is **Phase 1 platform** on top of the Phase 0 catalog: shared action handlers, a persistence port, and local/dev SQL + RLS. There is no working canvas UI, WatchBot pipeline, WebMCP tools, or deploy.
+This is **Phase 1 Canvas** on top of the Phase 1 platform catalog. `apps/web` mounts a Railway-inspired workspace: left rail, top Canvas switcher, Agent placeholder, and an XYFlow dotted canvas. Humans can create, switch, and rename Canvases; add Note Cards from the top **Note** control or by double-clicking empty canvas (world coordinates, then `setCardFrame` from geometry); move and resize Notes and Frames; and fullscreen a Frame without rewriting stored geometry.
+
+Persistence is the in-memory `DomainStore` behind `createActionExecutor`. There is no WatchBot pipeline, WebMCP tools, source Cards, Auth/`runBoundAction`, or production deploy.
 
 Legacy [`OmarKaranib/OpenBento`](https://github.com/OmarKaranib/OpenBento) is frozen reference.
 
@@ -30,7 +32,7 @@ Maintained under [`docs/`](./docs/). Copies also live at the repo root.
 ## Monorepo
 
 ```
-apps/web                 Next.js 16 placeholder
+apps/web                 Next.js 16 Railway-inspired workspace (CanvasRoot)
 apps/worker              Worker stub
 packages/domain          20-action catalog + shared executor + store port
 packages/watchbot        SourceProvider types
@@ -49,6 +51,12 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm --filter web build
+```
+
+Local workspace (in-memory store, no hosted backend):
+
+```bash
+pnpm dev
 ```
 
 ## License
