@@ -365,44 +365,6 @@ async function processItem(input: {
     };
   }
 
-  /**
-   * Unique claim is the card_created row. Reserve it before createCard so a
-   * conflict cannot mint another Card. Identity / reject events use staged keys.
-   */
-  const claimId = id();
-  const reservedAt = now();
-  try {
-    await store.saveWatchBotEvent({
-      id: claimId,
-      watchBotId: watchBot.id,
-      canvasId: watchBot.canvasId,
-      kind: "card_created",
-      sourceUrl: normalized.canonicalUrl,
-      dedupKey,
-      noveltyScore,
-      discoveredAt: reservedAt,
-      title: normalized.title,
-      publishedAt: normalized.publishedAt,
-      sourceType: asSourceType(normalized.sourceType),
-    });
-  } catch (error) {
-    if (isDomainError(error) && error.code === "conflict") {
-      await persistStageEvent(store, {
-        id: id(),
-        watchBotId: watchBot.id,
-        canvasId: watchBot.canvasId,
-        kind: "duplicate",
-        sourceUrl: normalized.canonicalUrl,
-        dedupKey: stageDedupKey(dedupKey, "duplicate", id()),
-        discoveredAt: now(),
-        title: normalized.title,
-        detail: "unique (watchBotId, dedupKey) conflict",
-      });
-      return { kind: "duplicate", dedupKey };
-    }
-    throw error;
-  }
-
   const position = nextCardPosition(canvas.cards.length);
   const card = await executor.createCard({
     canvasId: watchBot.canvasId,
@@ -426,20 +388,42 @@ async function processItem(input: {
   );
   await executor.setCardFrame({ cardId: card.id, frameId });
 
-  await store.saveWatchBotEvent({
-    id: claimId,
-    watchBotId: watchBot.id,
-    canvasId: watchBot.canvasId,
-    kind: "card_created",
-    sourceUrl: normalized.canonicalUrl,
-    dedupKey,
-    noveltyScore,
-    discoveredAt: reservedAt,
-    title: normalized.title,
-    publishedAt: normalized.publishedAt,
-    sourceType: asSourceType(normalized.sourceType),
-    cardId: card.id,
-  });
+  /**
+   * Unique claim is persisted last, only after createCard + setCardFrame.
+   * A thrown createCard must not occupy the key and block a later retry.
+   */
+  try {
+    await store.saveWatchBotEvent({
+      id: id(),
+      watchBotId: watchBot.id,
+      canvasId: watchBot.canvasId,
+      kind: "card_created",
+      sourceUrl: normalized.canonicalUrl,
+      dedupKey,
+      noveltyScore,
+      discoveredAt: now(),
+      title: normalized.title,
+      publishedAt: normalized.publishedAt,
+      sourceType: asSourceType(normalized.sourceType),
+      cardId: card.id,
+    });
+  } catch (error) {
+    if (isDomainError(error) && error.code === "conflict") {
+      await persistStageEvent(store, {
+        id: id(),
+        watchBotId: watchBot.id,
+        canvasId: watchBot.canvasId,
+        kind: "duplicate",
+        sourceUrl: normalized.canonicalUrl,
+        dedupKey: stageDedupKey(dedupKey, "duplicate", id()),
+        discoveredAt: now(),
+        title: normalized.title,
+        detail: "unique (watchBotId, dedupKey) conflict",
+      });
+      return { kind: "duplicate", dedupKey, cardId: card.id };
+    }
+    throw error;
+  }
 
   return {
     kind: "card_created",

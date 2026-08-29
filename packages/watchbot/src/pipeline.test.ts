@@ -143,6 +143,45 @@ describe("WatchBot pipeline with fake provider", () => {
     expect(state.cards).toHaveLength(1);
   });
 
+  it("does not occupy the unique key when createCard throws", async () => {
+    const { store, executor, watchBot, provider } = await seed([newsItem]);
+    const key = buildDedupKey({
+      sourceType: "news",
+      canonicalUrl: canonicalizeUrl(newsItem.sourceUrl) ?? "",
+    });
+    const create = vi
+      .spyOn(executor, "createCard")
+      .mockRejectedValueOnce(new Error("create_failed"));
+
+    const first = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(first.cardsCreated).toBe(0);
+    expect(first.items.some((item) => item.kind === "error")).toBe(true);
+    const afterFail = await store.listWatchBotEventsByWatchBot(watchBot.id);
+    expect(afterFail.some((event) => event.dedupKey === key)).toBe(false);
+    expect(afterFail.some((event) => event.kind === "card_created")).toBe(false);
+    create.mockRestore();
+
+    const retry = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(retry.cardsCreated).toBe(1);
+    expect(retry.items[0]?.kind).toBe("card_created");
+    const afterRetry = await store.listWatchBotEventsByWatchBot(watchBot.id);
+    const claim = afterRetry.find((event) => event.dedupKey === key);
+    expect(claim?.kind).toBe("card_created");
+    expect(claim?.cardId).toBeDefined();
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(1);
+  });
+
   it("allows a different WatchBot to reuse the same dedup key", async () => {
     const { store, executor, canvas, provider } = await seed([newsItem]);
     const other = await executor.createWatchBot({

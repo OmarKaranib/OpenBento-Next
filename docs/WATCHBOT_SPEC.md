@@ -32,7 +32,7 @@ Source Cards require provenance. Notes do not. WatchBot must not invent fake sou
 
 - `SourceProvider` is provider-agnostic. Tests inject `FakeSourceProvider`.
 - First adapter may be xAI/Grok behind `XAI_API_KEY`. Domain does not import it.
-- Dedup: `UNIQUE (watchBotId, dedupKey)` is claimed on `card_created` only. Conflict → `duplicate`, no overwrite, no Card. Rejected / low-novelty identity events use staged keys so they do not block a later honest Card of the same URL.
+- Dedup: `UNIQUE (watchBotId, dedupKey)` is claimed on `card_created` only, after `createCard` and `setCardFrame` succeed. Conflict → `duplicate`, no overwrite, no Card. A thrown `createCard` does not occupy the key. Rejected / low-novelty identity events use staged keys so they do not block a later honest Card of the same URL.
 - Membership: `createCard` (bounds only) then `selectSmallestContainingFrame` → `setCardFrame`.
 - Event kinds: `discovered`, `normalized`, `duplicate`, `novel`, `rejected_relevance`, `card_created`, `error`.
 - First slice sources: **web and news only**.
