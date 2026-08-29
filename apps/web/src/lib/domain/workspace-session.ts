@@ -93,6 +93,7 @@ function isMutating(name: ActionName): boolean {
 export class WorkspaceSession {
   private readonly runAction: RunDomainAction;
   private readonly resetStore: () => void | Promise<void>;
+  private readonly options: WorkspaceSessionOptions;
   private canvases = new Map<string, Canvas>();
   private currentCanvasId: string | null = null;
   private cards: Card[] = [];
@@ -105,20 +106,41 @@ export class WorkspaceSession {
   private listeners = new Set<() => void>();
   private snapshot: SessionSnapshot;
   private revision = 0;
+  private bootPromise: Promise<void> | null = null;
   readonly ready: Promise<void>;
+  private readonly resolveReady: () => void;
 
   constructor(options: WorkspaceSessionOptions) {
     this.runAction = options.runAction;
     this.resetStore = options.resetStore;
+    this.options = options;
     this.snapshot = this.buildSnapshot();
-    this.ready = this.boot(options);
+    let resolveReady = (): void => undefined;
+    this.ready = new Promise<void>((resolve) => {
+      resolveReady = resolve;
+    });
+    this.resolveReady = resolveReady;
+    if (options.seedDefaultCanvas === false && !options.prepare) {
+      this.resolveReady();
+    }
   }
 
-  private async boot(options: WorkspaceSessionOptions): Promise<void> {
-    if (options.prepare) {
-      await options.prepare();
+  /**
+   * Start session I/O after mount. Must not run during SSR/prerender —
+   * Next.js forbids calling server functions in the initial render.
+   */
+  start(): Promise<void> {
+    if (!this.bootPromise) {
+      this.bootPromise = this.boot().finally(() => this.resolveReady());
     }
-    if (options.seedDefaultCanvas === false) {
+    return this.bootPromise;
+  }
+
+  private async boot(): Promise<void> {
+    if (this.options.prepare) {
+      await this.options.prepare();
+    }
+    if (this.options.seedDefaultCanvas === false) {
       return;
     }
     await this.commit([{ name: "createCanvas", input: { name: "Untitled" } }], {

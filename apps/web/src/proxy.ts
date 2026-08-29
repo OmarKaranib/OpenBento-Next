@@ -9,7 +9,7 @@ import {
  * Server-side local/dev session. The browser never chooses ownerId.
  * Hosted Supabase Auth is a later adapter — this does not create a project.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const response = NextResponse.next();
   const existing = request.cookies.get(LOCAL_DEV_SESSION_COOKIE)?.value;
   if (!existing) {

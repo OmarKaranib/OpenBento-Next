@@ -3,6 +3,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useMemo,
   useSyncExternalStore,
   type ReactNode,
@@ -50,6 +51,9 @@ function getBrowserWorkspaceSession(): WorkspaceSession {
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const session = useMemo(() => getBrowserWorkspaceSession(), []);
+  useEffect(() => {
+    void session.start();
+  }, [session]);
   const snapshot = useSyncExternalStore(
     session.subscribe,
     session.getSnapshot,
