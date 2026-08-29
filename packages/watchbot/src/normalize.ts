@@ -39,6 +39,30 @@ export function isWatchBotV0SourceType(
   return (WATCHBOT_V0_SOURCE_TYPES as readonly string[]).includes(value);
 }
 
+const BLOCKED_V0_HOSTS = [
+  "youtube.com",
+  "youtu.be",
+  "x.com",
+  "twitter.com",
+] as const;
+
+/** First slice: YouTube and X are out. Do not rewrite them to web. */
+export function isBlockedWatchBotV0Host(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  return BLOCKED_V0_HOSTS.some(
+    (blocked) => host === blocked || host.endsWith(`.${blocked}`),
+  );
+}
+
+export function isBlockedWatchBotV0Url(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    return isBlockedWatchBotV0Host(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
 /** Canonical URL: lowercase host, drop hash, drop tracking params, drop trailing slash. */
 export function canonicalizeUrl(raw: string): string | null {
   const trimmed = sanitizeUntrustedText(raw, 2_000);
@@ -95,8 +119,11 @@ export function normalizeDiscoveredItem(
   if (!isWatchBotV0SourceType(item.sourceType)) {
     return null;
   }
+  if (isBlockedWatchBotV0Url(item.sourceUrl)) {
+    return null;
+  }
   const canonicalUrl = canonicalizeUrl(item.sourceUrl);
-  if (!canonicalUrl) {
+  if (!canonicalUrl || isBlockedWatchBotV0Url(canonicalUrl)) {
     return null;
   }
   const title = sanitizeUntrustedText(item.title, 300);

@@ -260,43 +260,37 @@ async function processItem(input: {
     publishedAt: normalized.publishedAt,
     sourceType: asSourceType(normalized.sourceType),
   });
-
-  const claim: WatchBotEvent = {
+  await persistStageEvent(store, {
     id: id(),
     watchBotId: watchBot.id,
     canvasId: watchBot.canvasId,
     kind: "normalized",
     sourceUrl: normalized.canonicalUrl,
-    dedupKey,
+    dedupKey: stageDedupKey(dedupKey, "normalized", id()),
     discoveredAt,
     title: normalized.title,
     publishedAt: normalized.publishedAt,
     sourceType: asSourceType(normalized.sourceType),
-  };
-
-  try {
-    await store.saveWatchBotEvent(claim);
-  } catch (error) {
-    if (isDomainError(error) && error.code === "conflict") {
-      await persistStageEvent(store, {
-        id: id(),
-        watchBotId: watchBot.id,
-        canvasId: watchBot.canvasId,
-        kind: "duplicate",
-        sourceUrl: normalized.canonicalUrl,
-        dedupKey: stageDedupKey(dedupKey, "duplicate", id()),
-        discoveredAt: now(),
-        title: normalized.title,
-        publishedAt: normalized.publishedAt,
-        sourceType: asSourceType(normalized.sourceType),
-        detail: "unique (watchBotId, dedupKey) conflict",
-      });
-      return { kind: "duplicate", dedupKey };
-    }
-    throw error;
-  }
+  });
 
   const prior = await store.listWatchBotEventsByWatchBot(watchBot.id);
+  if (prior.some((event) => event.dedupKey === dedupKey)) {
+    await persistStageEvent(store, {
+      id: id(),
+      watchBotId: watchBot.id,
+      canvasId: watchBot.canvasId,
+      kind: "duplicate",
+      sourceUrl: normalized.canonicalUrl,
+      dedupKey: stageDedupKey(dedupKey, "duplicate", id()),
+      discoveredAt: now(),
+      title: normalized.title,
+      publishedAt: normalized.publishedAt,
+      sourceType: asSourceType(normalized.sourceType),
+      detail: "unique (watchBotId, dedupKey) already claimed",
+    });
+    return { kind: "duplicate", dedupKey };
+  }
+
   const noveltyScore = scoreNovelty(normalized, prior);
   if (!isNovelEnough(noveltyScore)) {
     await persistStageEvent(store, {
@@ -371,6 +365,44 @@ async function processItem(input: {
     };
   }
 
+  /**
+   * Unique claim is the card_created row. Reserve it before createCard so a
+   * conflict cannot mint another Card. Identity / reject events use staged keys.
+   */
+  const claimId = id();
+  const reservedAt = now();
+  try {
+    await store.saveWatchBotEvent({
+      id: claimId,
+      watchBotId: watchBot.id,
+      canvasId: watchBot.canvasId,
+      kind: "card_created",
+      sourceUrl: normalized.canonicalUrl,
+      dedupKey,
+      noveltyScore,
+      discoveredAt: reservedAt,
+      title: normalized.title,
+      publishedAt: normalized.publishedAt,
+      sourceType: asSourceType(normalized.sourceType),
+    });
+  } catch (error) {
+    if (isDomainError(error) && error.code === "conflict") {
+      await persistStageEvent(store, {
+        id: id(),
+        watchBotId: watchBot.id,
+        canvasId: watchBot.canvasId,
+        kind: "duplicate",
+        sourceUrl: normalized.canonicalUrl,
+        dedupKey: stageDedupKey(dedupKey, "duplicate", id()),
+        discoveredAt: now(),
+        title: normalized.title,
+        detail: "unique (watchBotId, dedupKey) conflict",
+      });
+      return { kind: "duplicate", dedupKey };
+    }
+    throw error;
+  }
+
   const position = nextCardPosition(canvas.cards.length);
   const card = await executor.createCard({
     canvasId: watchBot.canvasId,
@@ -394,15 +426,15 @@ async function processItem(input: {
   );
   await executor.setCardFrame({ cardId: card.id, frameId });
 
-  await persistStageEvent(store, {
-    id: id(),
+  await store.saveWatchBotEvent({
+    id: claimId,
     watchBotId: watchBot.id,
     canvasId: watchBot.canvasId,
     kind: "card_created",
     sourceUrl: normalized.canonicalUrl,
-    dedupKey: stageDedupKey(dedupKey, "card_created", id()),
+    dedupKey,
     noveltyScore,
-    discoveredAt: now(),
+    discoveredAt: reservedAt,
     title: normalized.title,
     publishedAt: normalized.publishedAt,
     sourceType: asSourceType(normalized.sourceType),

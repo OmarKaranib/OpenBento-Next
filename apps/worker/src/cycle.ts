@@ -27,7 +27,11 @@ export interface RunWorkerCycleInput {
 
 /**
  * One worker tick: load WatchBots, skip paused, run the shared pipeline.
- * Unexpected failures set status `error` + lastError and do not crash the process.
+ *
+ * Pause / resume go through `pauseWatchBot` / `resumeWatchBot` (executor).
+ * Those actions already cover running ↔ paused. There is no catalog action
+ * for `error` + `lastError`, so only that failure path writes the WatchBot
+ * row directly.
  */
 export async function runWorkerCycle(
   input: RunWorkerCycleInput,
@@ -72,35 +76,50 @@ export async function runWorkerCycle(
       result.cycles.push(cycle);
       result.processed += 1;
       result.cardsCreated += cycle.cardsCreated;
-      await touchWatchBot(input.store, bot, {
-        lastActivityAt: now(),
-        lastError: undefined,
-        status: "running",
-      });
+      await stampLastActivity(input.store, bot, now());
     } catch (error) {
       result.errors += 1;
       const message =
         error instanceof Error ? error.message.slice(0, 300) : "WatchBot error";
-      await touchWatchBot(input.store, bot, {
-        status: "error",
-        lastError: message,
-        lastActivityAt: now(),
-      });
+      await recordWatchBotError(input.store, bot, message, now());
     }
   }
 
   return result;
 }
 
-async function touchWatchBot(
+async function stampLastActivity(
   store: DomainStore,
   bot: WatchBot,
-  patch: Partial<Pick<WatchBot, "status" | "lastError" | "lastActivityAt">>,
+  timestamp: string,
+): Promise<void> {
+  const current = (await store.getWatchBot(bot.id)) ?? bot;
+  if (current.status !== "running") {
+    return;
+  }
+  await store.saveWatchBot({
+    ...current,
+    lastActivityAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
+/**
+ * ACTION_CATALOG has pause/resume (running|paused) but no error action.
+ * lastError is not an updateWatchBot field. This is the only store status write.
+ */
+async function recordWatchBotError(
+  store: DomainStore,
+  bot: WatchBot,
+  lastError: string,
+  timestamp: string,
 ): Promise<void> {
   const current = (await store.getWatchBot(bot.id)) ?? bot;
   await store.saveWatchBot({
     ...current,
-    ...patch,
-    updatedAt: patch.lastActivityAt ?? current.updatedAt,
+    status: "error",
+    lastError,
+    lastActivityAt: timestamp,
+    updatedAt: timestamp,
   });
 }

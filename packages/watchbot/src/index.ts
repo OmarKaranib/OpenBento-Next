@@ -8,6 +8,8 @@ export type { WatchBot, WatchBotStatus } from "./types";
 export {
   WATCHBOT_V0_SOURCE_TYPES,
   canonicalizeUrl,
+  isBlockedWatchBotV0Host,
+  isBlockedWatchBotV0Url,
   isWatchBotV0SourceType,
   normalizeDiscoveredItem,
   sourceTypeToCardType,
@@ -27,6 +29,7 @@ export {
 export { FakeSourceProvider } from "./fake-provider";
 export {
   createGrokSourceProvider,
+  extractDiscoveredItems,
   grokEnvApiKey,
   type GrokSourceProviderOptions,
 } from "./adapters/grok";

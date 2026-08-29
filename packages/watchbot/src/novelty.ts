@@ -9,21 +9,14 @@ export function scoreNovelty(
   item: NormalizedItem,
   priorEvents: readonly WatchBotEvent[],
 ): number {
-  const prior = priorEvents.filter(
-    (event) =>
-      event.kind === "card_created" ||
-      event.kind === "novel" ||
-      event.kind === "normalized",
-  );
+  const prior = priorEvents.filter((event) => event.kind === "card_created");
   if (prior.length === 0) {
     return 1;
   }
-  const itemTokens = tokenizeForScoring(`${item.title} ${item.snippet}`);
+  const itemTokens = tokenizeForScoring(item.title);
   let bestOverlap = 0;
   for (const event of prior) {
-    const eventTokens = tokenizeForScoring(
-      `${event.title ?? ""} ${event.sourceUrl}`,
-    );
+    const eventTokens = tokenizeForScoring(event.title ?? "");
     const overlap = jaccardSimilarity(itemTokens, eventTokens);
     if (overlap > bestOverlap) {
       bestOverlap = overlap;

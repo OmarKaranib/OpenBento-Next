@@ -1,5 +1,9 @@
 import type { DiscoveredItem, SourceProvider } from "../provider";
-import { isWatchBotV0SourceType } from "../normalize";
+import {
+  isBlockedWatchBotV0Url,
+  isWatchBotV0SourceType,
+  type WatchBotV0SourceType,
+} from "../normalize";
 import { sanitizeUntrustedText } from "../untrusted";
 
 /**
@@ -90,60 +94,149 @@ class GrokSourceProvider implements SourceProvider {
     }
 
     const body: unknown = await response.json();
-    return extractDiscoveredItems(body).filter((item) =>
-      allowed.includes(item.sourceType as (typeof allowed)[number]),
+    return extractDiscoveredItems(body).filter(
+      (item): item is DiscoveredItem =>
+        isWatchBotV0SourceType(item.sourceType) &&
+        allowed.includes(item.sourceType),
     );
   }
 }
 
-function extractDiscoveredItems(body: unknown): DiscoveredItem[] {
+/**
+ * Collect items from the already-parsed HTTP envelope, plus at most one
+ * JSON.parse of each Responses `output_text` protocol field.
+ * Never JSON.parse titles, snippets, HTML, or other untrusted strings.
+ */
+export function extractDiscoveredItems(body: unknown): DiscoveredItem[] {
   const collected: DiscoveredItem[] = [];
   const seen = new Set<string>();
 
-  const visit = (value: unknown): void => {
-    if (Array.isArray(value)) {
-      for (const entry of value) {
-        visit(entry);
+  const addFrom = (value: unknown): void => {
+    walkStructuredRecords(value, (record) => {
+      const item = itemFromRecord(record);
+      if (!item || seen.has(item.sourceUrl)) {
+        return;
       }
-      return;
-    }
-    if (typeof value !== "object" || value === null) {
-      if (typeof value === "string") {
-        try {
-          visit(JSON.parse(value));
-        } catch {
-          /* untrusted model text is data, never eval */
-        }
-      }
-      return;
-    }
-    const record = value as Record<string, unknown>;
-    const url =
-      pickString(record, ["sourceUrl", "url", "canonicalUrl"]) ??
-      pickString(record, ["uri"]);
-    const title = pickString(record, ["title", "name", "headline"]);
-    if (url && title) {
-      const sourceTypeRaw = pickString(record, ["sourceType", "type"]) ?? "web";
-      const sourceType = sourceTypeRaw === "news" ? "news" : "web";
-      if (!seen.has(url)) {
-        seen.add(url);
-        collected.push({
-          sourceUrl: url,
-          title,
-          publishedAt:
-            pickString(record, ["publishedAt", "published_at", "date"]) ?? "",
-          sourceType,
-          rawExcerpt: pickString(record, ["rawExcerpt", "snippet", "text"]),
-        });
-      }
-    }
-    for (const nested of Object.values(record)) {
-      visit(nested);
-    }
+      seen.add(item.sourceUrl);
+      collected.push(item);
+    });
   };
 
-  visit(body);
+  addFrom(body);
+  for (const text of collectProtocolOutputTexts(body)) {
+    const parsed = parseJsonOnce(text);
+    if (parsed !== undefined) {
+      addFrom(parsed);
+    }
+  }
   return collected;
+}
+
+function walkStructuredRecords(
+  value: unknown,
+  onRecord: (record: Record<string, unknown>) => void,
+): void {
+  if (Array.isArray(value)) {
+    for (const entry of value) {
+      walkStructuredRecords(entry, onRecord);
+    }
+    return;
+  }
+  if (typeof value !== "object" || value === null) {
+    return;
+  }
+  const record = value as Record<string, unknown>;
+  onRecord(record);
+  for (const nested of Object.values(record)) {
+    if (nested && typeof nested === "object") {
+      walkStructuredRecords(nested, onRecord);
+    }
+  }
+}
+
+/** Responses API protocol fields only. Item title/snippet `text` is not collected. */
+function collectProtocolOutputTexts(value: unknown): string[] {
+  const texts: string[] = [];
+  const walk = (node: unknown): void => {
+    if (Array.isArray(node)) {
+      for (const entry of node) {
+        walk(entry);
+      }
+      return;
+    }
+    if (typeof node !== "object" || node === null) {
+      return;
+    }
+    const record = node as Record<string, unknown>;
+    const type = record.type;
+    if (
+      (type === "output_text" || type === "text") &&
+      typeof record.text === "string"
+    ) {
+      texts.push(record.text);
+    }
+    if (Array.isArray(record.output)) {
+      walk(record.output);
+    }
+    if (Array.isArray(record.content)) {
+      walk(record.content);
+    }
+    if (record.message && typeof record.message === "object") {
+      walk(record.message);
+    }
+  };
+  walk(value);
+  return texts;
+}
+
+function parseJsonOnce(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
+function itemFromRecord(record: Record<string, unknown>): DiscoveredItem | null {
+  const url =
+    pickString(record, ["sourceUrl", "url", "canonicalUrl"]) ??
+    pickString(record, ["uri"]);
+  const title = pickString(record, ["title", "name", "headline"]);
+  if (!url || !title) {
+    return null;
+  }
+  if (isBlockedWatchBotV0Url(url)) {
+    return null;
+  }
+  const sourceTypeRaw = pickString(record, ["sourceType", "type"]);
+  const sourceType = resolveV0SourceType(sourceTypeRaw);
+  if (!sourceType) {
+    return null;
+  }
+  return {
+    sourceUrl: url,
+    title,
+    publishedAt:
+      pickString(record, ["publishedAt", "published_at", "date"]) ?? "",
+    sourceType,
+    rawExcerpt: pickString(record, ["rawExcerpt", "snippet", "text"]),
+  };
+}
+
+/**
+ * Keep web/news. Drop youtube/x and unknown types. Never coerce them to web.
+ */
+function resolveV0SourceType(raw: string | undefined): WatchBotV0SourceType | null {
+  if (raw === undefined || raw === "") {
+    return "web";
+  }
+  if (isWatchBotV0SourceType(raw)) {
+    return raw;
+  }
+  if (raw === "article") {
+    return "web";
+  }
+  return null;
 }
 
 function pickString(

@@ -25,7 +25,7 @@ export function scoreRelevance(
       }),
     ].join(" "),
   );
-  const itemTokens = tokenizeForScoring(`${item.title} ${item.snippet}`);
+  const itemTokens = tokenizeForScoring(item.title);
   if (contextTokens.length === 0 || itemTokens.length === 0) {
     return 0;
   }

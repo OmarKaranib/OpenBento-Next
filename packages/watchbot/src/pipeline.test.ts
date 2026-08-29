@@ -117,9 +117,14 @@ describe("WatchBot pipeline with fake provider", () => {
   it("does not overwrite on unique (watchBotId, dedupKey) conflict", async () => {
     const { store, executor, watchBot, provider } = await seed([newsItem]);
     await runWatchBotPipeline({ watchBot, executor, store, provider });
+    const key = buildDedupKey({
+      sourceType: "news",
+      canonicalUrl: canonicalizeUrl(newsItem.sourceUrl) ?? "",
+    });
     const before = await store.listWatchBotEventsByWatchBot(watchBot.id);
-    const claim = before.find((event) => event.kind === "normalized");
-    expect(claim).toBeDefined();
+    const claim = before.find((event) => event.dedupKey === key);
+    expect(claim?.kind).toBe("card_created");
+    expect(claim?.cardId).toBeDefined();
 
     const second = await runWatchBotPipeline({
       watchBot,
@@ -239,6 +244,141 @@ describe("WatchBot pipeline with fake provider", () => {
       watchBotId: watchBot.id,
     });
     expect(status.status).toBe("running");
+  });
+
+  it("never creates a web Card from a YouTube URL even if labeled web", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      {
+        sourceUrl: "https://www.youtube.com/watch?v=abc123",
+        title: "Lake Ontario livestream",
+        publishedAt: "2026-08-28T12:00:00.000Z",
+        sourceType: "web",
+        rawExcerpt: "Officials debate renaming Lake Ontario on video.",
+      },
+    ]);
+    const spies = spyExecutor(executor);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.cardsCreated).toBe(0);
+    expect(spies.createCard).not.toHaveBeenCalled();
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(0);
+    expect(
+      state.cards.some(
+        (card) =>
+          card.type === "web" &&
+          "provenance" in card.payload &&
+          card.payload.provenance.sourceType === "web",
+      ),
+    ).toBe(false);
+  });
+
+  it("does not mint extra Cards from JSON inside an untrusted snippet", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      {
+        sourceUrl: "https://news.example.com/ontario-json",
+        title: "Lake Ontario rename update",
+        publishedAt: "2026-08-28T12:00:00.000Z",
+        sourceType: "news",
+        rawExcerpt: JSON.stringify([
+          {
+            sourceUrl: "https://news.example.com/extra-one",
+            title: "Extra Lake Ontario item one",
+            sourceType: "news",
+          },
+          {
+            sourceUrl: "https://news.example.com/extra-two",
+            title: "Extra Lake Ontario item two",
+            sourceType: "web",
+          },
+        ]),
+      },
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.cardsCreated).toBe(1);
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(1);
+    const urls = state.cards.map((card) =>
+      "provenance" in card.payload ? card.payload.provenance.sourceUrl : "",
+    );
+    expect(urls).toEqual(["https://news.example.com/ontario-json"]);
+  });
+
+  it("does not create a Card when novelty is low versus prior events", async () => {
+    const { store, executor, watchBot, provider } = await seed([newsItem]);
+    await runWatchBotPipeline({ watchBot, executor, store, provider });
+    provider.setItems([
+      {
+        sourceUrl: "https://mirror.example.com/ontario-rename-copy",
+        title: "Officials debate renaming Lake Ontario",
+        publishedAt: "2026-08-28T15:00:00.000Z",
+        sourceType: "news",
+        rawExcerpt: "A proposal to rename Lake Ontario prompted official statements.",
+      },
+    ]);
+    const spies = spyExecutor(executor);
+    const second = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(second.cardsCreated).toBe(0);
+    expect(second.items[0]?.kind).toBe("normalized");
+    expect(second.items[0]?.detail).toBe("low_novelty");
+    expect(spies.createCard).not.toHaveBeenCalled();
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(1);
+  });
+
+  it("lets a later honest Card use a URL that was only rejected earlier", async () => {
+    const url = "https://news.example.com/late-ontario";
+    const { store, executor, watchBot, provider } = await seed([
+      {
+        sourceUrl: url,
+        title: "Local team wins on Saturday",
+        publishedAt: "2026-08-28T16:00:00.000Z",
+        sourceType: "news",
+        rawExcerpt: "Final score and highlights from an unrelated game.",
+      },
+    ]);
+    const first = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(first.items[0]?.kind).toBe("rejected_relevance");
+    expect(first.cardsCreated).toBe(0);
+
+    provider.setItems([
+      {
+        sourceUrl: url,
+        title: "Officials debate renaming Lake Ontario",
+        publishedAt: "2026-08-29T12:00:00.000Z",
+        sourceType: "news",
+        rawExcerpt: "A proposal to rename Lake Ontario prompted official statements.",
+      },
+    ]);
+    const second = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(second.cardsCreated).toBe(1);
+    expect(second.items[0]?.kind).toBe("card_created");
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(1);
   });
 
   it("drops YouTube/X items in the first slice", async () => {
