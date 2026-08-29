@@ -5,6 +5,7 @@ import { LeftRail } from "@/components/shell/LeftRail";
 import { SidePanels } from "@/components/shell/SidePanels";
 import { TopBar } from "@/components/shell/TopBar";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { WebMcpHost } from "@/webmcp/WebMcpHost";
 import { WorkspaceProvider, useWorkspace } from "./WorkspaceProvider";
 import { WorkspaceUiProvider } from "./workspace-ui";
 
@@ -29,6 +30,7 @@ export function WorkspaceApp() {
     <TooltipProvider>
       <WorkspaceProvider>
         <WorkspaceUiProvider>
+          <WebMcpHost />
           <WorkspaceChrome />
         </WorkspaceUiProvider>
       </WorkspaceProvider>

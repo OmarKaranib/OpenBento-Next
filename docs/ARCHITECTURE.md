@@ -2,7 +2,7 @@
 
 Canonical product context: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.md).
 
-Status: **Phase 2 Platform Auth** on `bot/platform-auth`, rebased onto WatchBot v0 (`9ca3d69`). Canvas mutations go through `runDomainAction` / `runBoundAction`. Owner identity is request-scoped (cookies/headers), not a process-wide port. Human UI and WatchBot share `createActionExecutor`. No second web store. No WebMCP tools, no production infra.
+Status: **Phase 2 Platform Auth** on `main` (`e1959e4`), plus isolated WebMCP `registerTool` on the same executor. Canvas mutations go through `runDomainAction` / `runBoundAction`. Owner identity is request-scoped (cookies/headers), not a process-wide port. Human UI, WatchBot, and WebMCP share `createActionExecutor` and `getDomainStore()`. No second web store. No production infra.
 
 ## Monorepo
 
@@ -50,7 +50,7 @@ Locked rules:
 - Zoom / `updateCanvasViewport` is **camera-only**. No semantic zoom.
 - WatchBot status: **`running` \| `paused` \| `error`** only.
 
-WebMCP later registers the same names via `document.modelContext.registerTool({ name, description, inputSchema, execute })`.
+WebMCP registers the Issue #1 snake_case map via `document.modelContext.registerTool({ name, description, inputSchema, execute })`. `execute` is `runWebMcpTool` → `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })`. `createActionExecutor` runs inside that path. ownerId is never taken from tool arguments.
 
 ## Shared executor
 
@@ -89,4 +89,4 @@ Event taxonomy: [`docs/ANALYTICS.md`](./docs/ANALYTICS.md). No secrets, instruct
 
 ## Non-goals (this phase)
 
-No X/YouTube discovery, WebMCP `registerTool`, billing/Stripe, production Supabase, Railway services, or deploy. Do not modify `OmarKaranib/OpenBento`. Do not apply migrations to any hosted database. The Canvas UI must not reimplement `InMemoryDomainStore`. Domain must not import Grok/xAI.
+No X/YouTube discovery, billing/Stripe, production Supabase, Railway services, or deploy. Isolated WebMCP `registerTool` is on this branch. Do not modify `OmarKaranib/OpenBento`. Do not apply migrations to any hosted database. The Canvas UI must not reimplement `InMemoryDomainStore`. WebMCP must not mint a second session owner. Domain must not import Grok/xAI.

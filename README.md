@@ -8,7 +8,7 @@ This is **Phase 2 Platform Auth** on `bot/platform-auth`, rebased onto WatchBot 
 
 `apps/web` mounts a Railway-inspired workspace: left rail, top Canvas switcher, Agent placeholder, and an XYFlow dotted canvas. Humans can create, switch, and rename Canvases; add Note Cards from the top **Note** control or by double-clicking empty canvas (world coordinates, then `setCardFrame` from geometry); move and resize Notes and Frames; and fullscreen a Frame without rewriting stored geometry.
 
-WatchBot writes sourced Cards through the same `createActionExecutor`. Canvas mutations go through `runBoundAction` / `runDomainAction` with request-scoped `ownerId` (`requireOwnerIdFromRequest`). Persistence is the in-memory `DomainStore` (process-shared). No WebMCP tools or production deploy.
+WatchBot writes sourced Cards through the same `createActionExecutor`. Canvas mutations go through `runBoundAction` / `runDomainAction` with request-scoped `ownerId` (`requireOwnerIdFromRequest`). Persistence is the in-memory `DomainStore` (process-shared). Isolated Phase 2 WebMCP registers the Issue #1 tools on that same executor. No production deploy.
 
 Legacy [`OmarKaranib/OpenBento`](https://github.com/OmarKaranib/OpenBento) is frozen reference.
 
@@ -34,7 +34,7 @@ Maintained under [`docs/`](./docs/). Copies also live at the repo root.
 ## Monorepo
 
 ```
-apps/web                 Next.js 16 Railway-inspired workspace (CanvasRoot)
+apps/web                 Next.js 16 Railway-inspired workspace (CanvasRoot) + WebMCP host
 apps/worker              WatchBot worker (fixture cycle)
 packages/domain          20-action catalog + shared executor + store port
 packages/watchbot        SourceProvider + pipeline; optional Grok adapter
@@ -61,6 +61,17 @@ Local workspace (in-memory store, no hosted backend):
 ```bash
 pnpm dev
 ```
+
+## WebMCP (isolated Phase 2)
+
+13 tools from `WEBMCP_TOOL_TO_ACTION`. Each `registerTool` execute calls `runWebMcpTool` → `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })` → `createActionExecutor`. Tools share the Canvas store. No demo tools. Unset session fails closed (`unauthenticated`).
+
+```bash
+pnpm --filter web dev   # canvas at / registers tools; judge notes at /webmcp
+pnpm test               # request-scoped eval (requestAuthFromOwnerCookie in tests)
+```
+
+See [WEBMCP_SPEC.md](./WEBMCP_SPEC.md).
 
 ## License
 

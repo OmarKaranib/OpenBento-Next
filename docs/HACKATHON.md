@@ -18,6 +18,6 @@ OpenBento is an existing concept **meaningfully rebuilt** with WebMCP during the
 
 WebMCP Leverage, Execution, Potential Impact, Creativity & Ambition.
 
-## Not done this phase
+## Phase 2 WebMCP (this isolated PR)
 
-No live deploy, no registered tools, no demo video. Do not paywall the judge preview later.
+Tools are registered (13 snake_case wrappers). Eval: `pnpm test` and `/webmcp`. No live deploy and no demo video in this PR. Do not paywall the judge preview later.
