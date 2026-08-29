@@ -91,6 +91,39 @@ describe("SupabaseDomainStore SQL-contract double", () => {
     expect(state.cards[0]?.frameId ?? null).toBeNull();
   });
 
+  it("stores watch_bot_events.published_at as null when publishedAt is empty", async () => {
+    const { tables, storeA, a } = pair();
+    const canvas = await a.createCanvas({ name: "Undated" });
+    const bot = await a.createWatchBot({
+      canvasId: canvas.id,
+      instruction: "Watch",
+    });
+    const card = await a.createCard({
+      canvasId: canvas.id,
+      type: "news",
+      payload: { provenance: { ...provenance, publishedAt: "" } },
+    });
+    await storeA.saveWatchBotEvent({
+      id: "event-undated",
+      watchBotId: bot.id,
+      canvasId: canvas.id,
+      kind: "card_created",
+      sourceUrl: provenance.sourceUrl,
+      dedupKey: "news:https://news.example.com/story",
+      discoveredAt: STAMP,
+      publishedAt: "",
+      cardId: card.id,
+    });
+    const row = tables.watchBotEvents.get("event-undated");
+    expect(row?.published_at).toBeNull();
+    expect(row?.published_at).not.toBe("");
+    const stored = await storeA.getCard(card.id);
+    expect(stored?.type).toBe("news");
+    if (stored && "provenance" in stored.payload) {
+      expect(stored.payload.provenance.publishedAt).toBe("");
+    }
+  });
+
   it("enforces unique (watch_bot_id, dedup_key) after create", async () => {
     const { storeA, a } = pair();
     const canvas = await a.createCanvas({ name: "Watch" });

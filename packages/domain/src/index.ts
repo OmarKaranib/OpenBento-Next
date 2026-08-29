@@ -96,6 +96,7 @@ export {
   cardToRecord,
   frameFromRecord,
   frameToRecord,
+  publishedAtToTimestamptz,
   watchBotEventFromRecord,
   watchBotEventToRecord,
   watchBotFromRecord,

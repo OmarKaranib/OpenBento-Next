@@ -1,8 +1,9 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { InMemoryDomainStore } from "./store";
 import { SupabaseDomainStore } from "./supabase-store";
 import {
   createSupabaseDomainStore,
+  createWorkerDomainStore,
   getDomainStore,
   resetDomainStore,
   setDomainSqlAdapterForTests,
@@ -11,13 +12,23 @@ import {
 import { createSqlContractAdapter } from "./sql-adapter";
 import { SharedSqlTables } from "./sql-contract";
 
-afterEach(() => {
-  resetDomainStore();
-  setDomainSqlAdapterForTests(undefined);
+function clearPersistEnv(): void {
   delete process.env.NEXT_PUBLIC_SUPABASE_URL;
   delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+}
+
+beforeEach(() => {
+  resetDomainStore();
+  setDomainSqlAdapterForTests(undefined);
+  clearPersistEnv();
+});
+
+afterEach(() => {
+  resetDomainStore();
+  setDomainSqlAdapterForTests(undefined);
+  clearPersistEnv();
 });
 
 describe("getDomainStore", () => {
@@ -33,6 +44,21 @@ describe("getDomainStore", () => {
     const store = getDomainStore();
     expect(store).toBeInstanceOf(SupabaseDomainStore);
     expect(store).toBe(getDomainStore());
+  });
+
+  it("createWorkerDomainStore throws instead of falling back to InMemory", () => {
+    expect(() => createWorkerDomainStore()).toThrow(
+      /No in-memory runtime fallback|SUPABASE_SERVICE_ROLE_KEY|Supabase env is required/i,
+    );
+    process.env.NEXT_PUBLIC_SUPABASE_URL = "https://example.supabase.co";
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY =
+      "sb_publishable_placeholder";
+    expect(() => createWorkerDomainStore()).toThrow(
+      /SUPABASE_SERVICE_ROLE_KEY/,
+    );
+    process.env.SUPABASE_SERVICE_ROLE_KEY = "sb_service_role_placeholder";
+    expect(createWorkerDomainStore()).toBeInstanceOf(SupabaseDomainStore);
+    expect(createWorkerDomainStore()).not.toBeInstanceOf(InMemoryDomainStore);
   });
 
   it("createSupabaseDomainStore is the runtime constructor", () => {

@@ -97,13 +97,17 @@ export function canonicalizeUrl(raw: string): string | null {
   }
 }
 
-export function parsePublishedAt(value: unknown, fallback: string): string {
+/**
+ * Persist a real publication time only. Empty string when unknown or unparseable.
+ * Never mint `now` / `discoveredAt` / `new Date().toISOString()`.
+ */
+export function parsePublishedAt(value: unknown): string {
   if (typeof value !== "string" || value.trim().length === 0) {
-    return fallback;
+    return "";
   }
   const timestamp = Date.parse(value);
   if (Number.isNaN(timestamp)) {
-    return fallback;
+    return "";
   }
   return new Date(timestamp).toISOString();
 }
@@ -134,7 +138,7 @@ export function normalizeDiscoveredItem(
     sourceUrl: canonicalUrl,
     canonicalUrl,
     title,
-    publishedAt: parsePublishedAt(item.publishedAt, discoveredAt),
+    publishedAt: parsePublishedAt(item.publishedAt),
     sourceType: item.sourceType,
     snippet: sanitizeUntrustedText(item.rawExcerpt ?? "", 800),
     discoveredAt,

@@ -12,6 +12,7 @@ export {
   isBlockedWatchBotV0Url,
   isWatchBotV0SourceType,
   normalizeDiscoveredItem,
+  parsePublishedAt,
   sourceTypeToCardType,
   type NormalizedItem,
   type WatchBotV0SourceType,
