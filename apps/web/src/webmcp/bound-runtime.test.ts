@@ -130,14 +130,13 @@ describe("WebMCP binds to runBoundAction + requireSessionOwnerId", () => {
     });
     expect(view.active).toBe(true);
 
-    await expect(
-      runtime.invoke("create_card", {
-        canvasId: canvas.id,
-        type: "note",
-        payload: { text: "no fold-in" },
-        frameId: frame.id,
-      }),
-    ).rejects.toMatchObject({ code: "invalid_input" });
+    const ignoredMembership = await runtime.invoke("create_card", {
+      canvasId: canvas.id,
+      type: "note",
+      payload: { text: "no fold-in" },
+      frameId: frame.id,
+    });
+    expect(ignoredMembership.frameId).toBeNull();
 
     await expect(
       runtime.invoke("create_watchbot", { canvasId: canvas.id }),
