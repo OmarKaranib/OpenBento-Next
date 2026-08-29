@@ -25,7 +25,7 @@ export function YoutubeCardNode({ data, selected }: NodeProps<YoutubeNode>) {
   const { snapshot } = useWorkspace();
   const card = snapshot.cards.find((entry) => entry.id === data.cardId);
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const [inView, setInView] = useState(false);
+  const [inView, setInView] = useState(true);
   const [wantsPlay, setWantsPlay] = useState(false);
   const [liveIds, setLiveIds] = useState<readonly string[]>([]);
 
@@ -107,6 +107,7 @@ export function YoutubeCardNode({ data, selected }: NodeProps<YoutubeNode>) {
                 className="nodrag nopan flex h-full w-full flex-col items-center justify-center gap-2 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
                 onClick={() => {
                   if (embedSrc) {
+                    setInView(true);
                     setWantsPlay(true);
                   }
                 }}
