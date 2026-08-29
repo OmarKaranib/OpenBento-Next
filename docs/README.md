@@ -53,7 +53,8 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm --filter web build
-pnpm --filter worker start
+pnpm --filter worker start          # durable createWorkerDomainStore (needs service role)
+pnpm --filter worker start:fixture  # isolated InMemory only
 ```
 
 Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL` plus the publishable/anon key. Never commit secrets.
