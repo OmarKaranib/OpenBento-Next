@@ -24,6 +24,14 @@ export function resolveCardFrameMembership(
   return selectSmallestContainingFrame(cardBounds, frames);
 }
 
+/**
+ * Re-derive Frame membership for every Card on the canvas.
+ *
+ * After Frame move/resize/create, pass ALL current-canvas cards — not only
+ * non-members. Cards now outside get `frameId: null`; newly contained cards
+ * get the smallest containing Frame. The UI must apply each result with
+ * `setCardFrame` (executor asserts same-canvas).
+ */
 export function membershipCallsForCards(
   cards: ReadonlyArray<Card>,
   frames: ReadonlyArray<Frame>,

@@ -66,31 +66,15 @@ export function useCanvasCommands() {
       if (dx === 0 && dy === 0) {
         return;
       }
-      const calls: CatalogCall[] = [
-        { name: "moveFrame", input: { frameId: frame.id, position } },
-      ];
-      const movedMembers: Card[] = [];
-      for (const card of snapshot.cards) {
-        if (card.frameId !== frame.id) {
-          continue;
-        }
-        const nextPosition = {
-          x: card.position.x + dx,
-          y: card.position.y + dy,
-        };
-        movedMembers.push({ ...card, position: nextPosition });
-        calls.push({
-          name: "moveCard",
-          input: { cardId: card.id, position: nextPosition },
-        });
-      }
       const nextFrames = withFrameBounds(snapshot.frames, frame.id, {
         ...frame.bounds,
         x: position.x,
         y: position.y,
       });
-      const others = snapshot.cards.filter((card) => card.frameId !== frame.id);
-      for (const change of membershipCallsForCards(others, nextFrames)) {
+      const calls: CatalogCall[] = [
+        { name: "moveFrame", input: { frameId: frame.id, position } },
+      ];
+      for (const change of membershipCallsForCards(snapshot.cards, nextFrames)) {
         calls.push({ name: "setCardFrame", input: change });
       }
       void commit(calls);

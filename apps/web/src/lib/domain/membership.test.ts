@@ -112,6 +112,65 @@ describe("Frame membership helper usage", () => {
     expect(cleared.frameId).toBeNull();
   });
 
+  it("clears membership when a Frame is moved off a member Card", async () => {
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "local-session" });
+    const canvas = await executor.createCanvas({ name: "Board" });
+    const createdFrame = await executor.createFrame({
+      canvasId: canvas.id,
+      bounds: { x: 0, y: 0, width: 200, height: 200 },
+      name: "Main",
+    });
+    const member = await executor.createCard(
+      buildCreateNoteCardInput({
+        canvasId: canvas.id,
+        position: { x: 20, y: 20 },
+        size: { width: 40, height: 40 },
+        text: "Stay put",
+      }),
+    );
+    const outsider = await executor.createCard(
+      buildCreateNoteCardInput({
+        canvasId: canvas.id,
+        position: { x: 400, y: 400 },
+        size: { width: 40, height: 40 },
+        text: "Join later",
+      }),
+    );
+    await executor.setCardFrame({ cardId: member.id, frameId: createdFrame.id });
+
+    const moved = await executor.moveFrame({
+      frameId: createdFrame.id,
+      position: { x: 380, y: 380 },
+    });
+    const state = await executor.getCanvasState({ canvasId: canvas.id });
+    const nextFrames = state.frames.map((entry) =>
+      entry.id === moved.id ? moved : entry,
+    );
+    const changes = membershipCallsForCards(state.cards, nextFrames);
+
+    expect(changes).toEqual(
+      expect.arrayContaining([
+        { cardId: member.id, frameId: null },
+        { cardId: outsider.id, frameId: createdFrame.id },
+      ]),
+    );
+    expect(changes).toHaveLength(2);
+
+    for (const change of changes) {
+      await executor.setCardFrame(change);
+    }
+    const after = await executor.getCanvasState({ canvasId: canvas.id });
+    expect(after.cards.find((entry) => entry.id === member.id)?.frameId ?? null).toBeNull();
+    expect(after.cards.find((entry) => entry.id === outsider.id)?.frameId).toBe(
+      createdFrame.id,
+    );
+    expect(after.cards.find((entry) => entry.id === member.id)?.position).toEqual({
+      x: 20,
+      y: 20,
+    });
+  });
+
   it("rejects setCardFrame across canvases in the shared executor", async () => {
     const store = new InMemoryDomainStore();
     const executor = createActionExecutor({ store, ownerId: "local-session" });
