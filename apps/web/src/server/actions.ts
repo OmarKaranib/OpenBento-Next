@@ -25,23 +25,66 @@ import type {
   UpdateFrameInput,
   UpdateWatchBotInput,
 } from "@openbento/domain";
-import { runBoundAction } from "./run-action";
-import { requireSessionOwnerId } from "./session";
-import { getDomainStore } from "./store";
+import { cookies, headers } from "next/headers";
+import { rewindIdsForOwner } from "./ids";
+import { runDomainActionFromRequest } from "./run-action";
+import {
+  LOCAL_DEV_SESSION_COOKIE,
+  localDevSessionCookieOptions,
+  mintLocalDevOwnerId,
+  requireOwnerIdFromRequest,
+  type RequestAuthContext,
+} from "./session";
+import { resetDomainStore } from "./store";
+
+async function requestAuthFromIncoming(): Promise<RequestAuthContext> {
+  return {
+    cookies: await cookies(),
+    headers: await headers(),
+  };
+}
 
 /**
  * Thin Next.js wrappers around the shared ACTION_CATALOG executor.
- * Session user is resolved here. ownerId is never taken from the client input.
+ * Session user is resolved from this request only. ownerId is never taken
+ * from the client input.
  */
 export async function runDomainAction<K extends ActionName>(
   name: K,
   input: ActionInputMap[K],
 ): Promise<ActionResultMap[K]> {
-  return runBoundAction(
-    { getOwnerId: requireSessionOwnerId, store: getDomainStore() },
+  return runDomainActionFromRequest(
+    await requestAuthFromIncoming(),
     name,
     input,
   );
+}
+
+/**
+ * Mint a local/dev httpOnly session cookie when missing.
+ * Does not accept a client-chosen owner id.
+ */
+export async function ensureLocalDevSession(): Promise<void> {
+  const cookieStore = await cookies();
+  const existing = cookieStore.get(LOCAL_DEV_SESSION_COOKIE)?.value;
+  if (!existing) {
+    cookieStore.set(
+      LOCAL_DEV_SESSION_COOKIE,
+      mintLocalDevOwnerId(),
+      localDevSessionCookieOptions(),
+    );
+  }
+}
+
+/**
+ * Local/dev undo rebuild: drop the in-memory store and rewind this owner's
+ * id sequence so replay through `runDomainAction` keeps stable identities.
+ * Requires a session. Not a catalog action. Not a hosted database reset.
+ */
+export async function resetLocalWorkspace(): Promise<void> {
+  const ownerId = requireOwnerIdFromRequest(await requestAuthFromIncoming());
+  resetDomainStore();
+  rewindIdsForOwner(ownerId);
 }
 
 export async function createCanvas(input: CreateCanvasInput) {

@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "OpenBento",
   description:
-    "OpenBento — AI-native live intelligence canvas. Phase 1 workspace.",
+    "OpenBento — AI-native live intelligence canvas.",
 };
 
 export default function RootLayout({

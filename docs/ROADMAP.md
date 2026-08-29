@@ -86,6 +86,19 @@ Omar assigned. PR #2. Do not merge until owner validation.
 
 ---
 
+## Phase 2 — Platform Auth
+
+**Platform Engineer** — branch `bot/platform-auth`. Do not merge without Bento Lead / owner review.
+
+- [x] Canvas mutations through `runBoundAction` / `runDomainAction` (no browser executor with a baked-in owner)
+- [x] Per-request identity from cookies/headers (no `configureAuthSession` process singleton)
+- [x] Local/dev httpOnly session minted server-side (no hosted Supabase project)
+- [x] Reject client-supplied `ownerId` on the UI/server path; unauthenticated requests fail
+- [ ] Hosted Supabase Auth `getUser()` adapter (later; SQL still unapplied)
+- [ ] Local Supabase `DomainStore` adapter (later)
+
+---
+
 ## Later phases (master context §17)
 
 2. Source Cards · 3. Platform hardening (RLS) · **4. WatchBot v0 first slice (this PR: web/news worker + shared-action pipeline)** · 5. WatchBot management · 6. Agent + WebMCP · 7. Hackathon polish · 8. Commercialization after challenge

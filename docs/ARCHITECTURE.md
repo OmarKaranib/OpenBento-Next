@@ -2,7 +2,7 @@
 
 Canonical product context: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.md).
 
-Status: **Phase 4 WatchBot v0 first slice** on `bot/watchbot` (web/news only). Human UI and WatchBot share `createActionExecutor`. No second store. No WebMCP tools, no production infra.
+Status: **Phase 2 Platform Auth** on `bot/platform-auth`, rebased onto WatchBot v0 (`9ca3d69`). Canvas mutations go through `runDomainAction` / `runBoundAction`. Owner identity is request-scoped (cookies/headers), not a process-wide port. Human UI and WatchBot share `createActionExecutor`. No second web store. No WebMCP tools, no production infra.
 
 ## Monorepo
 
@@ -54,7 +54,7 @@ WebMCP later registers the same names via `document.modelContext.registerTool({ 
 
 ## Shared executor
 
-`createActionExecutor({ store, ownerId })` implements every `ACTION_CATALOG` name. `ownerId` is session-derived. Persistence is injected (`InMemoryDomainStore` for tests; later local Supabase can implement `DomainStore`). Next.js wrappers in `apps/web/src/server` pass the session user only. The Canvas workspace calls this same executor — it must not add a second store in `apps/web`.
+`createActionExecutor({ store, ownerId })` implements every `ACTION_CATALOG` name. `ownerId` is resolved **per request** from session cookies/headers (`requireOwnerIdFromRequest`) and bound by `runBoundAction` / `runDomainAction`. There is no process-wide `configureAuthSession` owner. Persistence is injected (`InMemoryDomainStore` for local/dev; later local Supabase can implement `DomainStore`). The Canvas `WorkspaceSession` is a UI facade that calls those server wrappers — it must not construct an executor with a baked-in owner id and must not add a second store in `apps/web`.
 
 ## Data ownership (local/dev SQL)
 

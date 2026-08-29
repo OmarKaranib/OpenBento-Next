@@ -1,32 +1,24 @@
 /**
- * UI session around Platform's shared executor.
+ * UI session facade around Platform's server catalog path.
  *
- * Import path (PR #4 / bot/platform):
- *   createActionExecutor, InMemoryDomainStore ← `@openbento/domain`
- *   packages/domain/src/executor.ts
- *   packages/domain/src/store.ts
+ * Mutations go through `apps/web/src/server` `runDomainAction` /
+ * `runBoundAction`. This module is a projection + undo log only — it does
+ * not own persistence and does not stamp identity.
  *
- * Do not reimplement InMemoryDomainStore or a parallel action catalog here.
  * Membership writes go through `setCardFrame` only.
  */
 
-import {
-  createActionExecutor,
-  InMemoryDomainStore,
-  type ActionInputMap,
-  type ActionName,
-  type ActionResultMap,
-  type Canvas,
-  type Card,
-  type DomainStore,
-  type Frame,
-  type FrameFullscreenView,
-  type WatchBot,
+import type {
+  ActionInputMap,
+  ActionName,
+  ActionResultMap,
+  Canvas,
+  Card,
+  Frame,
+  FrameFullscreenView,
+  WatchBot,
 } from "@openbento/domain";
 import type { CatalogCall } from "./inputs";
-
-/** Temporary until Platform session auth. Never sent on action inputs. */
-export const LOCAL_SESSION_OWNER_ID = "local-session";
 
 const MUTATING = new Set<ActionName>([
   "createCanvas",
@@ -82,35 +74,26 @@ export type ExecuteOptions = {
   history?: boolean;
 };
 
-class IdSequence {
-  private values: string[] = [];
-  private index = 0;
+export type RunDomainAction = <K extends ActionName>(
+  name: K,
+  input: ActionInputMap[K],
+) => Promise<ActionResultMap[K]>;
 
-  next = (): string => {
-    const existing = this.values[this.index];
-    if (existing !== undefined) {
-      this.index += 1;
-      return existing;
-    }
-    const id = crypto.randomUUID();
-    this.values.push(id);
-    this.index += 1;
-    return id;
-  };
-
-  rewind(): void {
-    this.index = 0;
-  }
-}
+export type WorkspaceSessionOptions = {
+  runAction: RunDomainAction;
+  resetStore: () => void | Promise<void>;
+  prepare?: () => void | Promise<void>;
+  seedDefaultCanvas?: boolean;
+};
 
 function isMutating(name: ActionName): boolean {
   return MUTATING.has(name);
 }
 
 export class WorkspaceSession {
-  private ids = new IdSequence();
-  private store: DomainStore;
-  private executor: ReturnType<typeof createActionExecutor>;
+  private readonly runAction: RunDomainAction;
+  private readonly resetStore: () => void | Promise<void>;
+  private readonly options: WorkspaceSessionOptions;
   private canvases = new Map<string, Canvas>();
   private currentCanvasId: string | null = null;
   private cards: Card[] = [];
@@ -123,23 +106,46 @@ export class WorkspaceSession {
   private listeners = new Set<() => void>();
   private snapshot: SessionSnapshot;
   private revision = 0;
+  private bootPromise: Promise<void> | null = null;
   readonly ready: Promise<void>;
+  private readonly resolveReady: () => void;
 
-  constructor(options?: { seedDefaultCanvas?: boolean; store?: DomainStore }) {
-    this.store = options?.store ?? new InMemoryDomainStore();
-    this.executor = createActionExecutor({
-      store: this.store,
-      ownerId: LOCAL_SESSION_OWNER_ID,
-      id: this.ids.next,
-    });
+  constructor(options: WorkspaceSessionOptions) {
+    this.runAction = options.runAction;
+    this.resetStore = options.resetStore;
+    this.options = options;
     this.snapshot = this.buildSnapshot();
-    this.ready =
-      options?.seedDefaultCanvas === false
-        ? Promise.resolve()
-        : this.commit(
-            [{ name: "createCanvas", input: { name: "Untitled" } }],
-            { history: false },
-          ).then(() => undefined);
+    let resolveReady = (): void => undefined;
+    this.ready = new Promise<void>((resolve) => {
+      resolveReady = resolve;
+    });
+    this.resolveReady = resolveReady;
+    if (options.seedDefaultCanvas === false && !options.prepare) {
+      this.resolveReady();
+    }
+  }
+
+  /**
+   * Start session I/O after mount. Must not run during SSR/prerender —
+   * Next.js forbids calling server functions in the initial render.
+   */
+  start(): Promise<void> {
+    if (!this.bootPromise) {
+      this.bootPromise = this.boot().finally(() => this.resolveReady());
+    }
+    return this.bootPromise;
+  }
+
+  private async boot(): Promise<void> {
+    if (this.options.prepare) {
+      await this.options.prepare();
+    }
+    if (this.options.seedDefaultCanvas === false) {
+      return;
+    }
+    await this.commit([{ name: "createCanvas", input: { name: "Untitled" } }], {
+      history: false,
+    });
   }
 
   subscribe = (listener: () => void): (() => void) => {
@@ -215,7 +221,7 @@ export class WorkspaceSession {
   }
 
   private async apply(call: CatalogCall): Promise<unknown> {
-    const result = await this.executor.execute(call.name, call.input);
+    const result = await this.runAction(call.name, call.input);
     this.project(call.name, result);
     return result;
   }
@@ -248,7 +254,7 @@ export class WorkspaceSession {
       this.watchBots = [];
       return;
     }
-    const state = await this.executor.execute("getCanvasState", {
+    const state = await this.runAction("getCanvasState", {
       canvasId: this.currentCanvasId,
     });
     this.canvases.set(state.canvas.id, state.canvas);
@@ -258,13 +264,7 @@ export class WorkspaceSession {
   }
 
   private async rebuild(): Promise<void> {
-    this.ids.rewind();
-    this.store = new InMemoryDomainStore();
-    this.executor = createActionExecutor({
-      store: this.store,
-      ownerId: LOCAL_SESSION_OWNER_ID,
-      id: this.ids.next,
-    });
+    await this.resetStore();
     this.canvases.clear();
     this.currentCanvasId = null;
     this.cards = [];

@@ -46,7 +46,7 @@ export function SidePanels() {
             {railPanel === "settings" ? (
               <PlaceholderCopy
                 title="Settings"
-                body="Account and product settings will land with Platform auth. Catalog writes already go through createActionExecutor."
+                body="Account and product settings expand later. Canvas writes go through server runDomainAction; owner identity comes from the request session, never from action JSON."
               />
             ) : null}
           </div>
