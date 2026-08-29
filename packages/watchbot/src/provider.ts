@@ -1,18 +1,15 @@
-import type { FirstSliceSourceType } from "@openbento/domain";
+import type { WatchBotSourceType } from "@openbento/domain";
 
 /**
  * Provider-agnostic discovery port.
- *
- * First adapter (planned): xAI / Grok. It must not be imported by
- * `@openbento/domain`. Domain stays vendor-free.
- *
- * First slice: web + news only. YouTube and X are later.
+ * First adapter (planned): xAI / Grok. Not imported by `@openbento/domain`.
+ * Initial sources (master context): web/news, then X, then YouTube.
  */
 export interface DiscoveredItem {
   sourceUrl: string;
   title: string;
   publishedAt: string;
-  sourceType: FirstSliceSourceType;
+  sourceType: WatchBotSourceType;
   rawExcerpt?: string;
 }
 
@@ -22,6 +19,7 @@ export interface SourceProvider {
   discover(input: {
     canvasId: string;
     watchBotId: string;
-    sourceTypes: FirstSliceSourceType[];
+    instruction: string;
+    sourceTypes: WatchBotSourceType[];
   }): Promise<DiscoveredItem[]>;
 }

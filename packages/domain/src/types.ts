@@ -1,53 +1,155 @@
 /**
  * Shared domain types for Canvas, Card, Frame, and WatchBot.
- * Scaffold only — no runtime behavior.
+ * Types and catalog only — no persistence handlers.
  */
 
-/** First WatchBot Engineer slice. YouTube and X are later, after web is honest. */
-export const FIRST_SLICE_SOURCE_TYPES = ["web", "news"] as const;
-export type FirstSliceSourceType = (typeof FIRST_SLICE_SOURCE_TYPES)[number];
+export type Actor = "human" | "watchbot" | "webmcp";
 
-export const SOURCE_TYPES = ["web", "news", "youtube", "x"] as const;
+/** Server-derived identity. Never accepted on action inputs. */
+export type OwnerId = string;
+
+export const CARD_TYPES = [
+  "note",
+  "article",
+  "web",
+  "news",
+  "youtube",
+  "x",
+  "reddit",
+  "instagram",
+  "ai_summary",
+  "watchbot_status",
+  "timeline",
+  "chart",
+] as const;
+export type CardType = (typeof CARD_TYPES)[number];
+
+/** Externally discovered source Cards. Notes are not in this set. */
+export const SOURCE_CARD_TYPES = [
+  "article",
+  "web",
+  "news",
+  "youtube",
+  "x",
+  "reddit",
+  "instagram",
+] as const;
+export type SourceCardType = (typeof SOURCE_CARD_TYPES)[number];
+
+export const SOURCE_TYPES = [
+  "web",
+  "news",
+  "youtube",
+  "x",
+  "reddit",
+  "instagram",
+] as const;
 export type SourceType = (typeof SOURCE_TYPES)[number];
 
-/**
- * Provenance is REQUIRED on createCard and updateCard.
- * Field names in application types are camelCase; the local schema sketch
- * uses snake_case (`source_url`, `published_at`, `source_type`).
- */
-export interface CardProvenance {
-  /** Source URL (schema: `source_url`). */
-  sourceUrl: string;
-  title: string;
-  /** ISO-8601 publish time (schema: `published_at`). */
-  publishedAt: string;
-  /** schema: `source_type`. First slice: `web` | `news`. */
-  sourceType: SourceType;
+/** Planned WatchBot source set from the master context. Implementation is later. */
+export const WATCHBOT_SOURCE_TYPES = ["web", "news", "youtube", "x"] as const;
+export type WatchBotSourceType = (typeof WATCHBOT_SOURCE_TYPES)[number];
+
+export interface Rect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
 }
 
-export type WatchBotStatus =
-  | "idle"
-  | "watching"
-  | "acting"
-  | "paused"
-  | "error";
+export interface Point {
+  x: number;
+  y: number;
+}
+
+export interface Size {
+  width: number;
+  height: number;
+}
+
+export interface Viewport {
+  x: number;
+  y: number;
+  zoom: number;
+}
+
+/**
+ * Provenance for externally discovered source Cards only.
+ * Notes must not invent a fake source URL.
+ */
+export interface CardProvenance {
+  sourceUrl: string;
+  title: string;
+  publishedAt: string;
+  sourceType: SourceType;
+  author?: string;
+  externalId?: string;
+  discoveredAt?: string;
+  watchBotId?: string;
+}
+
+/** Locked WatchBot lifecycle. */
+export const WATCHBOT_STATUSES = ["running", "paused", "error"] as const;
+export type WatchBotStatus = (typeof WATCHBOT_STATUSES)[number];
+
+export interface Canvas {
+  id: string;
+  /** Present on the record; never on action inputs. */
+  ownerId: OwnerId;
+  name: string;
+  viewport: Viewport;
+  createdAt: string;
+  updatedAt: string;
+  lastOpenedAt?: string;
+}
+
+export interface Card {
+  id: string;
+  canvasId: string;
+  type: CardType;
+  /**
+   * Frame membership. Written via `setCardFrame` after spatial containment.
+   * Overlapping Frames: smallest containing Frame wins.
+   */
+  frameId?: string | null;
+  title?: string;
+  body?: string;
+  position: Point;
+  size: Size;
+  zIndex?: number;
+  /** Required for source Card types; omitted on notes. */
+  provenance?: CardProvenance;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Frame {
+  id: string;
+  canvasId: string;
+  name?: string;
+  /** Stored world geometry. fullscreenFrame must not rewrite this. */
+  bounds: Rect;
+  zIndex?: number;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface WatchBot {
   id: string;
+  /** Present on the record; never on action inputs. */
+  ownerId: OwnerId;
   canvasId: string;
+  name?: string;
+  instruction: string;
   status: WatchBotStatus;
-  /** First slice: `web` and/or `news` only. */
-  sourceTypes: FirstSliceSourceType[];
-  label?: string;
+  sourceTypes: WatchBotSourceType[];
+  lastError?: string;
+  lastActivityAt?: string;
+  nextRunAt?: string;
   createdAt: string;
   updatedAt: string;
-  lastError?: string;
 }
 
-/**
- * Discovery / pipeline event used for **dedup** and **novelty**.
- * One row per observed item (or pipeline decision) for a WatchBot.
- */
 export type WatchBotEventKind =
   | "discovered"
   | "normalized"
@@ -62,14 +164,8 @@ export interface WatchBotEvent {
   watchBotId: string;
   canvasId: string;
   kind: WatchBotEventKind;
-  /** Canonical URL used for identity + dedup. */
   sourceUrl: string;
-  /**
-   * Stable fingerprint for dedup (normalized URL ± title ± published_at,
-   * or a content hash). Unique per WatchBot in the proposed sketch.
-   */
   dedupKey: string;
-  /** Optional novelty signal vs prior discoveries for this WatchBot/canvas. */
   noveltyScore?: number;
   discoveredAt: string;
   title?: string;
@@ -79,46 +175,27 @@ export interface WatchBotEvent {
   detail?: string;
 }
 
-export interface Canvas {
-  id: string;
-  name: string;
-  createdAt: string;
-  updatedAt: string;
+export interface CanvasState {
+  canvas: Canvas;
+  cards: Card[];
+  frames: Frame[];
+  watchBots: WatchBot[];
 }
 
-export interface Card {
-  id: string;
+export interface WatchBotStatusView {
+  watchBotId: string;
   canvasId: string;
-  /**
-   * Frame membership. Written only via `setCardFrame` after spatial
-   * containment is derived. Not a UI-invented field.
-   */
-  frameId?: string | null;
-  provenance: CardProvenance;
-  body?: string;
-  position?: { x: number; y: number };
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Frame {
-  id: string;
-  canvasId: string;
-  label?: string;
-  /**
-   * Stored world geometry. Fullscreen is view-only presentation and must
-   * not rewrite these bounds or any Card position.
-   */
-  bounds: { x: number; y: number; width: number; height: number };
+  status: WatchBotStatus;
+  lastActivityAt?: string;
+  lastError?: string;
 }
 
 /**
- * Ephemeral UI presentation. Not a domain action and not persisted.
- * Entering/exiting fullscreen must not rewrite Frame.bounds or Card geometry.
+ * View-only fullscreen presentation. Not persisted.
+ * Must not rewrite Frame.bounds or Card geometry.
  */
 export interface FrameFullscreenView {
   frameId: string;
+  canvasId: string;
   active: boolean;
 }
-
-export type Actor = "human" | "watchbot" | "webmcp";

@@ -5,7 +5,7 @@ export default function Home() {
         OpenBento-Next
       </p>
       <h1 className="max-w-xl text-3xl font-semibold tracking-tight text-zinc-50">
-        OpenBento Next (rebuild scaffold)
+        OpenBento Next (Phase 0 foundation)
       </h1>
       <p className="max-w-xl text-base leading-7 text-zinc-400">
         AI-native live intelligence canvas. Canvas, Card, Frame, WatchBot.

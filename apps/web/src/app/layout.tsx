@@ -13,9 +13,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OpenBento Next (rebuild scaffold)",
+  title: "OpenBento Next (Phase 0 foundation)",
   description:
-    "Scaffold for the OpenBento-Next rebuild — Canvas, Card, Frame, WatchBot.",
+    "OpenBento-Next Phase 0 foundation — Canvas, Card, Frame, WatchBot.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

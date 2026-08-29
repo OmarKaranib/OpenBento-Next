@@ -9,8 +9,7 @@ export interface WatchBotRuntimeBinding {
 }
 
 /**
- * Planned pipeline stages. Implementation belongs in `apps/worker` after
- * the scaffold merges — not here.
+ * Planned pipeline stages. Implementation belongs in `apps/worker` later.
  */
 export const WATCHBOT_PIPELINE_STAGES = [
   "discover",

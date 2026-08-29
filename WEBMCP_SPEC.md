@@ -1,30 +1,12 @@
 # WEBMCP_SPEC — OpenBento-Next
 
-Status: **scaffold**. Challenge alignment and intended tool surface. **Do not implement tools yet.**
+Canonical: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.md) §13.
 
-## Challenge alignment
+Status: **Phase 0**. Specify the tool surface. Do not register tools yet.
 
-This repo is the **submission codebase** for the [WebMCP Challenge](https://webmcp.devpost.com/rules).
+This repo is the WebMCP Challenge submission codebase. Deadline: **3 September 2026, 1:00pm PDT**.
 
-| Requirement | This repo |
-| --- | --- |
-| Public repository | `OmarKaranib/OpenBento-Next` |
-| Detectable open-source license | MIT `LICENSE` at repo root (GitHub About) |
-| Working live URL | **Later.** No deploy this phase. |
-| Demo video &lt; 3 minutes | **Later.** |
-| Tools via `document.modelContext.registerTool` | Specified; not registered yet |
-
-Deadline: **September 3, 2026, 1:00pm PDT**.
-
-Judges use **ChatGPT’s in-app browser** or **Chrome 149+** with `chrome://flags/#enable-webmcp-testing` enabled.
-
-See `HACKATHON.md` for submission and judging detail.
-
-## Tools = shared domain actions
-
-WebMCP tools **are** `@openbento/domain` actions. Same `name`, same `description`, same `inputSchema`, later the same `execute` path as Human UI and WatchBot.
-
-Intended registration (not implemented):
+Tools **are** `@openbento/domain` actions (camelCase names). Register later:
 
 ```ts
 document.modelContext.registerTool({
@@ -35,25 +17,33 @@ document.modelContext.registerTool({
 });
 ```
 
-Feature-detect `document.modelContext` (and fall back only for browsers without WebMCP). Do not invent a parallel tool list.
+## 1:1 tool surface
 
-## Intended tool surface (1:1 catalog)
+| Tool | Domain action |
+| --- | --- |
+| `createCanvas` | `createCanvas` |
+| `renameCanvas` | `renameCanvas` |
+| `switchCanvas` | `switchCanvas` |
+| `updateCanvasViewport` | `updateCanvasViewport` |
+| `createCard` | `createCard` |
+| `updateCard` | `updateCard` |
+| `moveCard` | `moveCard` |
+| `resizeCard` | `resizeCard` |
+| `setCardFrame` | `setCardFrame` |
+| `createFrame` | `createFrame` |
+| `updateFrame` | `updateFrame` |
+| `moveFrame` | `moveFrame` |
+| `resizeFrame` | `resizeFrame` |
+| `createWatchBot` | `createWatchBot` |
+| `updateWatchBot` | `updateWatchBot` |
+| `pauseWatchBot` | `pauseWatchBot` |
+| `resumeWatchBot` | `resumeWatchBot` |
+| `getCanvasState` | `getCanvasState` |
+| `getWatchBotStatus` | `getWatchBotStatus` |
+| `fullscreenFrame` | `fullscreenFrame` (view-only) |
 
-| Tool name | Domain action | Notes |
-| --- | --- | --- |
-| `createWatchBot` | `createWatchBot` | Bind WatchBot to a Canvas; first slice web/news. |
-| `pauseWatchBot` | `pauseWatchBot` | Pause discovery. |
-| `createCard` | `createCard` | **Requires** provenance. |
-| `updateCard` | `updateCard` | **Requires** provenance. |
-| `setCardFrame` | `setCardFrame` | Membership from spatial containment; `frameId` or `null`. |
+Judges: ChatGPT in-app browser or Chrome 149+ with `chrome://flags/#enable-webmcp-testing`.
 
-Provenance fields the agent must supply on card tools: `sourceUrl`, `title`, `publishedAt`, `sourceType`.
+`ob.webmcp.tool` analytics: `toolName` + `success`/`fail` only. No input bodies.
 
-`ACTION_CATALOG` / `ACTION_CATALOG_LIST` in `@openbento/domain` are the source of truth for names and JSON Schema. When the catalog grows, WebMCP grows with it — never ahead of it.
-
-## Non-goals this phase
-
-- No `registerTool` calls
-- No execute handlers
-- No live URL
-- No Chrome extension / origin-trial wiring beyond documentation
+No live URL or `registerTool` in this phase.

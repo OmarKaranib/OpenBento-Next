@@ -1,70 +1,84 @@
 # DECISIONS — OpenBento-Next
 
-ADR-style log. Newest at the bottom. These are binding unless a later ADR supersedes them.
+Binding decisions. Canonical narrative: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.md) §23.
+
+The 5-action stub (`createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard`, `setCardFrame` only) is **not** the locked catalog and must not land on `main`.
 
 ---
 
-## ADR-001 — Fresh repo; legacy frozen
+## D-001 — Fresh repo; legacy frozen
 
-- **Decision:** Rebuild in `OmarKaranib/OpenBento-Next`. `OmarKaranib/OpenBento` is frozen reference. Do not modify the legacy repo. Do not port the 12-column Vite/Express widget dashboard.
-- **Why:** This is a different product (canvas + WatchBot + WebMCP), not a lift-and-shift.
+Rebuild in `OmarKaranib/OpenBento-Next`. Do not modify `OmarKaranib/OpenBento`. Do not port the 12-column dashboard.
 
-## ADR-002 — Next.js 16 + pnpm workspaces
+## D-002 — Next.js 16 + pnpm workspaces
 
-- **Decision:** TypeScript monorepo via pnpm workspaces. `apps/web` is Next.js **16** App Router (not 15). Root `packageManager` is pnpm.
-- **Why:** Current Next App Router for the eventual canvas + WebMCP page; workspace packages for shared domain.
+TypeScript monorepo. `apps/web` is Next.js 16 App Router. Root `packageManager` is pnpm.
 
-## ADR-003 — `@xyflow/react` for canvas (later)
+## D-003 — `@xyflow/react` later
 
-- **Decision:** `apps/web` depends on `@xyflow/react`. Mount lives in `src/components/canvas/CanvasRoot.tsx` and is **not** wired in this phase.
-- **Why:** Declare the canvas engine without building product UI in the scaffold.
+Declared on `apps/web`. `CanvasRoot.tsx` is not mounted. No graph edges by default.
 
-## ADR-004 — Zoom is navigation only
+## D-004 — Zoom is camera-only
 
-- **Decision:** Zoom, pan, and fit change the viewport camera only. **No semantic zoom.** Zoom never changes information architecture, object types, or nesting.
-- **Why:** Semantic zoom would fight Frames, Cards, and a 1:1 agent tool surface.
+`updateCanvasViewport` persists camera (x, y, zoom). No semantic zoom. Zoom does not change IA or membership.
 
-## ADR-005 — Railway-like chrome
+## D-005 — Railway-like chrome
 
-- **Decision:** Compact left rail (Canvases, WatchBots, Settings; **Profile fixed at the bottom**). Top-left: current Canvas name/selector + WatchBot status. Top-right: Agent. Bottom-left: Railway-like **vertical** canvas toolbar (grid/snap if useful, zoom in, zoom out, fit, Frame tool, undo, redo, overview/layers if useful). Dark infinite dotted canvas.
-- **Why:** Recorded UI contract for all later chrome work. See `UI_SPEC.md`.
+Left rail: Canvases, WatchBots, Settings; Profile fixed at the bottom. Top-left: Canvas + WatchBot status. Top-right: Agent. Bottom-left vertical toolbar. Dark dotted canvas.
 
-## ADR-006 — Frames are fullscreenable bordered regions
+## D-006 — Frames + fullscreen
 
-- **Decision:** Frames are bordered display regions on the canvas and can be fullscreened. They are not zoom levels and not a semantic hierarchy. **Fullscreen is view-only presentation** and must **not** rewrite stored Frame or Card geometry.
-- **Why:** Presentation without changing IA or persisted layout.
+Frames are persisted bordered regions. Fullscreen is **view-only** (`fullscreenFrame`) and must **not** rewrite stored Frame or Card geometry.
 
-## ADR-007 — Shared domain actions for UI / WatchBot / WebMCP
+## D-007 — Full shared domain catalog
 
-- **Decision:** One catalog in `packages/domain`. Locked names: `createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard`, `setCardFrame`. WebMCP tools map 1:1 via `document.modelContext.registerTool({ name, description, inputSchema, execute })`.
-- **Why:** Human, WatchBot, and agent must not diverge. WatchBot Engineer builds against this catalog.
+One catalog in `packages/domain` (20 actions):
 
-## ADR-008 — MIT license for WebMCP Challenge detectability
+- Canvas: `createCanvas`, `renameCanvas`, `switchCanvas`, `updateCanvasViewport`
+- Card: `createCard`, `updateCard`, `moveCard`, `resizeCard`, `setCardFrame`
+- Frame: `createFrame`, `updateFrame`, `moveFrame`, `resizeFrame`
+- WatchBot: `createWatchBot` (requires `instruction`), `updateWatchBot`, `pauseWatchBot`, `resumeWatchBot`
+- Read/view: `getCanvasState`, `getWatchBotStatus`, `fullscreenFrame`
 
-- **Decision:** Keep the existing MIT `LICENSE` at repo root so GitHub detects it in About.
-- **Why:** Challenge rule: public repo with a detectable open-source license.
+`moveCard`, `resizeCard`, `updateCanvasViewport` are first-class. WebMCP maps 1:1.
 
-## ADR-009 — No production infra this phase
+## D-008 — MIT for WebMCP detectability
 
-- **Decision:** No Vercel/hosting deploy. No production Supabase project, no applied migrations, no DNS, no spend, no merge to `main` without approval. `supabase/migrations` stays empty of real migrations. `.env.example` has public placeholders only.
-- **Why:** Scaffold + docs only.
+Keep MIT `LICENSE` at repo root.
 
-## ADR-010 — Card provenance is required
+## D-009 — No production infra this phase
 
-- **Decision:** `createCard` and `updateCard` **require** provenance: source URL, title, `published_at` / `publishedAt`, `source_type` / `sourceType`. No provenance-less card path for any actor.
-- **Why:** WatchBot Cards are sourced intelligence, not anonymous blobs. Agents and UI stay honest.
+No deploy, no production Supabase project, no Railway services, no applied migrations, no merge without owner validation.
 
-## ADR-011 — Local schema sketch: WatchBot + WatchBotEvent only
+## D-010 — Provenance on source Cards only
 
-- **Decision:** Proposed local/dev records are `WatchBot` (`watch_bots`) and `WatchBotEvent` / discovery (`watch_bot_events`) for dedup and novelty. Types + comments in `packages/domain/src/schema.ts`. **No invented schema. No SQL migrations in this phase.**
-- **Why:** Give WatchBot Engineer a contract without creating or applying a database.
+Externally discovered source Cards require provenance. Notes do not get a fake source URL. `moveCard` / `resizeCard` do not re-require provenance.
 
-## ADR-012 — WatchBot Engineer first slice
+## D-011 — Local schema sketch
 
-- **Decision:** First slice is **web/news only**. Provider-agnostic `SourceProvider` in `packages/watchbot`; first adapter is **xAI/Grok** and is **not wired into the domain**. Pipeline (later, `apps/worker`): discover → normalize → dedup → novelty → relevance → provenance → Card. YouTube and X after web is honest. Work starts on a **branch after this scaffold merges**. **No merge to `main` without Bento Lead review.**
-- **Why:** Keep domain vendor-free; make web honest before more sources; keep this PR a scaffold.
+Proposed rows: Canvas, Card, Frame, WatchBot, WatchBotEvent. Types only. No invented extra tables this phase.
 
-## ADR-013 — `setCardFrame` from spatial containment; zoom stays camera-only
+## D-012 — WatchBot as OpenBento primitive
 
-- **Decision:** Frame membership is derived from spatial containment (card placed inside / moved outside a Frame) and applied through the shared action `setCardFrame` (`frameId` or `null`). The UI must not invent membership. Fullscreen Frame is view-only and does not persist or rewrite geometry. Zoom remains camera-only; no semantic zoom.
-- **Why:** UI, WatchBot, and WebMCP share one membership write path. Presentation and camera must not mutate stored layout.
+Status: `running` | `paused` | `error`. `instruction` required on create. Provider-agnostic `SourceProvider`; Grok is a planned adapter, not domain.
+
+## D-013 — `setCardFrame` from spatial containment
+
+Membership is derived from geometry and applied through `setCardFrame`. Overlapping Frames: **smallest containing Frame wins**. UI must not invent a private membership field.
+
+## D-014 — ownerId is server-derived
+
+`ownerId` must not appear on action inputs. Derive from authenticated session. Canvas and WatchBot records still store `ownerId`.
+
+## D-015 — Planned regions (not provisioned)
+
+- **Supabase:** North Virginia, **us-east-1** — database, auth, storage. No project yet.
+- **Railway:** **US East / Virginia** — web runtime + WatchBot worker. No services yet.
+
+## D-016 — Observability (not wired)
+
+- **Sentry** — errors, crashes, performance, worker failures
+- **PostHog** — product analytics, funnels, retention, feature flags, session behavior, AI/LLM cost analytics
+- **Resend** — transactional email; future WatchBot alerts/digests
+
+Taxonomy: [`docs/ANALYTICS.md`](./docs/ANALYTICS.md). No secrets, instructions, bodies, source HTML, or untrusted payloads. Cost metadata allowed (`provider`, `units`, `watchBotId`, `durationMs`).

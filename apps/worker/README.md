@@ -1,11 +1,5 @@
 # `apps/worker`
 
-Worker app stub. No job system in this scaffold.
+WatchBot worker stub. No job system in Phase 0.
 
-WatchBot Engineer implements the first slice **here, on a branch after the scaffold PR merges**:
-
-- web/news only
-- `SourceProvider` (xAI/Grok adapter planned; not in domain)
-- Pipeline: discover → normalize → dedup → novelty → relevance → provenance → Card
-- Shared actions only: `createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard`, `setCardFrame`
-- No invented schema; no merge to `main` without Bento Lead review
+Later: discover → normalize → dedup → novelty → relevance → provenance → Card, calling `@openbento/domain` actions only. `createWatchBot` requires `instruction`. Status is `running` | `paused` | `error`.

@@ -2,21 +2,24 @@
 
 Shared **domain/application action contract** for Human UI, WatchBot, and WebMCP.
 
-This package is types + a typed action catalog stub only. **No handlers. No pipeline. No persistence.**
+Canonical product context: `docs/OPENBENTO_MASTER_CONTEXT.md`.
 
-## Contract WatchBot Engineer builds against
+This package is types, catalog, and pure helpers. **No handlers. No pipeline. No persistence.**
 
-| Action | Notes |
+## Locked catalog (20 actions)
+
+| Group | Actions |
 | --- | --- |
-| `createWatchBot` | Bind a WatchBot to a Canvas. First slice: web/news sources only. |
-| `pauseWatchBot` | Pause a bound WatchBot (`paused` lifecycle). |
-| `createCard` | **Requires** `provenance` (`sourceUrl`, `title`, `publishedAt`, `sourceType`). |
-| `updateCard` | **Requires** the same provenance fields. |
-| `setCardFrame` | Frame membership from spatial containment (`frameId` or `null`). |
+| Canvas | `createCanvas`, `renameCanvas`, `switchCanvas`, `updateCanvasViewport` |
+| Card | `createCard`, `updateCard`, `moveCard`, `resizeCard`, `setCardFrame` |
+| Frame | `createFrame`, `updateFrame`, `moveFrame`, `resizeFrame` |
+| WatchBot | `createWatchBot` (requires `instruction`), `updateWatchBot`, `pauseWatchBot`, `resumeWatchBot` |
+| Read/view | `getCanvasState`, `getWatchBotStatus`, `fullscreenFrame` (view-only) |
 
-Proposed local records (sketch only — do not apply, do not invent beyond this):
+`moveCard`, `resizeCard`, and `updateCanvasViewport` are first-class. `ownerId` is server-derived from session and **must not** appear on action inputs. Canvas and WatchBot **records** still carry `ownerId`.
 
-- `WatchBot`
-- `WatchBotEvent` / discovery (dedup + novelty)
+Provenance is required on externally discovered source Cards only. Notes do not get a fake source URL. `moveCard` / `resizeCard` do not re-require provenance.
 
-See `src/actions.ts`, `src/types.ts`, `src/schema.ts`, and `WATCHBOT_SPEC.md`.
+Overlapping Frames: smallest containing Frame wins `setCardFrame`.
+
+WatchBot status: `running` | `paused` | `error` only.

@@ -1,117 +1,85 @@
 # ARCHITECTURE — OpenBento-Next
 
-Status: **scaffold**. Monorepo map and contracts. No production schema. No deploy.
+Canonical product context: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.md).
+
+Status: **Phase 0 foundation**. Types, catalog, docs, lint/typecheck/test/build. No Canvas UI, no WatchBot pipeline, no WebMCP tools, no production infra.
 
 ## Monorepo
 
-pnpm workspaces + TypeScript throughout.
+pnpm workspaces + TypeScript. Next.js 16 + React in `apps/web`.
 
 ```
 apps/web              Next.js 16 App Router. Placeholder page only.
                       @xyflow/react is a future canvas dependency (not mounted).
-apps/worker           Worker stub. WatchBot Engineer first slice lands here
-                      *after* this scaffold merges, on a branch.
-packages/domain       Shared actions + types + local schema *sketch*. No handlers.
-packages/watchbot     Runtime types, SourceProvider port, pipeline stage names.
-                      No observer loop. No vendor adapter implementation.
-packages/ui           Token / placeholder kit. No chrome.
+apps/worker           WatchBot worker stub. No job system.
+packages/domain       Full master action catalog + types + pure helpers.
+packages/watchbot     SourceProvider port + runtime types. No adapter.
+packages/ui           Token / placeholder kit.
 supabase/migrations   Empty of real migrations. Local/dev only. Do not apply.
-docs/                 Maintained copy of the root spec set.
+docs/                 Maintained specs + OPENBENTO_MASTER_CONTEXT.md
 ```
-
-Root package: private workspace, `packageManager` pnpm. Build the placeholder with:
 
 ```bash
 pnpm install
+pnpm lint
+pnpm typecheck
+pnpm test
 pnpm --filter web build
 ```
 
-## How the pieces fit
-
-| Piece | Owns | Does not own |
-| --- | --- | --- |
-| `apps/web` | Human UI, later xyflow + WebMCP registration | Domain rules, WatchBot pipeline, production DB |
-| `apps/worker` | Later: discover→…→Card job/pipeline | Domain catalog, UI chrome |
-| `packages/domain` | Action names, input/output types, record sketch | Handlers, vendors, SQL migrations |
-| `packages/watchbot` | Runtime types, `SourceProvider`, lifecycle docs | Domain actions, Grok wiring into domain |
-| `packages/ui` | Future shared chrome primitives | Product features |
-| `supabase/migrations` | Future **local/dev** SQL only | Production project (forbidden this phase) |
-
 ## Shared action contract
 
-`@openbento/domain` exports `ACTION_CATALOG`. Human UI, WatchBot, and WebMCP **must** use these names and schemas.
+Human UI, WatchBot, and WebMCP **must** use `@openbento/domain` `ACTION_CATALOG`. Do not land a 5-action stub.
 
-WatchBot Engineer builds against (stubs, **no handlers**):
+| Group | Actions |
+| --- | --- |
+| Canvas | `createCanvas`, `renameCanvas`, `switchCanvas`, `updateCanvasViewport` |
+| Card | `createCard`, `updateCard`, `moveCard`, `resizeCard`, `setCardFrame` |
+| Frame | `createFrame`, `updateFrame`, `moveFrame`, `resizeFrame` |
+| WatchBot | `createWatchBot` (**requires `instruction`**), `updateWatchBot`, `pauseWatchBot`, `resumeWatchBot` |
+| Read/view | `getCanvasState`, `getWatchBotStatus`, `fullscreenFrame` |
 
-| Action | Input (contract) | Result type |
-| --- | --- | --- |
-| `createWatchBot` | `canvasId`, optional `sourceTypes` (`web` \| `news`), optional `label` | `WatchBot` |
-| `pauseWatchBot` | `watchBotId` | `WatchBot` (`status: "paused"`) |
-| `createCard` | `canvasId`, **required** `provenance`, optional body/position | `Card` |
-| `updateCard` | `cardId`, **required** `provenance`, optional body/position | `Card` |
-| `setCardFrame` | `cardId`, `frameId` (`string` \| `null`) | `Card` |
+Locked rules:
 
-Provenance on both card actions:
+- `moveCard`, `resizeCard`, and `updateCanvasViewport` are **first-class**. Do not fold them into `updateCard`.
+- `ownerId` is **server-derived from the session**. It must **not** appear on action inputs. Canvas and WatchBot **records** still carry `ownerId`.
+- Provenance is required on **externally discovered source Cards only**. Notes do not get a fake source URL. `moveCard` / `resizeCard` do not re-require provenance.
+- `setCardFrame` applies membership from spatial containment. Overlapping Frames: **smallest containing Frame wins**.
+- `fullscreenFrame` is **view-only**. It must not rewrite stored Frame or Card geometry.
+- Zoom / `updateCanvasViewport` is **camera-only**. No semantic zoom.
+- WatchBot status: **`running` \| `paused` \| `error`** only.
 
-- `sourceUrl` / `source_url`
-- `title`
-- `publishedAt` / `published_at`
-- `sourceType` / `source_type`
-
-WebMCP later registers the same names:
-
-```ts
-document.modelContext.registerTool({
-  name,          // catalog action name
-  description,   // catalog description
-  inputSchema,   // catalog inputSchema
-  execute,       // later: same handler as UI / WatchBot
-});
-```
-
-`setCardFrame` is the only way to persist Frame membership. Membership is **derived from spatial containment** (card placed inside / moved outside a Frame) and applied through this action — not invented as a UI-only field.
-
-Fullscreen Frame is **view-only presentation**. It is not a catalog action and must **not** rewrite stored Frame bounds or Card geometry. Zoom remains camera-only (no semantic zoom).
-
-Do not add a second catalog in the worker or in WebMCP glue.
+WebMCP later registers the same names via `document.modelContext.registerTool({ name, description, inputSchema, execute })`.
 
 ## Data ownership sketch (not applied)
 
-No production database. No migrations to run. Types + comments only in `packages/domain/src/schema.ts`.
+No production database. No migrations to run. Shapes live in `packages/domain/src/schema.ts`.
 
-### `WatchBot` → proposed `watch_bots`
+- **Canvas** — `owner_id`, name, persisted viewport (x, y, zoom)
+- **Card** — canvas, optional `frame_id`, type, geometry, optional provenance columns
+- **Frame** — canvas, name, stored bounds (fullscreen does not rewrite these)
+- **WatchBot** — `owner_id`, canvas, **instruction**, status `running|paused|error`
+- **WatchBotEvent** — discovery/dedup/novelty records
 
-Bound to a canvas. Lifecycle: `idle` | `watching` | `acting` | `paused` | `error`. First-slice `source_types`: `web`, `news`.
+## Planned infrastructure (not provisioned)
 
-### `WatchBotEvent` / discovery → proposed `watch_bot_events`
+Recorded only. Do not create projects or services in this phase.
 
-One table for discovery **and** pipeline decisions used for **dedup** and **novelty**.
+| Platform | Region | Role |
+| --- | --- | --- |
+| **Supabase** | North Virginia, **us-east-1** | Database, Auth, Storage |
+| **Railway** | **US East / Virginia** | `apps/web` runtime + `apps/worker` WatchBot worker |
 
-- Dedup: `dedup_key` unique per `watch_bot_id` (normalized URL ± title ± `published_at`, or content hash).
-- Novelty: `novelty_score` plus `discovered_at` compared to prior rows for that bot/canvas.
-- Do **not** invent a second discovery table or extra join tables in the first slice.
+## Observability (not wired)
 
-### Card provenance columns
+| System | Role |
+| --- | --- |
+| **Sentry** | Errors, crashes, performance, worker failures |
+| **PostHog** | Product analytics, funnels, retention, feature flags, session behavior, AI/LLM cost analytics |
+| **Resend** | Transactional email; future WatchBot alerts/digests |
 
-Not a separate provenance table in this sketch. Required columns on any future card row: `source_url`, `title`, `published_at`, `source_type`.
-
-WatchBot Engineer must **not invent schema** beyond this sketch. Persistence, if any, waits for a later local/dev Supabase phase.
-
-## WatchBot Engineer first slice (not in this PR)
-
-Documented so work can start on a branch **after** scaffold merge. See `WATCHBOT_SPEC.md`.
-
-- **web/news only**
-- `SourceProvider` is provider-agnostic; first adapter is **xAI/Grok** and is **not wired into the domain**
-- Pipeline: discover → normalize → dedup → novelty → relevance → provenance → Card
-- YouTube and X after web is honest
-- Implementation home: `apps/worker`
-- No merge to `main` without **Bento Lead** review
+Event taxonomy: [`docs/ANALYTICS.md`](./docs/ANALYTICS.md). No secrets, instructions, article/social bodies, source HTML, or untrusted payloads.
 
 ## Non-goals (this phase)
 
-- No deploy (Vercel or otherwise)
-- No production Supabase project, no applied migrations, no secrets
-- No product features, no working canvas, no job system, no provider calls
-- No merge to `main` without approval
-- No changes to `OmarKaranib/OpenBento`
+No Canvas UI, WatchBot pipeline, WebMCP tools, billing/Stripe, xAI/Grok API wiring, production Supabase, Railway services, or deploy. Do not modify `OmarKaranib/OpenBento`.
