@@ -17,11 +17,34 @@ export const SOURCE_LINK_DEFAULT_SIZE: Size = { width: 280, height: 180 };
 
 export type CreatableSourceCardType = Extract<CardType, "youtube" | "article" | "web">;
 
-function publishedNow(value?: string): string {
-  if (typeof value === "string" && value.length > 0) {
+/**
+ * Persist only a supplied publishedAt. Unknown/missing stays `""`.
+ * Do not mint the current clock as a publication time.
+ */
+export function publishedAtForCreate(value?: string): string {
+  if (typeof value === "string" && value.trim().length > 0) {
     return value;
   }
-  return new Date().toISOString();
+  return "";
+}
+
+/**
+ * Display label for a known publication timestamp only.
+ * Empty, whitespace, and unparseable values are unknown — do not render a date.
+ */
+export function knownPublishedAtLabel(value: unknown): string | null {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return null;
+  }
+  const cleaned = sanitizeUntrustedDisplayText(value, 64);
+  if (cleaned.length === 0) {
+    return null;
+  }
+  const parsed = Date.parse(cleaned);
+  if (Number.isNaN(parsed)) {
+    return null;
+  }
+  return new Date(parsed).toISOString().slice(0, 10);
 }
 
 function titleForSource(title: string | undefined, fallbackUrl: string): string {
@@ -54,7 +77,7 @@ export function buildCreateYoutubeCardInput(args: {
     provenance: {
       sourceUrl,
       title: titleForSource(args.title, sourceUrl),
-      publishedAt: publishedNow(args.publishedAt),
+      publishedAt: publishedAtForCreate(args.publishedAt),
       sourceType: "youtube" as const,
       externalId: videoId,
     },
@@ -92,7 +115,7 @@ function buildLinkSourceCardInput(
     provenance: {
       sourceUrl,
       title: titleForSource(args.title, sourceUrl),
-      publishedAt: publishedNow(args.publishedAt),
+      publishedAt: publishedAtForCreate(args.publishedAt),
       sourceType,
       ...(args.author
         ? { author: sanitizeUntrustedDisplayText(args.author, 200) }

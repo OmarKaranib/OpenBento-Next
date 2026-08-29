@@ -6,19 +6,11 @@ import { SourceCardChrome } from "@/components/cards/SourceCardChrome";
 import { SafeExternalLink } from "@/components/cards/SafeExternalLink";
 import { UntrustedText } from "@/components/cards/UntrustedText";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
+import { knownPublishedAtLabel } from "@/lib/domain/source-card";
 import { hostnameFromHttpUrl, sanitizeUntrustedDisplayText } from "@/lib/untrusted";
 
 export type ArticleNode = Node<{ cardId: string }, "article">;
 export type WebNode = Node<{ cardId: string }, "web">;
-
-function formatPublishedAt(value: string): string {
-  const cleaned = sanitizeUntrustedDisplayText(value, 40);
-  const parsed = Date.parse(cleaned);
-  if (Number.isNaN(parsed)) {
-    return cleaned;
-  }
-  return new Date(parsed).toISOString().slice(0, 10);
-}
 
 function SourceLinkBody({
   card,
@@ -32,7 +24,7 @@ function SourceLinkBody({
   const provenance = card.payload.provenance;
   const host = hostnameFromHttpUrl(provenance.sourceUrl);
   const author = sanitizeUntrustedDisplayText(provenance.author ?? "", 120);
-  const published = formatPublishedAt(provenance.publishedAt);
+  const published = knownPublishedAtLabel(provenance.publishedAt);
 
   return (
     <SourceCardChrome

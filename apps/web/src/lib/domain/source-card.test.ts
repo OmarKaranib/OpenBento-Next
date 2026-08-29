@@ -14,6 +14,8 @@ import {
   buildCreateArticleCardInput,
   buildCreateWebCardInput,
   buildCreateYoutubeCardInput,
+  knownPublishedAtLabel,
+  publishedAtForCreate,
 } from "./source-card";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -52,7 +54,7 @@ describe("UI youtube/article create uses provenance payloads", () => {
       provenance: {
         sourceUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
         title: "Press conference",
-        publishedAt: expect.any(String),
+        publishedAt: "",
         sourceType: "youtube",
         externalId: "dQw4w9WgXcQ",
       },
@@ -68,6 +70,7 @@ describe("UI youtube/article create uses provenance payloads", () => {
     expect(youtube.payload.provenance.sourceUrl).toBe(
       "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
     );
+    expect(youtube.payload.provenance.publishedAt).toBe("");
 
     const articleInput = buildCreateArticleCardInput({
       canvasId: canvas.id,
@@ -79,7 +82,7 @@ describe("UI youtube/article create uses provenance payloads", () => {
       provenance: {
         sourceUrl: "https://example.com/world/story",
         title: "Official statement",
-        publishedAt: expect.any(String),
+        publishedAt: "",
         sourceType: "web",
       },
     });
@@ -97,6 +100,80 @@ describe("UI youtube/article create uses provenance payloads", () => {
     const web = await executor.execute("createCard", webInput);
     expect(article.type).toBe("article");
     expect(web.type).toBe("web");
+    if (article.type !== "article" || web.type !== "web") {
+      throw new Error("expected article and web");
+    }
+    expect(article.payload.provenance.publishedAt).toBe("");
+    expect(web.payload.provenance.publishedAt).toBe("");
+  });
+
+  it("stores empty publishedAt when none is supplied and keeps a real ISO", async () => {
+    const executor = createActionExecutor({
+      store: new InMemoryDomainStore(),
+      ownerId: "local-session",
+    });
+    const canvas = await executor.createCanvas({ name: "Story" });
+    const publishedAt = "2026-03-14T15:09:00.000Z";
+
+    expect(publishedAtForCreate(undefined)).toBe("");
+    expect(publishedAtForCreate("")).toBe("");
+    expect(publishedAtForCreate("   ")).toBe("");
+    expect(publishedAtForCreate(publishedAt)).toBe(publishedAt);
+    expect(knownPublishedAtLabel("")).toBeNull();
+    expect(knownPublishedAtLabel("not a date")).toBeNull();
+    expect(knownPublishedAtLabel(publishedAt)).toBe("2026-03-14");
+    expect(knownPublishedAtLabel("")).not.toBe(
+      new Date().toISOString().slice(0, 10),
+    );
+
+    const youtube = await executor.execute(
+      "createCard",
+      buildCreateYoutubeCardInput({
+        canvasId: canvas.id,
+        sourceUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        title: "No mint",
+      }),
+    );
+    const article = await executor.execute(
+      "createCard",
+      buildCreateArticleCardInput({
+        canvasId: canvas.id,
+        sourceUrl: "https://example.com/a",
+        title: "No mint",
+      }),
+    );
+    const dated = await executor.execute(
+      "createCard",
+      buildCreateArticleCardInput({
+        canvasId: canvas.id,
+        sourceUrl: "https://example.com/dated",
+        title: "Dated",
+        publishedAt,
+      }),
+    );
+
+    expect(youtube.type).toBe("youtube");
+    expect(article.type).toBe("article");
+    expect(dated.type).toBe("article");
+    if (
+      youtube.type !== "youtube" ||
+      article.type !== "article" ||
+      dated.type !== "article"
+    ) {
+      throw new Error("expected source cards");
+    }
+    expect(youtube.payload.provenance.publishedAt).toBe("");
+    expect(article.payload.provenance.publishedAt).toBe("");
+    expect(dated.payload.provenance.publishedAt).toBe(publishedAt);
+    expect(knownPublishedAtLabel(youtube.payload.provenance.publishedAt)).toBeNull();
+    expect(knownPublishedAtLabel(article.payload.provenance.publishedAt)).toBeNull();
+    expect(knownPublishedAtLabel(dated.payload.provenance.publishedAt)).toBe(
+      "2026-03-14",
+    );
+
+    const source = readFileSync(join(webSrc, "lib/domain/source-card.ts"), "utf8");
+    expect(source).not.toMatch(/publishedNow/);
+    expect(source).not.toMatch(/new Date\(\)\.toISOString\(\)/);
   });
 
   it("rejects javascript: and HTML-as-URL on the UI create path", () => {
