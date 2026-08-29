@@ -79,26 +79,59 @@ export function readWorkerSupabaseEnv(): WorkerSupabaseEnv {
   return { ...publicEnv, serviceRoleKey };
 }
 
+/**
+ * DomainStore is REST-only (PostgREST + RPC). supabase-js still constructs a
+ * RealtimeClient and throws on Node 20 without a native WebSocket. A closed
+ * no-op transport keeps client construction working on CI Node 20.
+ */
+class RestOnlyWebSocket {
+  static readonly CONNECTING = 0;
+  static readonly OPEN = 1;
+  static readonly CLOSING = 2;
+  static readonly CLOSED = 3;
+  readonly CONNECTING = 0;
+  readonly OPEN = 1;
+  readonly CLOSING = 2;
+  readonly CLOSED = 3;
+  readonly readyState = RestOnlyWebSocket.CLOSED;
+  readonly url: string;
+  readonly protocol = "";
+  onopen: ((this: unknown, ev: Event) => unknown) | null = null;
+  onmessage: ((this: unknown, ev: MessageEvent) => unknown) | null = null;
+  onclose: ((this: unknown, ev: CloseEvent) => unknown) | null = null;
+  onerror: ((this: unknown, ev: Event) => unknown) | null = null;
+  constructor(url: string | URL) {
+    this.url = String(url);
+  }
+  close(): void {}
+  send(): void {}
+  addEventListener(): void {}
+  removeEventListener(): void {}
+}
+
+function restClientOptions(accessToken?: string | null) {
+  return {
+    auth: { persistSession: false, autoRefreshToken: false },
+    realtime: { transport: RestOnlyWebSocket },
+    global: accessToken
+      ? { headers: { Authorization: `Bearer ${accessToken}` } }
+      : undefined,
+  };
+}
+
 /** Publishable/anon key + user JWT. Never the service-role key. */
 export async function createWebAuthedClient(
   env: WebSupabaseEnv,
 ): Promise<SupabaseClient> {
   const token = env.getAccessToken ? await env.getAccessToken() : null;
-  return createClient(env.url, env.publishableKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: token
-      ? { headers: { Authorization: `Bearer ${token}` } }
-      : undefined,
-  });
+  return createClient(env.url, env.publishableKey, restClientOptions(token));
 }
 
 /** Worker service-role client. Not used by the web request path. */
 export async function createWorkerAuthedClient(
   env: WorkerSupabaseEnv,
 ): Promise<SupabaseClient> {
-  return createClient(env.url, env.serviceRoleKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
+  return createClient(env.url, env.serviceRoleKey, restClientOptions());
 }
 
 export function createSupabaseJsAdapter(env: WebSupabaseEnv): DomainSqlAdapter {

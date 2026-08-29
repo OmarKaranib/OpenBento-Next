@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from "vitest";
 import {
   createWebAuthedClient,
+  createWorkerAuthedClient,
   readWebSupabaseEnv,
   readWorkerSupabaseEnv,
 } from "./supabase-js-adapter";
@@ -38,13 +39,25 @@ describe("web authed client ignores service role", () => {
     expect(env.publishableKey).toBe("sb_publishable_placeholder");
     expect(env).not.toHaveProperty("serviceRoleKey");
 
-    const client = await createWebAuthedClient({
-      ...env,
-      getAccessToken: async () => "user-jwt",
-    });
-    const usedKey = (client as unknown as { supabaseKey: string }).supabaseKey;
-    expect(usedKey).toBe("sb_publishable_placeholder");
-    expect(usedKey).not.toBe(process.env.SUPABASE_SERVICE_ROLE_KEY);
+    const nativeWebSocket = globalThis.WebSocket;
+    Reflect.deleteProperty(globalThis, "WebSocket");
+    try {
+      const client = await createWebAuthedClient({
+        ...env,
+        getAccessToken: async () => "user-jwt",
+      });
+      const usedKey = (client as unknown as { supabaseKey: string }).supabaseKey;
+      expect(usedKey).toBe("sb_publishable_placeholder");
+      expect(usedKey).not.toBe(process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+      const worker = await createWorkerAuthedClient(readWorkerSupabaseEnv());
+      const workerKey = (worker as unknown as { supabaseKey: string })
+        .supabaseKey;
+      expect(workerKey).toBe("sb_service_role_must_not_be_used");
+      expect(workerKey).not.toBe(env.publishableKey);
+    } finally {
+      globalThis.WebSocket = nativeWebSocket;
+    }
   });
 
   it("readWebSupabaseEnv never copies the service-role key", () => {
