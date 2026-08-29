@@ -33,7 +33,7 @@ document.modelContext.registerTool({
 
 `ownerId` is session-derived via `requireSessionOwnerId` / `AuthSessionPort`. It is never accepted on tool arguments. There is no local-session owner fallback on the WebMCP path. An unset session fails closed (`unauthenticated`).
 
-`create_card` is bounds-only. Frame membership is a follow-up `setCardFrame` from `selectSmallestContainingFrame`, still through `runBoundAction`. `fullscreen_frame` is view-only and must not rewrite stored geometry.
+`create_card` is bounds-only (`frameId` on tool input is rejected). After `create_card`, `move_card`, and `resize_card`, `invoke` / `runWebMcpTool` runs a follow-up `setCardFrame` from `selectSmallestContainingFrame` through the same `runBoundAction` execute. Membership is not folded into `createCard`. `fullscreen_frame` is view-only and must not rewrite stored geometry.
 
 ## How to run
 

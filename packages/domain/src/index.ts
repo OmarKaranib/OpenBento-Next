@@ -71,7 +71,9 @@ export {
 
 export {
   applyCardFrameFromGeometry,
+  assertWebMcpToolInputKeys,
   createWebMcpRuntime,
+  followUpCardFrameFromGeometry,
   type WebMcpExecute,
   type WebMcpRuntime,
   type WebMcpToolEvent,

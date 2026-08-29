@@ -15,6 +15,8 @@ import { createBoundWebMcpRuntime, createSessionBoundExecute } from "./bound-run
 /**
  * Server entry for `document.modelContext.registerTool` execute callbacks.
  * ownerId is resolved by `requireSessionOwnerId` inside `runBoundAction`.
+ * create_card / move_card / resize_card follow up with setCardFrame from
+ * geometry inside invoke — not folded into createCard.
  */
 export async function runWebMcpTool<N extends WebMcpToolName>(
   toolName: N,

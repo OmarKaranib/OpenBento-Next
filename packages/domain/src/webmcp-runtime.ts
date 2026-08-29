@@ -1,4 +1,9 @@
-import type { ActionInputMap, ActionName, ActionResultMap } from "./actions";
+import {
+  ACTION_CATALOG,
+  type ActionInputMap,
+  type ActionName,
+  type ActionResultMap,
+} from "./actions";
 import { DomainError } from "./errors";
 import {
   selectSmallestContainingFrame,
@@ -41,18 +46,67 @@ export type WebMcpRuntime = {
   ) => Promise<ActionResultMap[(typeof WEBMCP_TOOL_TO_ACTION)[N]]>;
 };
 
+const GEOMETRY_TOOLS = new Set<WebMcpToolName>([
+  "create_card",
+  "move_card",
+  "resize_card",
+]);
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 function canvasIdFromResult(result: unknown): string | undefined {
-  if (typeof result !== "object" || result === null) {
+  if (!isRecord(result)) {
     return undefined;
   }
-  const record = result as Record<string, unknown>;
-  if (typeof record.canvasId === "string") {
-    return record.canvasId;
+  if (typeof result.canvasId === "string") {
+    return result.canvasId;
   }
-  if (typeof record.id === "string" && "viewport" in record) {
-    return record.id;
+  if (typeof result.id === "string" && "viewport" in result) {
+    return result.id;
   }
   return undefined;
+}
+
+/** ownerId is session-derived. frameId is only valid when the mapped schema has it. */
+export function assertWebMcpToolInputKeys(
+  toolName: WebMcpToolName,
+  input: unknown,
+): void {
+  if (!isRecord(input)) {
+    return;
+  }
+  if (Object.prototype.hasOwnProperty.call(input, "ownerId")) {
+    throw new DomainError(
+      "invalid_input",
+      "ownerId must not be supplied on tool arguments; it is session-derived",
+    );
+  }
+  const actionName = WEBMCP_TOOL_TO_ACTION[toolName];
+  const allowsFrameId = Object.prototype.hasOwnProperty.call(
+    ACTION_CATALOG[actionName].inputSchema.properties,
+    "frameId",
+  );
+  if (Object.prototype.hasOwnProperty.call(input, "frameId") && !allowsFrameId) {
+    throw new DomainError(
+      "invalid_input",
+      "frameId is not a tool argument; membership is a follow-up setCardFrame from geometry",
+    );
+  }
+}
+
+/**
+ * After create_card / move_card / resize_card: read frames via getCanvasState,
+ * then setCardFrame from geometry. Same execute as the tool (runBoundAction).
+ * Does not write frameId inside createCard.
+ */
+export async function followUpCardFrameFromGeometry(
+  execute: WebMcpExecute,
+  card: Card,
+): Promise<Card> {
+  const state = await execute("getCanvasState", { canvasId: card.canvasId });
+  return applyCardFrameFromGeometry(execute, card, state.frames);
 }
 
 /**
@@ -64,8 +118,13 @@ function canvasIdFromResult(result: unknown): string | undefined {
 export function createWebMcpRuntime(deps: {
   execute: WebMcpExecute;
   onToolEvent?: (event: WebMcpToolEvent) => void;
+  onCatalogCall?: (name: ActionName) => void;
 }): WebMcpRuntime {
   const tools = listWebMcpTools();
+  const execute: WebMcpExecute = (name, input) => {
+    deps.onCatalogCall?.(name);
+    return deps.execute(name, input);
+  };
 
   async function invoke<N extends WebMcpToolName>(
     toolName: N,
@@ -84,10 +143,14 @@ export function createWebMcpRuntime(deps: {
     }
     const actionName = WEBMCP_TOOL_TO_ACTION[toolName];
     try {
-      const result = await deps.execute(
+      assertWebMcpToolInputKeys(toolName, input);
+      let result: unknown = await execute(
         actionName,
         input as ActionInputMap[typeof actionName],
       );
+      if (GEOMETRY_TOOLS.has(toolName)) {
+        result = await followUpCardFrameFromGeometry(execute, result as Card);
+      }
       deps.onToolEvent?.({
         name: "ob.webmcp.tool",
         toolName,

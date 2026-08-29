@@ -82,11 +82,14 @@ export default function WebMcpJudgePage() {
             no local-session owner fallback on this path.
           </p>
           <p>
-            <code className="text-zinc-300">create_card</code> is bounds-only.
-            Frame membership is a follow-up{" "}
-            <code className="text-zinc-300">setCardFrame</code> from{" "}
+            <code className="text-zinc-300">create_card</code> is bounds-only
+            (extra <code className="text-zinc-300">frameId</code> is rejected).
+            After <code className="text-zinc-300">create_card</code>,{" "}
+            <code className="text-zinc-300">move_card</code>, and{" "}
+            <code className="text-zinc-300">resize_card</code>, invoke runs a
+            follow-up <code className="text-zinc-300">setCardFrame</code> from{" "}
             <code className="text-zinc-300">selectSmallestContainingFrame</code>
-            , still via <code className="text-zinc-300">runBoundAction</code>.{" "}
+            via the same <code className="text-zinc-300">runBoundAction</code>.{" "}
             <code className="text-zinc-300">fullscreen_frame</code> is view-only
             and does not rewrite stored geometry.
           </p>

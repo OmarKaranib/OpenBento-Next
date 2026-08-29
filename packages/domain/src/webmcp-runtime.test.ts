@@ -43,13 +43,13 @@ describe("WebMCP registered tools", () => {
 });
 
 describe("WebMCP wrapper rejects poisoned and unknown tools", () => {
-  it("rejects ownerId on tool arguments via the injected execute", async () => {
-    const executor = createActionExecutor({
-      store: new InMemoryDomainStore(),
-      ownerId: "session-from-caller",
-    });
+  it("rejects ownerId on tool arguments before dispatch", async () => {
+    const dispatched: string[] = [];
     const runtime = createWebMcpRuntime({
-      execute: (name, input) => executor.execute(name, input),
+      execute: async (name) => {
+        dispatched.push(name);
+        throw new Error("should not run");
+      },
     });
     await expect(
       runtime.invoke("create_canvas", {
@@ -57,6 +57,26 @@ describe("WebMCP wrapper rejects poisoned and unknown tools", () => {
         ownerId: "attacker",
       }),
     ).rejects.toMatchObject({ code: "invalid_input" });
+    expect(dispatched).toEqual([]);
+  });
+
+  it("rejects frameId on create_card tool input", async () => {
+    const dispatched: string[] = [];
+    const runtime = createWebMcpRuntime({
+      execute: async (name) => {
+        dispatched.push(name);
+        throw new Error("should not run");
+      },
+    });
+    await expect(
+      runtime.invoke("create_card", {
+        canvasId: "c1",
+        type: "note",
+        payload: { text: "no" },
+        frameId: "frame-1",
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    expect(dispatched).toEqual([]);
   });
 
   it("rejects unknown and demo tool names without dispatching", async () => {
@@ -71,5 +91,71 @@ describe("WebMCP wrapper rejects poisoned and unknown tools", () => {
       runtime.invoke("echo" as never, { message: "hi" }),
     ).rejects.toMatchObject({ code: "invalid_input" });
     expect(dispatched).toEqual([]);
+  });
+});
+
+describe("WebMCP invoke follows up setCardFrame from geometry", () => {
+  it("runs createCard then setCardFrame after invoke(create_card)", async () => {
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "session-from-caller" });
+    const catalog: string[] = [];
+    const runtime = createWebMcpRuntime({
+      execute: (name, input) => executor.execute(name, input),
+      onCatalogCall: (name) => {
+        catalog.push(name);
+      },
+    });
+    const canvas = await runtime.invoke("create_canvas", { name: "Story" });
+    const frame = await runtime.invoke("create_frame", {
+      canvasId: canvas.id,
+      bounds: { x: 0, y: 0, width: 200, height: 200 },
+      name: "Inner",
+    });
+    catalog.length = 0;
+
+    const card = await runtime.invoke("create_card", {
+      canvasId: canvas.id,
+      type: "note",
+      payload: { text: "inside" },
+      position: { x: 10, y: 10 },
+      size: { width: 40, height: 40 },
+    });
+
+    expect(catalog).toEqual(["createCard", "getCanvasState", "setCardFrame"]);
+    expect(card.frameId).toBe(frame.id);
+    expect((await store.getCard(card.id))?.frameId).toBe(frame.id);
+  });
+
+  it("runs moveCard then setCardFrame after invoke(move_card)", async () => {
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "session-from-caller" });
+    const catalog: string[] = [];
+    const runtime = createWebMcpRuntime({
+      execute: (name, input) => executor.execute(name, input),
+      onCatalogCall: (name) => {
+        catalog.push(name);
+      },
+    });
+    const canvas = await runtime.invoke("create_canvas", { name: "Story" });
+    const frame = await runtime.invoke("create_frame", {
+      canvasId: canvas.id,
+      bounds: { x: 0, y: 0, width: 200, height: 200 },
+    });
+    const card = await runtime.invoke("create_card", {
+      canvasId: canvas.id,
+      type: "note",
+      payload: { text: "outside" },
+      position: { x: 400, y: 400 },
+      size: { width: 40, height: 40 },
+    });
+    expect(card.frameId).toBeNull();
+    catalog.length = 0;
+
+    const moved = await runtime.invoke("move_card", {
+      cardId: card.id,
+      position: { x: 12, y: 12 },
+    });
+    expect(catalog).toEqual(["moveCard", "getCanvasState", "setCardFrame"]);
+    expect(moved.frameId).toBe(frame.id);
   });
 });

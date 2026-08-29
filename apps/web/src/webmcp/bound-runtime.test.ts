@@ -2,15 +2,12 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   InMemoryDomainStore,
   WEBMCP_TOOL_NAMES,
-  applyCardFrameFromGeometry,
+  type ActionName,
   type WebMcpToolEvent,
 } from "@openbento/domain";
 import { configureAuthSession, resetAuthSession } from "../server/session";
 import { resetDomainStore } from "../server/store";
-import {
-  createBoundWebMcpRuntime,
-  createSessionBoundExecute,
-} from "./bound-runtime";
+import { createBoundWebMcpRuntime } from "./bound-runtime";
 
 afterEach(() => {
   resetAuthSession();
@@ -23,14 +20,17 @@ function sessionRuntime(ownerId = "session-user") {
   });
   const store = new InMemoryDomainStore();
   const events: WebMcpToolEvent[] = [];
+  const catalog: ActionName[] = [];
   const runtime = createBoundWebMcpRuntime({
     store,
     onToolEvent: (event) => {
       events.push(event);
     },
+    onCatalogCall: (name) => {
+      catalog.push(name);
+    },
   });
-  const execute = createSessionBoundExecute(store);
-  return { store, runtime, execute, events };
+  return { store, runtime, events, catalog };
 }
 
 describe("WebMCP binds to runBoundAction + requireSessionOwnerId", () => {
@@ -44,16 +44,18 @@ describe("WebMCP binds to runBoundAction + requireSessionOwnerId", () => {
   });
 
   it("stamps ownerId from the session, never from tool arguments", async () => {
-    const { runtime, events } = sessionRuntime("session-user");
+    const { runtime, events, catalog } = sessionRuntime("session-user");
     const canvas = await runtime.invoke("create_canvas", { name: "From session" });
     expect(canvas.ownerId).toBe("session-user");
 
+    catalog.length = 0;
     await expect(
       runtime.invoke("create_canvas", {
         name: "Poison",
         ownerId: "attacker",
       }),
     ).rejects.toMatchObject({ code: "invalid_input" });
+    expect(catalog).toEqual([]);
     expect(events.at(-1)).toMatchObject({
       name: "ob.webmcp.tool",
       toolName: "create_canvas",
@@ -130,27 +132,39 @@ describe("WebMCP binds to runBoundAction + requireSessionOwnerId", () => {
     });
     expect(view.active).toBe(true);
 
-    const ignoredMembership = await runtime.invoke("create_card", {
-      canvasId: canvas.id,
-      type: "note",
-      payload: { text: "no fold-in" },
-      frameId: frame.id,
-    });
-    expect(ignoredMembership.frameId).toBeNull();
-
     await expect(
       runtime.invoke("create_watchbot", { canvasId: canvas.id }),
     ).rejects.toMatchObject({ code: "invalid_input" });
   });
 
-  it("keeps create_card bounds-only then setCardFrame from geometry via runBoundAction", async () => {
-    const { runtime, execute } = sessionRuntime();
+  it("rejects extra frameId on create_card tool input", async () => {
+    const { runtime, catalog, store } = sessionRuntime();
+    const canvas = await runtime.invoke("create_canvas", { name: "No fold-in" });
+    catalog.length = 0;
+    await expect(
+      runtime.invoke("create_card", {
+        canvasId: canvas.id,
+        type: "note",
+        payload: { text: "no fold-in" },
+        frameId: "frame-from-tool",
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+    expect(catalog).toEqual([]);
+    expect(await store.listCardsByCanvas(canvas.id)).toEqual([]);
+  });
+});
+
+describe("invoke applies setCardFrame follow-up from geometry", () => {
+  it("create_card then setCardFrame through the same runBoundAction execute", async () => {
+    const { runtime, catalog, store } = sessionRuntime();
     const canvas = await runtime.invoke("create_canvas", { name: "Membership" });
     const frame = await runtime.invoke("create_frame", {
       canvasId: canvas.id,
       bounds: { x: 0, y: 0, width: 200, height: 200 },
       name: "Inner",
     });
+    catalog.length = 0;
+
     const card = await runtime.invoke("create_card", {
       canvasId: canvas.id,
       type: "note",
@@ -158,12 +172,64 @@ describe("WebMCP binds to runBoundAction + requireSessionOwnerId", () => {
       position: { x: 10, y: 10 },
       size: { width: 40, height: 40 },
     });
-    expect(card.frameId).toBeNull();
 
-    const member = await applyCardFrameFromGeometry(execute, card, [frame]);
-    expect(member.frameId).toBe(frame.id);
+    expect(catalog).toEqual(["createCard", "getCanvasState", "setCardFrame"]);
+    expect(card.frameId).toBe(frame.id);
+    expect((await store.getCard(card.id))?.frameId).toBe(frame.id);
   });
 
+  it("move_card then setCardFrame when geometry enters a frame", async () => {
+    const { runtime, catalog } = sessionRuntime();
+    const canvas = await runtime.invoke("create_canvas", { name: "Move" });
+    const frame = await runtime.invoke("create_frame", {
+      canvasId: canvas.id,
+      bounds: { x: 0, y: 0, width: 200, height: 200 },
+    });
+    const card = await runtime.invoke("create_card", {
+      canvasId: canvas.id,
+      type: "note",
+      payload: { text: "outside" },
+      position: { x: 400, y: 400 },
+      size: { width: 40, height: 40 },
+    });
+    expect(card.frameId).toBeNull();
+    catalog.length = 0;
+
+    const moved = await runtime.invoke("move_card", {
+      cardId: card.id,
+      position: { x: 12, y: 12 },
+    });
+    expect(catalog).toEqual(["moveCard", "getCanvasState", "setCardFrame"]);
+    expect(moved.frameId).toBe(frame.id);
+  });
+
+  it("resize_card then setCardFrame when geometry leaves a frame", async () => {
+    const { runtime, catalog } = sessionRuntime();
+    const canvas = await runtime.invoke("create_canvas", { name: "Resize" });
+    await runtime.invoke("create_frame", {
+      canvasId: canvas.id,
+      bounds: { x: 0, y: 0, width: 80, height: 80 },
+    });
+    const card = await runtime.invoke("create_card", {
+      canvasId: canvas.id,
+      type: "note",
+      payload: { text: "fit" },
+      position: { x: 10, y: 10 },
+      size: { width: 40, height: 40 },
+    });
+    expect(card.frameId).not.toBeNull();
+    catalog.length = 0;
+
+    const resized = await runtime.invoke("resize_card", {
+      cardId: card.id,
+      size: { width: 200, height: 200 },
+    });
+    expect(catalog).toEqual(["resizeCard", "getCanvasState", "setCardFrame"]);
+    expect(resized.frameId).toBeNull();
+  });
+});
+
+describe("fullscreen_frame is view-only", () => {
   it("does not rewrite stored geometry on fullscreen_frame", async () => {
     const { runtime, store } = sessionRuntime();
     const canvas = await runtime.invoke("create_canvas", { name: "View" });

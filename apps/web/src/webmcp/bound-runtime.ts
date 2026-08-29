@@ -1,5 +1,6 @@
 import {
   createWebMcpRuntime,
+  type ActionName,
   type DomainStore,
   type WebMcpExecute,
   type WebMcpRuntime,
@@ -28,9 +29,11 @@ export function createSessionBoundExecute(store?: DomainStore): WebMcpExecute {
 export function createBoundWebMcpRuntime(options?: {
   store?: DomainStore;
   onToolEvent?: (event: WebMcpToolEvent) => void;
+  onCatalogCall?: (name: ActionName) => void;
 }): WebMcpRuntime {
   return createWebMcpRuntime({
     execute: createSessionBoundExecute(options?.store),
     onToolEvent: options?.onToolEvent,
+    onCatalogCall: options?.onCatalogCall,
   });
 }
