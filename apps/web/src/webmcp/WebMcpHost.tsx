@@ -7,8 +7,8 @@ import { registerOpenBentoWebMcpTools } from "./register-browser";
 
 /**
  * Registers Issue #1 tools on `document.modelContext`.
- * Each execute calls `runWebMcpTool` → `runBoundAction` + `requireSessionOwnerId`.
- * Does not use WorkspaceSession / LOCAL_SESSION_OWNER_ID.
+ * Each execute calls `runWebMcpTool` → `runBoundAction` +
+ * `requireOwnerIdFromRequest` with `getDomainStore()`.
  */
 export function WebMcpHost() {
   const tools = listWebMcpTools();

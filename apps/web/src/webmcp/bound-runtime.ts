@@ -1,38 +1,43 @@
 import {
   createWebMcpRuntime,
   type ActionName,
-  type DomainStore,
   type WebMcpExecute,
   type WebMcpRuntime,
   type WebMcpToolEvent,
 } from "@openbento/domain";
 import { runBoundAction } from "../server/run-action";
-import { requireSessionOwnerId } from "../server/session";
+import {
+  requireOwnerIdFromRequest,
+  type RequestAuthContext,
+} from "../server/session";
 import { getDomainStore } from "../server/store";
 
 /**
- * Session-bound catalog execute for WebMCP.
- * ownerId comes only from `requireSessionOwnerId` (AuthSessionPort).
- * `createActionExecutor` runs inside `runBoundAction`. No local-session
- * fallback and no second ownerId constructor.
+ * Request-scoped catalog execute for WebMCP.
+ * Always `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })`.
+ * Tools share the Canvas store. Unset request fails closed (unauthenticated).
  */
-export function createSessionBoundExecute(store?: DomainStore): WebMcpExecute {
-  const resolved = store ?? getDomainStore();
+export function createSessionBoundExecute(
+  request: RequestAuthContext = {},
+): WebMcpExecute {
   return (name, input) =>
     runBoundAction(
-      { getOwnerId: requireSessionOwnerId, store: resolved },
+      {
+        getOwnerId: async () => requireOwnerIdFromRequest(request),
+        store: getDomainStore(),
+      },
       name,
       input,
     );
 }
 
 export function createBoundWebMcpRuntime(options?: {
-  store?: DomainStore;
+  request?: RequestAuthContext;
   onToolEvent?: (event: WebMcpToolEvent) => void;
   onCatalogCall?: (name: ActionName) => void;
 }): WebMcpRuntime {
   return createWebMcpRuntime({
-    execute: createSessionBoundExecute(options?.store),
+    execute: createSessionBoundExecute(options?.request ?? {}),
     onToolEvent: options?.onToolEvent,
     onCatalogCall: options?.onCatalogCall,
   });

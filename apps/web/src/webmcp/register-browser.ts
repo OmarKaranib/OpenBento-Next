@@ -7,7 +7,7 @@ import { getModelContext, type ModelContext } from "./model-context";
 
 /**
  * 1:1 snake_case `registerTool` wrappers. execute must already be bound to
- * `runBoundAction` + `requireSessionOwnerId` (see `runWebMcpTool`).
+ * `runBoundAction` + `requireOwnerIdFromRequest` (see `runWebMcpTool`).
  */
 export async function registerOpenBentoWebMcpTools(
   runtime: Pick<WebMcpRuntime, "tools" | "invoke">,

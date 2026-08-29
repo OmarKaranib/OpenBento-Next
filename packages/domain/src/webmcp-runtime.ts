@@ -20,8 +20,8 @@ import {
 
 /**
  * Injected catalog execute. Production WebMCP binds this to
- * `runBoundAction({ getOwnerId: requireSessionOwnerId, store })` so
- * `createActionExecutor` runs inside that session path. This module does
+ * `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })`
+ * so `createActionExecutor` runs inside that session path. This module does
  * not construct ownerId.
  */
 export type WebMcpExecute = <K extends ActionName>(
@@ -113,7 +113,8 @@ export async function followUpCardFrameFromGeometry(
  * Registerable WebMCP surface. Every tool is a 1:1 snake_case wrapper around
  * a catalog action. Handlers are not reimplemented here — they go through
  * the provided `execute`. Apps/web must pass `runBoundAction` +
- * `requireSessionOwnerId`. This module does not mint a session ownerId.
+ * `requireOwnerIdFromRequest` and `getDomainStore()`. This module does
+ * not mint a session ownerId.
  */
 export function createWebMcpRuntime(deps: {
   execute: WebMcpExecute;

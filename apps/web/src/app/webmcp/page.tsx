@@ -23,10 +23,13 @@ export default function WebMcpJudgePage() {
           <code className="text-zinc-300">@openbento/domain</code>{" "}
           <code className="text-zinc-300">ACTION_CATALOG</code>. Execute goes
           through <code className="text-zinc-300">runBoundAction</code> +{" "}
-          <code className="text-zinc-300">requireSessionOwnerId</code>, which
-          constructs <code className="text-zinc-300">createActionExecutor</code>{" "}
-          with the session owner. <code className="text-zinc-300">ownerId</code>{" "}
-          is never accepted on tool arguments. No demo or echo tools.
+          <code className="text-zinc-300">requireOwnerIdFromRequest</code>,
+          which constructs{" "}
+          <code className="text-zinc-300">createActionExecutor</code> with the
+          request session owner and{" "}
+          <code className="text-zinc-300">getDomainStore()</code>.{" "}
+          <code className="text-zinc-300">ownerId</code> is never accepted on
+          tool arguments. No demo or echo tools.
         </p>
 
         <section className="mt-8">
@@ -74,12 +77,13 @@ export default function WebMcpJudgePage() {
           <p>
             Programmatic eval (same session path as tools):{" "}
             <code className="text-zinc-300">pnpm test</code>. Tests call{" "}
-            <code className="text-zinc-300">configureAuthSession</code> and
-            invoke tools through{" "}
-            <code className="text-zinc-300">createBoundWebMcpRuntime</code>.
-            Until Auth lands, an unset session port fails closed (
-            <code className="text-zinc-300">unauthenticated</code>) — there is
-            no local-session owner fallback on this path.
+            <code className="text-zinc-300">requestAuthFromOwnerCookie</code>{" "}
+            and invoke tools through{" "}
+            <code className="text-zinc-300">createBoundWebMcpRuntime</code>. An
+            unset request fails closed (
+            <code className="text-zinc-300">unauthenticated</code>
+            ). Tools share <code className="text-zinc-300">getDomainStore()</code>{" "}
+            with Canvas.
           </p>
           <p>
             <code className="text-zinc-300">create_card</code> is bounds-only

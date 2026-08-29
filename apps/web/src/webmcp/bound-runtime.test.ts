@@ -1,28 +1,18 @@
 import { afterEach, describe, expect, it } from "vitest";
-import {
-  InMemoryDomainStore,
-  WEBMCP_TOOL_NAMES,
-  type ActionName,
-  type WebMcpToolEvent,
-} from "@openbento/domain";
-import { configureAuthSession, resetAuthSession } from "../server/session";
-import { resetDomainStore } from "../server/store";
+import { WEBMCP_TOOL_NAMES, type ActionName, type WebMcpToolEvent } from "@openbento/domain";
+import { requestAuthFromOwnerCookie } from "../server/session";
+import { getDomainStore, resetDomainStore } from "../server/store";
 import { createBoundWebMcpRuntime } from "./bound-runtime";
 
 afterEach(() => {
-  resetAuthSession();
   resetDomainStore();
 });
 
 function sessionRuntime(ownerId = "session-user") {
-  configureAuthSession({
-    getOwnerId: async () => ownerId,
-  });
-  const store = new InMemoryDomainStore();
   const events: WebMcpToolEvent[] = [];
   const catalog: ActionName[] = [];
   const runtime = createBoundWebMcpRuntime({
-    store,
+    request: requestAuthFromOwnerCookie(ownerId),
     onToolEvent: (event) => {
       events.push(event);
     },
@@ -30,17 +20,25 @@ function sessionRuntime(ownerId = "session-user") {
       catalog.push(name);
     },
   });
-  return { store, runtime, events, catalog };
+  return { store: getDomainStore(), runtime, events, catalog };
 }
 
-describe("WebMCP binds to runBoundAction + requireSessionOwnerId", () => {
-  it("fails closed when the session port has no owner", async () => {
-    const runtime = createBoundWebMcpRuntime({
-      store: new InMemoryDomainStore(),
-    });
+describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
+  it("fails closed when the request has no owner", async () => {
+    const runtime = createBoundWebMcpRuntime();
     await expect(
       runtime.invoke("create_canvas", { name: "No session" }),
     ).rejects.toMatchObject({ code: "unauthenticated" });
+  });
+
+  it("writes through getDomainStore shared with Canvas", async () => {
+    const { runtime, store } = sessionRuntime("session-user");
+    const canvas = await runtime.invoke("create_canvas", { name: "Shared" });
+    expect(await store.getCanvas(canvas.id)).toMatchObject({
+      name: "Shared",
+      ownerId: "session-user",
+    });
+    expect(store).toBe(getDomainStore());
   });
 
   it("stamps ownerId from the session, never from tool arguments", async () => {

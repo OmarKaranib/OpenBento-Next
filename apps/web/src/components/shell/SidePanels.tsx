@@ -78,7 +78,7 @@ export function SidePanels() {
             WebMCP tools on this page are the Issue #1 snake_case catalog
             wrappers. They dispatch through{" "}
             <code className="text-zinc-400">runBoundAction</code> +{" "}
-            <code className="text-zinc-400">requireSessionOwnerId</code>.{" "}
+            <code className="text-zinc-400">requireOwnerIdFromRequest</code>.{" "}
             <Link className="text-zinc-300 underline" href="/webmcp">
               Judge notes
             </Link>
