@@ -10,6 +10,7 @@ import {
   planFrameGeometry,
   translateFrameMembers,
 } from "@/lib/domain/membership";
+import { persistCreatedCard } from "@/lib/domain/persist-created-card";
 import { persistCreatedNoteCard } from "@/lib/domain/persist-created-note";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 
@@ -45,6 +46,11 @@ export function useCanvasCommands() {
   const persistCreatedNote = useCallback(
     (input: CreateCardInput) =>
       persistCreatedNoteCard(commit, input, snapshot.frames),
+    [commit, snapshot.frames],
+  );
+
+  const persistCreatedSource = useCallback(
+    (input: CreateCardInput) => persistCreatedCard(commit, input, snapshot.frames),
     [commit, snapshot.frames],
   );
 
@@ -138,6 +144,7 @@ export function useCanvasCommands() {
   return {
     persistCardGeometry,
     persistCreatedNote,
+    persistCreatedCard: persistCreatedSource,
     persistFrameMove,
     persistFrameResize,
     persistCreatedFrame,
