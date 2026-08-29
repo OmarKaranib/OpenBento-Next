@@ -2,7 +2,7 @@
 
 Canonical: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./OPENBENTO_MASTER_CONTEXT.md) §5–6, §21.
 
-Status: **Phase 1**. Railway-inspired workspace is mounted in `apps/web`.
+Status: **Phase 3 source Cards** (isolated, on persist). Railway-inspired workspace is mounted in `apps/web`. Note, YouTube, Article, and Web Cards register in the canvas card registry. Mutations use `runBoundAction` + `requireOwnerIdFromRequest` + `getDomainStore()` (`SupabaseDomainStore`).
 
 North star: Railway’s **interaction language** (dark dotted workspace, compact chrome). Do not copy Railway trademarks or assets.
 
@@ -47,7 +47,8 @@ Frame tool: click → crosshair → drag rectangle → name/move/resize.
 
 - Cards are freely positioned and resizable via `moveCard` / `resizeCard`.
 - Frame membership **feels geometric**. Internally persist `card.frameId` through `setCardFrame` after `selectSmallestContainingFrame` + `canSetCardFrame`.
-- Cards are `type` + typed payload (Note is first, via the card registry). Source types carry provenance on the payload; notes do not.
+- Cards are `type` + typed payload via the card registry (Note, YouTube, Article, Web). Source types carry provenance on the payload; notes do not.
+- Source titles/URLs/snippets are untrusted text. Do not inject source HTML. YouTube playback is the official `youtube.com/embed` player only, lazy-mounted with a live-iframe cap. Unknown `publishedAt` is stored as `""` and is not shown as a date.
 - Overlapping Frames: smallest area wins; equal-area ties use newest `createdAt`.
 - **Fullscreen Frame** is view-only presentation (`fullscreenFrame`). Chrome hides; Frame + member Cards show; **stored geometry is not rewritten**.
 

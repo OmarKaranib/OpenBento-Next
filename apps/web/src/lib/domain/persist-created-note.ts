@@ -1,6 +1,6 @@
 import type { Card, CreateCardInput, Frame } from "@openbento/domain";
 import type { CatalogCall } from "./inputs";
-import { membershipCallsForCards } from "./membership";
+import { persistCreatedCard } from "./persist-created-card";
 
 /**
  * Two-call Note create: `createCard`, then `setCardFrame` from geometry.
@@ -11,16 +11,5 @@ export async function persistCreatedNoteCard(
   input: CreateCardInput,
   frames: ReadonlyArray<Frame>,
 ): Promise<Card> {
-  const created = await commit([{ name: "createCard", input }]);
-  const card = created[0] as Card;
-  const membership = membershipCallsForCards([card], frames);
-  if (membership.length > 0) {
-    await commit(
-      membership.map((change) => ({
-        name: "setCardFrame" as const,
-        input: change,
-      })),
-    );
-  }
-  return card;
+  return persistCreatedCard(commit, input, frames);
 }

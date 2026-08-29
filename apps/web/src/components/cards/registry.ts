@@ -1,17 +1,30 @@
 /**
- * Card type registry. Note is first. Future YouTube/article types register
- * here — do not add a second canvas engine for those types.
+ * Card type registry. Note, YouTube, Article, and Web register here —
+ * do not add a second canvas engine for those types.
  */
 
 import type { ComponentType } from "react";
 import type { NodeProps } from "@xyflow/react";
 import type { CardType, Size } from "@openbento/domain";
+import { NOTE_DEFAULT_SIZE } from "@/lib/domain/note-card";
+import {
+  SOURCE_LINK_DEFAULT_SIZE,
+  YOUTUBE_DEFAULT_SIZE,
+} from "@/lib/domain/source-card";
 import { NoteCardNode } from "@/components/canvas/nodes/NoteCardNode";
+import {
+  ArticleCardNode,
+  WebCardNode,
+} from "@/components/canvas/nodes/ArticleCardNode";
+import { YoutubeCardNode } from "@/components/canvas/nodes/YoutubeCardNode";
+
+export type CardCreateMode = "note" | "source";
 
 export type CardTypeModule = {
   type: CardType;
   label: string;
   creatable: boolean;
+  createMode: CardCreateMode;
   defaultSize: Size;
   Node: ComponentType<NodeProps>;
 };
@@ -42,6 +55,34 @@ registerCardType({
   type: "note",
   label: "Note",
   creatable: true,
-  defaultSize: { width: 240, height: 160 },
+  createMode: "note",
+  defaultSize: NOTE_DEFAULT_SIZE,
   Node: NoteCardNode as ComponentType<NodeProps>,
+});
+
+registerCardType({
+  type: "youtube",
+  label: "YouTube",
+  creatable: true,
+  createMode: "source",
+  defaultSize: YOUTUBE_DEFAULT_SIZE,
+  Node: YoutubeCardNode as ComponentType<NodeProps>,
+});
+
+registerCardType({
+  type: "article",
+  label: "Article",
+  creatable: true,
+  createMode: "source",
+  defaultSize: SOURCE_LINK_DEFAULT_SIZE,
+  Node: ArticleCardNode as ComponentType<NodeProps>,
+});
+
+registerCardType({
+  type: "web",
+  label: "Web",
+  creatable: true,
+  createMode: "source",
+  defaultSize: SOURCE_LINK_DEFAULT_SIZE,
+  Node: WebCardNode as ComponentType<NodeProps>,
 });

@@ -4,6 +4,7 @@ import { StickyNote } from "lucide-react";
 import { useCanvasCommands } from "@/components/canvas/use-canvas-commands";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { buildCreateNoteCardInput } from "@/lib/domain/note-card";
+import { AddSourceCards } from "./AddSourceCard";
 import { CanvasSwitcher } from "./CanvasSwitcher";
 import { WatchBotStatus } from "./WatchBotStatus";
 import { AgentEntry } from "./AgentEntry";
@@ -39,6 +40,7 @@ export function TopBar() {
           <StickyNote className="h-3.5 w-3.5" />
           Note
         </button>
+        <AddSourceCards />
       </div>
       <div className="pointer-events-auto">
         <AgentEntry />
