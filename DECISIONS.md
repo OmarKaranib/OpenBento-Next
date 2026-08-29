@@ -60,9 +60,9 @@ Externally discovered source types require `payload.provenance`. Notes are `{ te
 
 Runtime validation is shared `PAYLOAD_SCHEMAS` in `@openbento/domain`. The catalog `inputSchema`, `isValidCardPayload`, Platform server, WatchBot, and WebMCP must use those schemas — they must not invent separate payload shapes.
 
-## D-011 — Local schema sketch
+## D-011 — Local/dev schema SQL
 
-Proposed rows: Canvas, Card, Frame, WatchBot, WatchBotEvent. Types only. No invented extra tables this phase.
+Rows: Canvas, Card, Frame, WatchBot, WatchBotEvent. SQL lives in `supabase/migrations` and matches `packages/domain/src/schema.ts`. Cards use `type` + `jsonb payload` (not title/body). Local/dev only — do not apply to a hosted/production database. No invented extra tables.
 
 ## D-012 — WatchBot as OpenBento primitive
 
@@ -90,3 +90,13 @@ Platform must call `canSetCardFrame` / `assertSameCanvasMembership` before writi
 - **Resend** — transactional email; future WatchBot alerts/digests
 
 Taxonomy: [`docs/ANALYTICS.md`](./docs/ANALYTICS.md). No secrets, instructions, bodies, source HTML, or untrusted payloads. Cost metadata allowed (`provider`, `units`, `watchBotId`, `durationMs`).
+
+## D-017 — Persistence port + shared executor
+
+Handlers for `ACTION_CATALOG` live in `@openbento/domain` (`ActionExecutor`). Persistence is a `DomainStore` port. Tests use `InMemoryDomainStore`. A later local Supabase adapter can implement the same port. Do not hard-wire Grok or any provider into the domain.
+
+Next.js server-action wrappers in `apps/web/src/server` resolve the session user and call the executor. They never take `ownerId` from the client payload.
+
+## D-018 — RLS is owner-scoped; membership is still a domain check
+
+Local/dev RLS policies scope Canvas/Card/Frame/WatchBot access via `auth.uid()` (cards/frames join through canvas ownership). Never trust a client-supplied user id. `setCardFrame` still calls `assertSameCanvasMembership`. RLS is not a substitute.

@@ -77,10 +77,11 @@ Omar assigned. PR #2. Do not merge until owner validation.
 
 **Platform Engineer**
 
-- [ ] Session-derived `ownerId` (never client-supplied)
-- [ ] Domain action server boundary / APIs for the catalog
-- [ ] Persist Canvas / Card / Frame / viewport (local/dev only until approved)
-- [ ] Same-canvas checks before `setCardFrame`
+- [x] Session-derived `ownerId` (never client-supplied) — `ActionExecutor` + web wrappers
+- [x] Domain action server boundary for the catalog (`createActionExecutor` / `runDomainAction`)
+- [x] Persist Canvas / Card / Frame / WatchBot behind `DomainStore` (in-memory + local/dev SQL)
+- [x] Same-canvas checks before `setCardFrame` (`assertSameCanvasMembership`)
+- [x] Local/dev RLS owner-scoped via `auth.uid()` (not applied to production)
 - [ ] No production Supabase/Railway without approval
 
 ---

@@ -3,6 +3,7 @@ export {
   ACTION_CATALOG_LIST,
   ACTION_NAMES,
   actionInputForbidsOwnerId,
+  type ActionInputMap,
   type ActionName,
   type ActionResultMap,
   type CreateCanvasInput,
@@ -64,6 +65,28 @@ export {
   type WebMcpToolName,
 } from "./webmcp";
 
+export { DomainError, isDomainError, type DomainErrorCode } from "./errors";
+
+export {
+  ActionExecutor,
+  createActionExecutor,
+  DEFAULT_CARD_SIZE,
+  DEFAULT_VIEWPORT,
+  type ActionExecutorDeps,
+} from "./executor";
+
+export {
+  canvasFromRecord,
+  canvasToRecord,
+  cardFromRecord,
+  cardToRecord,
+  frameFromRecord,
+  frameToRecord,
+  watchBotEventFromRecord,
+  watchBotFromRecord,
+  watchBotToRecord,
+} from "./mappers";
+
 export type {
   CanvasRecord,
   CardRecord,
@@ -71,6 +94,8 @@ export type {
   WatchBotEventRecord,
   WatchBotRecord,
 } from "./schema";
+
+export { InMemoryDomainStore, type DomainStore } from "./store";
 
 export {
   CARD_TYPES,
