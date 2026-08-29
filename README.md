@@ -8,7 +8,7 @@ This is **Phase 0 foundation**: full shared domain catalog, docs, and green lint
 
 Legacy [`OmarKaranib/OpenBento`](https://github.com/OmarKaranib/OpenBento) is frozen reference.
 
-**Master roadmap:** [Issue #1](https://github.com/OmarKaranib/OpenBento-Next/issues/1)
+**Master roadmap:** [Issue #1](https://github.com/OmarKaranib/OpenBento-Next/issues/1) · [docs/ROADMAP.md](./docs/ROADMAP.md)
 
 ## Specs
 
