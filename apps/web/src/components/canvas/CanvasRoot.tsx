@@ -19,6 +19,7 @@ import { buildCreateNoteCardInput } from "@/lib/domain/note-card";
 import { FrameNode } from "./nodes/FrameNode";
 import { CanvasToolbar } from "./CanvasToolbar";
 import { FrameDrawLayer } from "./FrameDrawLayer";
+import { canvasDoubleClickShouldCreateNote } from "./empty-canvas-target";
 import { cardNodeId, frameNodeId, parseFlowNodeId } from "./flow-ids";
 import { useCanvasCommands } from "./use-canvas-commands";
 
@@ -78,6 +79,7 @@ function CanvasSurface() {
   const { screenToFlowPosition, setViewport, fitView } = useReactFlow();
   const interactingRef = useRef(false);
   const viewportTimer = useRef<number | null>(null);
+  const lastNoteCreateAt = useRef(0);
   const canvas = snapshot.canvases.find(
     (entry) => entry.id === snapshot.currentCanvasId,
   );
@@ -192,6 +194,31 @@ function CanvasSurface() {
     [canvas?.viewport],
   );
 
+  const createNoteAtClientPoint = useCallback(
+    (event: { clientX: number; clientY: number }) => {
+      if (!canvas) {
+        return;
+      }
+      const now = performance.now();
+      if (now - lastNoteCreateAt.current < 350) {
+        return;
+      }
+      lastNoteCreateAt.current = now;
+      const position = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      void persistCreatedNote(
+        buildCreateNoteCardInput({
+          canvasId: canvas.id,
+          position,
+          text: "",
+        }),
+      );
+    },
+    [canvas, persistCreatedNote, screenToFlowPosition],
+  );
+
   if (!canvas) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-zinc-500">
@@ -223,8 +250,16 @@ function CanvasSurface() {
         zoomOnPinch
         selectionOnDrag={false}
         deleteKeyCode={null}
+        zoomOnDoubleClick={false}
         onlyRenderVisibleElements
         proOptions={{ hideAttribution: false }}
+        onPaneClick={(event) => {
+          // Do not stopPropagation / preventDefault — the pane keeps pan/zoom.
+          if (event.detail !== 2 || readOnly || frameToolActive) {
+            return;
+          }
+          createNoteAtClientPoint(event);
+        }}
         onNodeDragStart={() => {
           interactingRef.current = true;
         }}
@@ -272,27 +307,16 @@ function CanvasSurface() {
           }, 280);
         }}
         onDoubleClick={(event) => {
-          const target = event.target;
-          if (!(target instanceof HTMLElement)) {
+          if (
+            !canvasDoubleClickShouldCreateNote({
+              target: event.target,
+              readOnly,
+              frameToolActive,
+            })
+          ) {
             return;
           }
-          if (!target.classList.contains("react-flow__pane")) {
-            return;
-          }
-          if (readOnly || frameToolActive) {
-            return;
-          }
-          const position = screenToFlowPosition({
-            x: event.clientX,
-            y: event.clientY,
-          });
-          void persistCreatedNote(
-            buildCreateNoteCardInput({
-              canvasId: canvas.id,
-              position,
-              text: "",
-            }),
-          );
+          createNoteAtClientPoint(event);
         }}
       >
         <Background
