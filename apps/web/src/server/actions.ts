@@ -4,6 +4,7 @@ import type {
   ActionInputMap,
   ActionName,
   ActionResultMap,
+  Canvas,
   CreateCanvasInput,
   CreateCardInput,
   CreateFrameInput,
@@ -29,25 +30,26 @@ import { cookies, headers } from "next/headers";
 import { rewindIdsForOwner } from "./ids";
 import { runDomainActionFromRequest } from "./run-action";
 import {
-  LOCAL_DEV_SESSION_COOKIE,
-  localDevSessionCookieOptions,
-  mintLocalDevOwnerId,
   requireOwnerIdFromRequest,
   type RequestAuthContext,
 } from "./session";
-import { resetDomainStore } from "./store";
+import { getDomainStore } from "./store";
+import { getSupabaseAuthUser } from "./supabase";
 
 async function requestAuthFromIncoming(): Promise<RequestAuthContext> {
+  const user = await getSupabaseAuthUser();
   return {
     cookies: await cookies(),
     headers: await headers(),
+    verifiedUserId: user?.id,
+    getUser: async () => user,
   };
 }
 
 /**
  * Thin Next.js wrappers around the shared ACTION_CATALOG executor.
- * Session user is resolved from this request only. ownerId is never taken
- * from the client input.
+ * Session user is resolved from Supabase Auth getUser() / auth.uid().
+ * ownerId is never taken from the client input.
  */
 export async function runDomainAction<K extends ActionName>(
   name: K,
@@ -60,30 +62,38 @@ export async function runDomainAction<K extends ActionName>(
   );
 }
 
-/**
- * Mint a local/dev httpOnly session cookie when missing.
- * Does not accept a client-chosen owner id.
- */
-export async function ensureLocalDevSession(): Promise<void> {
-  const cookieStore = await cookies();
-  const existing = cookieStore.get(LOCAL_DEV_SESSION_COOKIE)?.value;
-  if (!existing) {
-    cookieStore.set(
-      LOCAL_DEV_SESSION_COOKIE,
-      mintLocalDevOwnerId(),
-      localDevSessionCookieOptions(),
-    );
-  }
+/** Fail closed unless Supabase Auth has a verified user. */
+export async function requireAuthenticatedSession(): Promise<void> {
+  await requireOwnerIdFromRequest(await requestAuthFromIncoming());
+}
+
+/** Reload/login restore — not a catalog action. */
+export async function listOwnedCanvases(): Promise<Canvas[]> {
+  const ownerId = await requireOwnerIdFromRequest(
+    await requestAuthFromIncoming(),
+  );
+  return getDomainStore().listCanvasesByOwner(ownerId);
+}
+
+export async function currentAuthUserId(): Promise<string | null> {
+  const user = await getSupabaseAuthUser();
+  return user?.id ?? null;
+}
+
+export async function signOut(): Promise<void> {
+  const { createServerSupabaseClient } = await import("./supabase");
+  const supabase = await createServerSupabaseClient();
+  await supabase.auth.signOut();
 }
 
 /**
- * Local/dev undo rebuild: drop the in-memory store and rewind this owner's
- * id sequence so replay through `runDomainAction` keeps stable identities.
- * Requires a session. Not a catalog action. Not a hosted database reset.
+ * Test/dev undo helper. Does not wipe the durable store and does not
+ * fall back to InMemoryDomainStore.
  */
 export async function resetLocalWorkspace(): Promise<void> {
-  const ownerId = requireOwnerIdFromRequest(await requestAuthFromIncoming());
-  resetDomainStore();
+  const ownerId = await requireOwnerIdFromRequest(
+    await requestAuthFromIncoming(),
+  );
   rewindIdsForOwner(ownerId);
 }
 

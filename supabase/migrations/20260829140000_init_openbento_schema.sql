@@ -141,6 +141,12 @@ create table public.watch_bot_events (
     foreign key (card_id)
     references public.cards (id)
     on delete set null,
+  -- Same-canvas composite FK: an event cannot point at a Card on another
+  -- Canvas/user. MATCH SIMPLE: a null card_id skips the check.
+  -- cards already has unique (id, canvas_id).
+  constraint watch_bot_events_card_same_canvas_fkey
+    foreign key (card_id, canvas_id)
+    references public.cards (id, canvas_id),
   -- One discovery fingerprint per WatchBot. Another bot may reuse the same key.
   constraint watch_bot_events_watch_bot_id_dedup_key_key
     unique (watch_bot_id, dedup_key)
@@ -494,3 +500,6 @@ comment on constraint cards_frame_same_canvas_fkey on public.cards is
 
 comment on constraint watch_bot_events_watch_bot_id_dedup_key_key on public.watch_bot_events is
   'One discovery fingerprint per WatchBot. A different WatchBot may reuse the same dedup_key.';
+
+comment on constraint watch_bot_events_card_same_canvas_fkey on public.watch_bot_events is
+  'Prevents watch_bot_events.card_id from referencing a card on another canvas. MATCH SIMPLE so a null card_id is allowed.';

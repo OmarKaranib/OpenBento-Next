@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { WEBMCP_TOOL_NAMES, type ActionName, type WebMcpToolEvent } from "@openbento/domain";
-import { requestAuthFromOwnerCookie } from "../server/session";
-import { getDomainStore, resetDomainStore } from "../server/store";
+import { InMemoryDomainStore } from "@openbento/domain";
+import { requestAuthFromVerifiedUser } from "../server/session";
+import { getDomainStore, resetDomainStore, setDomainStore } from "../server/store";
 import { createBoundWebMcpRuntime } from "./bound-runtime";
 
 afterEach(() => {
@@ -9,10 +10,11 @@ afterEach(() => {
 });
 
 function sessionRuntime(ownerId = "session-user") {
+  setDomainStore(new InMemoryDomainStore());
   const events: WebMcpToolEvent[] = [];
   const catalog: ActionName[] = [];
   const runtime = createBoundWebMcpRuntime({
-    request: requestAuthFromOwnerCookie(ownerId),
+    request: requestAuthFromVerifiedUser(ownerId),
     onToolEvent: (event) => {
       events.push(event);
     },

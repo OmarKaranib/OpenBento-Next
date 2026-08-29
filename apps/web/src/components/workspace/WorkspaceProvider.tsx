@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useState,
   useSyncExternalStore,
   type ReactNode,
 } from "react";
@@ -16,10 +17,13 @@ import {
   type SessionSnapshot,
 } from "@/lib/domain/workspace-session";
 import {
-  ensureLocalDevSession,
+  listOwnedCanvases,
+  requireAuthenticatedSession,
   resetLocalWorkspace,
   runDomainAction,
 } from "@/server/actions";
+import { createBrowserSupabaseClient } from "@/server/supabase-browser";
+import { LoginForm } from "@/components/auth/LoginForm";
 
 type WorkspaceContextValue = {
   session: WorkspaceSession;
@@ -43,17 +47,39 @@ function getBrowserWorkspaceSession(): WorkspaceSession {
     browserSession = new WorkspaceSession({
       runAction: runDomainAction,
       resetStore: resetLocalWorkspace,
-      prepare: ensureLocalDevSession,
+      prepare: requireAuthenticatedSession,
+      restoreCanvases: listOwnedCanvases,
+      replayOnReset: false,
     });
   }
   return browserSession;
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
+  const [auth, setAuth] = useState<"loading" | "signed-out" | "signed-in">(
+    "loading",
+  );
   const session = useMemo(() => getBrowserWorkspaceSession(), []);
+
   useEffect(() => {
-    void session.start();
-  }, [session]);
+    const supabase = createBrowserSupabaseClient();
+    void supabase.auth.getUser().then(({ data }) => {
+      setAuth(data.user ? "signed-in" : "signed-out");
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
+      setAuth(next?.user ? "signed-in" : "signed-out");
+    });
+    return () => {
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (auth === "signed-in") {
+      void session.start();
+    }
+  }, [auth, session]);
+
   const snapshot = useSyncExternalStore(
     session.subscribe,
     session.getSnapshot,
@@ -71,6 +97,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     }),
     [session, snapshot],
   );
+
+  if (auth === "loading") {
+    return (
+      <div className="flex h-full items-center justify-center text-sm text-zinc-500">
+        Restoring session…
+      </div>
+    );
+  }
+
+  if (auth === "signed-out") {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <LoginForm
+          onSignedIn={() => {
+            setAuth("signed-in");
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
     <WorkspaceContext.Provider value={value}>

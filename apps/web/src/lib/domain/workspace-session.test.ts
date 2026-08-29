@@ -5,7 +5,7 @@ import { InMemoryDomainStore } from "@openbento/domain";
 import { describe, expect, it } from "vitest";
 import { IdSequence } from "../../server/ids";
 import { runDomainActionFromRequest } from "../../server/run-action";
-import { requestAuthFromOwnerCookie } from "../../server/session";
+import { requestAuthFromVerifiedUser } from "../../server/session";
 import { buildCreateNoteCardInput } from "./note-card";
 import { WorkspaceSession } from "./workspace-session";
 
@@ -23,7 +23,7 @@ function createUiSession(ownerId = "session-user"): WorkspaceSession {
     seedDefaultCanvas: false,
     runAction: (name, input) =>
       runDomainActionFromRequest(
-        requestAuthFromOwnerCookie(ownerId),
+        requestAuthFromVerifiedUser(ownerId),
         name,
         input,
         { store: box.store, id: box.ids.next },
@@ -136,6 +136,57 @@ describe("workspace session uses the shared server executor path", () => {
       y: -20,
       zoom: 1.25,
     });
+  });
+
+  it("restores canvas state from the store on login/reload", async () => {
+    const store = new InMemoryDomainStore();
+    const ids = new IdSequence();
+    const first = new WorkspaceSession({
+      seedDefaultCanvas: false,
+      runAction: (name, input) =>
+        runDomainActionFromRequest(
+          requestAuthFromVerifiedUser("session-user"),
+          name,
+          input,
+          { store, id: ids.next },
+        ),
+      resetStore: () => undefined,
+    });
+    const canvas = await first.execute("createCanvas", { name: "Kept" });
+    await first.execute(
+      "updateCanvasViewport",
+      {
+        canvasId: canvas.id,
+        viewport: { x: 3, y: 4, zoom: 2 },
+      },
+      { history: false },
+    );
+    await first.execute(
+      "createCard",
+      buildCreateNoteCardInput({
+        canvasId: canvas.id,
+        text: "survives reload",
+      }),
+    );
+
+    const restored = new WorkspaceSession({
+      seedDefaultCanvas: true,
+      restoreCanvases: () => store.listCanvasesByOwner("session-user"),
+      runAction: (name, input) =>
+        runDomainActionFromRequest(
+          requestAuthFromVerifiedUser("session-user"),
+          name,
+          input,
+          { store, id: ids.next },
+        ),
+      resetStore: () => undefined,
+    });
+    await restored.start();
+    const snap = restored.getSnapshot();
+    expect(snap.canvases[0]?.name).toBe("Kept");
+    expect(snap.canvases[0]?.viewport).toEqual({ x: 3, y: 4, zoom: 2 });
+    expect(snap.cards[0]?.payload).toEqual({ text: "survives reload" });
+    expect(snap.currentCanvasId).toBe(canvas.id);
   });
 
   it("keeps membership as a follow-up setCardFrame call", async () => {

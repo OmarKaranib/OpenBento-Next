@@ -4,11 +4,11 @@ AI-native live intelligence canvas (Canvas, Card, Frame, WatchBot).
 
 **Canonical context:** [docs/OPENBENTO_MASTER_CONTEXT.md](./docs/OPENBENTO_MASTER_CONTEXT.md)
 
-This is **Phase 2 Platform Auth** on `bot/platform-auth`, rebased onto WatchBot v0 (`9ca3d69`) and the Phase 1 canvas.
+This is **Phase 3 durable persist** on `bot/platform-persist`. Runtime persistence is `getDomainStore()` → `SupabaseDomainStore` for the human UI, WebMCP, and the WatchBot worker. There is no production/runtime fallback to a process-wide `InMemoryDomainStore`. `InMemoryDomainStore` remains for isolated tests only.
 
-`apps/web` mounts a Railway-inspired workspace: left rail, top Canvas switcher, Agent placeholder, and an XYFlow dotted canvas. Humans can create, switch, and rename Canvases; add Note Cards from the top **Note** control or by double-clicking empty canvas (world coordinates, then `setCardFrame` from geometry); move and resize Notes and Frames; and fullscreen a Frame without rewriting stored geometry.
+Auth is **hosted Supabase Auth**. `requireOwnerIdFromRequest` resolves `ownerId` from `auth.uid()` / `getUser()`. It never accepts a client-supplied user id and never uses the unsigned `ob_local_session` cookie as the live path. **Reload / login restore is required for PASS.**
 
-WatchBot writes sourced Cards through the same `createActionExecutor`. Canvas mutations go through `runBoundAction` / `runDomainAction` with request-scoped `ownerId` (`requireOwnerIdFromRequest`). Persistence is the in-memory `DomainStore` (process-shared). Isolated Phase 2 WebMCP registers the Issue #1 tools on that same executor. No production deploy.
+WatchBot writes sourced Cards through the same `createActionExecutor`. Canvas mutations go through `runBoundAction` / `runDomainAction`. Isolated WebMCP registers the Issue #1 tools on that same executor. No production deploy. Do not apply SQL to the hosted project from this checkout.
 
 Legacy [`OmarKaranib/OpenBento`](https://github.com/OmarKaranib/OpenBento) is frozen reference.
 
@@ -23,7 +23,7 @@ Maintained under [`docs/`](./docs/). Copies also live at the repo root.
 | [OPENBENTO_MASTER_CONTEXT.md](./docs/OPENBENTO_MASTER_CONTEXT.md) | Product + engineering source of truth |
 | [PRODUCT_SPEC.md](./PRODUCT_SPEC.md) | Vision and primitives |
 | [UI_SPEC.md](./UI_SPEC.md) | Railway-inspired chrome |
-| [ARCHITECTURE.md](./ARCHITECTURE.md) | Monorepo, catalog, planned infra |
+| [ARCHITECTURE.md](./ARCHITECTURE.md) | Monorepo, catalog, persist, auth |
 | [WATCHBOT_SPEC.md](./WATCHBOT_SPEC.md) | WatchBot contract |
 | [WEBMCP_SPEC.md](./WEBMCP_SPEC.md) | Tool = domain action |
 | [DECISIONS.md](./DECISIONS.md) | Locked decisions |
@@ -35,11 +35,11 @@ Maintained under [`docs/`](./docs/). Copies also live at the repo root.
 
 ```
 apps/web                 Next.js 16 Railway-inspired workspace (CanvasRoot) + WebMCP host
-apps/worker              WatchBot worker (fixture cycle)
-packages/domain          20-action catalog + shared executor + store port
+apps/worker              WatchBot worker (`createWorkerDomainStore()`; `--fixture` isolated only)
+packages/domain          20-action catalog + shared executor + DomainStore + SupabaseDomainStore
 packages/watchbot        SourceProvider + pipeline; optional Grok adapter
 packages/ui              Tokens
-supabase/migrations      Local/dev SQL + RLS — do not apply to production
+supabase/migrations      Dev SQL + RLS — do not apply from this agent
 docs/                    Specs + master context
 ```
 
@@ -53,22 +53,25 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm --filter web build
-pnpm --filter worker start
+pnpm --filter worker start          # durable createWorkerDomainStore (needs service role)
+pnpm --filter worker start:fixture  # isolated InMemory only
 ```
 
-Local workspace (in-memory store, no hosted backend):
+Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL` plus the publishable/anon key. Never commit secrets.
 
 ```bash
 pnpm dev
 ```
 
-## WebMCP (isolated Phase 2)
+Sign in. Create a Canvas, reload, and confirm state restores from the DomainStore.
+
+## WebMCP
 
 13 tools from `WEBMCP_TOOL_TO_ACTION`. Each `registerTool` execute calls `runWebMcpTool` → `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })` → `createActionExecutor`. Tools share the Canvas store. No demo tools. Unset session fails closed (`unauthenticated`).
 
 ```bash
 pnpm --filter web dev   # canvas at / registers tools; judge notes at /webmcp
-pnpm test               # request-scoped eval (requestAuthFromOwnerCookie in tests)
+pnpm test               # request-scoped eval (requestAuthFromVerifiedUser in tests)
 ```
 
 See [WEBMCP_SPEC.md](./WEBMCP_SPEC.md).

@@ -97,6 +97,7 @@ export {
   frameFromRecord,
   frameToRecord,
   watchBotEventFromRecord,
+  watchBotEventToRecord,
   watchBotFromRecord,
   watchBotToRecord,
 } from "./mappers";
@@ -110,6 +111,37 @@ export type {
 } from "./schema";
 
 export { InMemoryDomainStore, type DomainStore } from "./store";
+export {
+  createSupabaseDomainStore,
+  createWorkerDomainStore,
+  getDomainStore,
+  resetDomainStore,
+  setDomainSqlAdapterForTests,
+  setDomainStore,
+  setSupabaseAccessTokenResolver,
+} from "./runtime-store";
+export { SupabaseDomainStore } from "./supabase-store";
+export {
+  SharedSqlTables,
+  SqlContractEngine,
+  type DomainWriteOp,
+  type SqlContractSession,
+} from "./sql-contract";
+export {
+  createSqlContractAdapter,
+  type DomainSqlAdapter,
+} from "./sql-adapter";
+export {
+  createSupabaseJsAdapter,
+  createWebAuthedClient,
+  createWorkerAuthedClient,
+  createWorkerSupabaseJsAdapter,
+  readSupabaseEnv,
+  readWebSupabaseEnv,
+  readWorkerSupabaseEnv,
+  type WebSupabaseEnv,
+  type WorkerSupabaseEnv,
+} from "./supabase-js-adapter";
 
 export {
   CARD_TYPES,

@@ -15,12 +15,16 @@ import {
   requireOwnerIdFromRequest,
   type RequestAuthContext,
 } from "../server/session";
+import { getSupabaseAuthUser } from "../server/supabase";
 import { createBoundWebMcpRuntime, createSessionBoundExecute } from "./bound-runtime";
 
 async function requestAuthFromIncoming(): Promise<RequestAuthContext> {
+  const user = await getSupabaseAuthUser();
   return {
     cookies: await cookies(),
     headers: await headers(),
+    verifiedUserId: user?.id,
+    getUser: async () => user,
   };
 }
 
@@ -38,7 +42,7 @@ export async function runWebMcpTool<N extends WebMcpToolName>(
     throw new DomainError("invalid_input", `Unknown WebMCP tool ${toolName}`);
   }
   const request = await requestAuthFromIncoming();
-  requireOwnerIdFromRequest(request);
+  await requireOwnerIdFromRequest(request);
   return createBoundWebMcpRuntime({ request }).invoke(toolName, input);
 }
 
@@ -48,7 +52,7 @@ export async function runSetCardFrameFromGeometry(
   frames: ReadonlyArray<FrameContainmentCandidate>,
 ) {
   const request = await requestAuthFromIncoming();
-  requireOwnerIdFromRequest(request);
+  await requireOwnerIdFromRequest(request);
   return applyCardFrameFromGeometry(
     createSessionBoundExecute(request),
     card,

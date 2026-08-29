@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "tsx src/index.ts --once",
-    "start:loop": "tsx src/index.ts --loop"
+    "start:loop": "tsx src/index.ts --loop",
+    "start:fixture": "tsx src/index.ts --once --fixture"
   },
   "devDependencies": {
     "tsx": "^4.20.5"

@@ -1,24 +1,38 @@
+import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
-import {
-  LOCAL_DEV_SESSION_COOKIE,
-  localDevSessionCookieOptions,
-  mintLocalDevOwnerId,
-} from "./server/session";
 
 /**
- * Server-side local/dev session. The browser never chooses ownerId.
- * Hosted Supabase Auth is a later adapter — this does not create a project.
+ * Refresh the Supabase Auth session. Does not mint an unsigned
+ * `ob_local_session` cookie. ownerId comes from auth.uid() only.
  */
-export function proxy(request: NextRequest) {
-  const response = NextResponse.next();
-  const existing = request.cookies.get(LOCAL_DEV_SESSION_COOKIE)?.value;
-  if (!existing) {
-    response.cookies.set({
-      name: LOCAL_DEV_SESSION_COOKIE,
-      value: mintLocalDevOwnerId(),
-      ...localDevSessionCookieOptions(),
-    });
+export async function proxy(request: NextRequest) {
+  let response = NextResponse.next({ request });
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    return response;
   }
+
+  const supabase = createServerClient(url, key, {
+    cookies: {
+      getAll() {
+        return request.cookies.getAll();
+      },
+      setAll(cookiesToSet) {
+        for (const cookie of cookiesToSet) {
+          request.cookies.set(cookie.name, cookie.value);
+        }
+        response = NextResponse.next({ request });
+        for (const cookie of cookiesToSet) {
+          response.cookies.set(cookie.name, cookie.value, cookie.options);
+        }
+      },
+    },
+  });
+
+  await supabase.auth.getUser();
   return response;
 }
 

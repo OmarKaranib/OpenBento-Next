@@ -2,12 +2,15 @@
 
 import { X } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { useWorkspaceUi } from "@/components/workspace/workspace-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { signOut } from "@/server/actions";
+import { createBrowserSupabaseClient } from "@/server/supabase-browser";
 
 export function SidePanels() {
   const { railPanel, agentOpen, setRailPanel, setAgentOpen } = useWorkspaceUi();
@@ -44,12 +47,7 @@ export function SidePanels() {
                 body="Global WatchBot management is out of scope for Phase 1. The top-left status is for the current Canvas only."
               />
             ) : null}
-            {railPanel === "settings" ? (
-              <PlaceholderCopy
-                title="Settings"
-                body="Account and product settings expand later. Canvas writes go through server runDomainAction; owner identity comes from the request session, never from action JSON."
-              />
-            ) : null}
+            {railPanel === "settings" ? <SettingsPanel /> : null}
           </div>
         </section>
       ) : null}
@@ -95,6 +93,33 @@ function PlaceholderCopy({ title, body }: { title: string; body: string }) {
     <div>
       <p className="text-xs font-medium text-zinc-300">{title}</p>
       <p className="mt-2 text-xs leading-5 text-zinc-500">{body}</p>
+    </div>
+  );
+}
+
+function SettingsPanel() {
+  const router = useRouter();
+  return (
+    <div className="flex flex-col gap-3">
+      <PlaceholderCopy
+        title="Settings"
+        body="Canvas writes go through server runDomainAction. ownerId comes from Supabase Auth getUser() / auth.uid(), never from action JSON or the unsigned ob_local_session cookie."
+      />
+      <Button
+        type="button"
+        size="sm"
+        variant="outline"
+        onClick={() => {
+          void (async () => {
+            const supabase = createBrowserSupabaseClient();
+            await supabase.auth.signOut();
+            await signOut();
+            router.replace("/login");
+          })();
+        }}
+      >
+        Sign out
+      </Button>
     </div>
   );
 }

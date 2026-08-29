@@ -2,12 +2,9 @@ import { DomainError } from "@openbento/domain";
 import type { OwnerId } from "@openbento/domain";
 
 /**
- * Per-request identity. Never accept a client-supplied user id on action JSON.
- *
- * Local/dev: httpOnly session cookie minted by the server (middleware or
- * `ensureLocalDevSession`). Production later: Supabase Auth `getUser()` /
- * `auth.uid()` from the same request cookies/headers. This file is not wired
- * to a hosted project and has no process-wide owner port.
+ * Per-request identity from Supabase Auth (`auth.uid()` / `getUser()`).
+ * Never accept a client-supplied user id on action JSON.
+ * The unsigned `ob_local_session` cookie is not the live path.
  */
 export const LOCAL_DEV_SESSION_COOKIE = "ob_local_session";
 
@@ -24,91 +21,66 @@ export type HeaderReader = {
 export type RequestAuthContext = {
   cookies?: CookieReader;
   headers?: HeaderReader;
+  /**
+   * Already-verified `auth.uid()` from `supabase.auth.getUser()`.
+   * Server-populated only. Tests inject this. Never a client field.
+   */
+  verifiedUserId?: OwnerId;
+  getUser?: () => Promise<{ id: string } | null>;
 };
-
-export type SessionCookieOptions = {
-  httpOnly: true;
-  sameSite: "lax";
-  path: "/";
-  secure: boolean;
-};
-
-export function localDevSessionCookieOptions(): SessionCookieOptions {
-  return {
-    httpOnly: true,
-    sameSite: "lax",
-    path: "/",
-    secure: process.env.NODE_ENV === "production",
-  };
-}
 
 export function isUsableOwnerId(value: string): value is OwnerId {
   return OWNER_ID_PATTERN.test(value);
 }
 
-export function mintLocalDevOwnerId(): OwnerId {
-  return crypto.randomUUID();
-}
-
-function cookieValueFromHeader(
-  cookieHeader: string,
-  name: string,
-): string | undefined {
-  for (const part of cookieHeader.split(";")) {
-    const [rawKey, ...rest] = part.trim().split("=");
-    if (rawKey === name) {
-      return rest.join("=");
-    }
-  }
-  return undefined;
-}
-
 /**
- * Resolve owner from THIS request's cookies/headers only.
- * Does not read a process-wide port. Ignores any client `ownerId` field.
+ * Resolve owner from THIS request's authenticated session only.
+ * Does not read a process-wide port. Ignores client `ownerId` and
+ * the unsigned `ob_local_session` cookie.
  */
-export function ownerIdFromRequest(
+export async function ownerIdFromRequest(
   request: RequestAuthContext,
-): OwnerId | null {
-  const fromCookie = request.cookies?.get(LOCAL_DEV_SESSION_COOKIE)?.value;
-  if (fromCookie && isUsableOwnerId(fromCookie)) {
-    return fromCookie;
+): Promise<OwnerId | null> {
+  if (request.verifiedUserId && isUsableOwnerId(request.verifiedUserId)) {
+    return request.verifiedUserId;
   }
 
-  const cookieHeader = request.headers?.get("cookie");
-  if (cookieHeader) {
-    const parsed = cookieValueFromHeader(cookieHeader, LOCAL_DEV_SESSION_COOKIE);
-    if (parsed && isUsableOwnerId(parsed)) {
-      return parsed;
+  if (request.getUser) {
+    const user = await request.getUser();
+    if (user?.id && isUsableOwnerId(user.id)) {
+      return user.id;
     }
   }
 
   return null;
 }
 
-export function requireOwnerIdFromRequest(
+export async function requireOwnerIdFromRequest(
   request: RequestAuthContext,
-): OwnerId {
-  const ownerId = ownerIdFromRequest(request);
+): Promise<OwnerId> {
+  const ownerId = await ownerIdFromRequest(request);
   if (!ownerId) {
     throw new DomainError(
       "unauthenticated",
-      "Not authenticated. Identity must come from the session, never from action input.",
+      "Not authenticated. Identity must come from the Supabase Auth session (auth.uid()), never from action input.",
     );
   }
   return ownerId;
 }
 
-export function requestAuthFromOwnerCookie(
+/** Isolated tests: inject a verified auth.uid(), not an unsigned cookie. */
+export function requestAuthFromVerifiedUser(
   ownerId: OwnerId,
 ): RequestAuthContext {
   return {
-    cookies: {
-      get(name: string) {
-        return name === LOCAL_DEV_SESSION_COOKIE
-          ? { value: ownerId }
-          : undefined;
-      },
-    },
+    verifiedUserId: ownerId,
+    getUser: async () => ({ id: ownerId }),
   };
+}
+
+/** @deprecated Use requestAuthFromVerifiedUser. Kept so old test names fail closed. */
+export function requestAuthFromOwnerCookie(
+  ownerId: OwnerId,
+): RequestAuthContext {
+  return requestAuthFromVerifiedUser(ownerId);
 }

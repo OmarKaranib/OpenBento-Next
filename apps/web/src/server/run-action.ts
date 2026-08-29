@@ -44,7 +44,7 @@ export async function runDomainActionFromRequest<K extends ActionName>(
   input: ActionInputMap[K],
   options?: { store?: DomainStore; id?: () => string },
 ): Promise<ActionResultMap[K]> {
-  const ownerId = requireOwnerIdFromRequest(request);
+  const ownerId = await requireOwnerIdFromRequest(request);
   return runBoundAction(
     {
       getOwnerId: async () => ownerId,
