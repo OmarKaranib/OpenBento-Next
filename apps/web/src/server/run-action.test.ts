@@ -1,6 +1,7 @@
 import { ACTION_NAMES, InMemoryDomainStore } from "@openbento/domain";
 import { describe, expect, it } from "vitest";
-import { runBoundAction } from "./run-action";
+import { runBoundAction, runDomainActionFromRequest } from "./run-action";
+import { requestAuthFromOwnerCookie } from "./session";
 
 describe("session-bound server wrappers", () => {
   it("uses the session owner and ignores a client-supplied ownerId", async () => {
@@ -19,6 +20,66 @@ describe("session-bound server wrappers", () => {
         { name: "Poison", ownerId: "attacker" } as never,
       ),
     ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("fails unauthenticated requests before the executor runs", async () => {
+    const store = new InMemoryDomainStore();
+    await expect(
+      runDomainActionFromRequest(
+        { cookies: { get: () => undefined } },
+        "createCanvas",
+        { name: "Nope" },
+        { store },
+      ),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
+  });
+
+  it("binds authenticated requests to the request session owner", async () => {
+    const store = new InMemoryDomainStore();
+    const canvas = await runDomainActionFromRequest(
+      requestAuthFromOwnerCookie("cookie-owner"),
+      "createCanvas",
+      { name: "Mine" },
+      { store },
+    );
+    expect(canvas.ownerId).toBe("cookie-owner");
+
+    await expect(
+      runDomainActionFromRequest(
+        requestAuthFromOwnerCookie("cookie-owner"),
+        "createCanvas",
+        { name: "Poison", ownerId: "attacker" } as never,
+        { store },
+      ),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("keeps two concurrent request owners isolated", async () => {
+    const store = new InMemoryDomainStore();
+    const [a, b] = await Promise.all([
+      runDomainActionFromRequest(
+        requestAuthFromOwnerCookie("owner-alpha"),
+        "createCanvas",
+        { name: "A" },
+        { store },
+      ),
+      runDomainActionFromRequest(
+        requestAuthFromOwnerCookie("owner-bravo"),
+        "createCanvas",
+        { name: "B" },
+        { store },
+      ),
+    ]);
+    expect(a.ownerId).toBe("owner-alpha");
+    expect(b.ownerId).toBe("owner-bravo");
+    await expect(
+      runDomainActionFromRequest(
+        requestAuthFromOwnerCookie("owner-bravo"),
+        "getCanvasState",
+        { canvasId: a.id },
+        { store },
+      ),
+    ).rejects.toMatchObject({ code: "not_found" });
   });
 
   it("covers every catalog action through the same runner", async () => {

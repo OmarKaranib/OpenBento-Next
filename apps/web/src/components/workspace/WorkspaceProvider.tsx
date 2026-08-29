@@ -14,6 +14,11 @@ import {
   type ExecuteOptions,
   type SessionSnapshot,
 } from "@/lib/domain/workspace-session";
+import {
+  ensureLocalDevSession,
+  resetLocalWorkspace,
+  runDomainAction,
+} from "@/server/actions";
 
 type WorkspaceContextValue = {
   session: WorkspaceSession;
@@ -30,8 +35,21 @@ type WorkspaceContextValue = {
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
+let browserSession: WorkspaceSession | undefined;
+
+function getBrowserWorkspaceSession(): WorkspaceSession {
+  if (!browserSession) {
+    browserSession = new WorkspaceSession({
+      runAction: runDomainAction,
+      resetStore: resetLocalWorkspace,
+      prepare: ensureLocalDevSession,
+    });
+  }
+  return browserSession;
+}
+
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const session = useMemo(() => new WorkspaceSession(), []);
+  const session = useMemo(() => getBrowserWorkspaceSession(), []);
   const snapshot = useSyncExternalStore(
     session.subscribe,
     session.getSnapshot,

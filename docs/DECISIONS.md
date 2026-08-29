@@ -95,8 +95,12 @@ Taxonomy: [`docs/ANALYTICS.md`](./docs/ANALYTICS.md). No secrets, instructions, 
 
 Handlers for `ACTION_CATALOG` live in `@openbento/domain` (`ActionExecutor`). Persistence is a `DomainStore` port. Tests use `InMemoryDomainStore`. A later local Supabase adapter can implement the same port. Do not hard-wire Grok or any provider into the domain.
 
-Next.js server-action wrappers in `apps/web/src/server` resolve the session user and call the executor. They never take `ownerId` from the client payload.
+Next.js server-action wrappers in `apps/web/src/server` resolve the session user **from the incoming request** (cookies/headers) and call the executor. They never take `ownerId` from the client payload. Local/dev may mint an httpOnly session cookie on the server. Do not use a process-wide owner port.
 
 ## D-018 — RLS is owner-scoped; membership is still a domain check
 
 Local/dev RLS policies scope Canvas/Card/Frame/WatchBot access via `auth.uid()` (cards/frames join through canvas ownership). Never trust a client-supplied user id. `setCardFrame` still calls `assertSameCanvasMembership`. RLS is not a substitute.
+
+## D-019 — Auth identity is request-scoped
+
+`configureAuthSession` as a process singleton is forbidden. `runBoundAction` waits for a per-request owner from cookies/headers. A local/dev session is allowed only if the server mints and reads it. Hosted Supabase Auth / `getUser()` is a later adapter — do not create a production project for this phase.

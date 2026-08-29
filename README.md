@@ -4,11 +4,11 @@ AI-native live intelligence canvas (Canvas, Card, Frame, WatchBot).
 
 **Canonical context:** [docs/OPENBENTO_MASTER_CONTEXT.md](./docs/OPENBENTO_MASTER_CONTEXT.md)
 
-This is **Phase 4 WatchBot v0 first slice** (web/news) on top of the Phase 1 canvas and the shared 20-action catalog.
+This is **Phase 2 Platform Auth** on `bot/platform-auth`, rebased onto WatchBot v0 (`9ca3d69`) and the Phase 1 canvas.
 
 `apps/web` mounts a Railway-inspired workspace: left rail, top Canvas switcher, Agent placeholder, and an XYFlow dotted canvas. Humans can create, switch, and rename Canvases; add Note Cards from the top **Note** control or by double-clicking empty canvas (world coordinates, then `setCardFrame` from geometry); move and resize Notes and Frames; and fullscreen a Frame without rewriting stored geometry.
 
-WatchBot writes sourced Cards through the same `createActionExecutor`. Persistence is the in-memory `DomainStore`. No WebMCP tools, Auth/`runBoundAction`, or production deploy.
+WatchBot writes sourced Cards through the same `createActionExecutor`. Canvas mutations go through `runBoundAction` / `runDomainAction` with request-scoped `ownerId` (`requireOwnerIdFromRequest`). Persistence is the in-memory `DomainStore` (process-shared). No WebMCP tools or production deploy.
 
 Legacy [`OmarKaranib/OpenBento`](https://github.com/OmarKaranib/OpenBento) is frozen reference.
 
