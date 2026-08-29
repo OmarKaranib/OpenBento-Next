@@ -9,14 +9,15 @@ import type {
  * Shared application actions. Human UI, WatchBot, and WebMCP must use these
  * names and input shapes. No handlers live here — catalog + types only.
  *
- * WatchBot Engineer first-slice contract:
- *   createWatchBot, pauseWatchBot, createCard, updateCard
+ * Locked catalog:
+ *   createWatchBot, pauseWatchBot, createCard, updateCard, setCardFrame
  */
 export const ACTION_NAMES = [
   "createWatchBot",
   "pauseWatchBot",
   "createCard",
   "updateCard",
+  "setCardFrame",
 ] as const;
 
 export type ActionName = (typeof ACTION_NAMES)[number];
@@ -36,7 +37,6 @@ export interface CreateCardInput {
   canvasId: string;
   /** Required. Cards without provenance are invalid. */
   provenance: CardProvenance;
-  frameId?: string;
   body?: string;
   position?: { x: number; y: number };
 }
@@ -45,9 +45,19 @@ export interface UpdateCardInput {
   cardId: string;
   /** Required on every update — provenance is not optional after create. */
   provenance: CardProvenance;
-  frameId?: string | null;
   body?: string;
   position?: { x: number; y: number };
+}
+
+/**
+ * Apply Frame membership derived from spatial containment.
+ * The UI (or WatchBot / WebMCP) computes whether the card is inside a Frame
+ * and calls this action. Membership is not invented in the UI layer alone.
+ * `frameId: null` means the card was moved outside every Frame.
+ */
+export interface SetCardFrameInput {
+  cardId: string;
+  frameId: string | null;
 }
 
 export interface ActionResultMap {
@@ -55,6 +65,7 @@ export interface ActionResultMap {
   pauseWatchBot: WatchBot;
   createCard: Card;
   updateCard: Card;
+  setCardFrame: Card;
 }
 
 export type JsonSchema = {
@@ -126,7 +137,6 @@ export const ACTION_CATALOG: {
       properties: {
         canvasId: { type: "string", minLength: 1 },
         provenance: provenanceSchema,
-        frameId: { type: "string" },
         body: { type: "string" },
         position: {
           type: "object",
@@ -150,7 +160,6 @@ export const ACTION_CATALOG: {
       properties: {
         cardId: { type: "string", minLength: 1 },
         provenance: provenanceSchema,
-        frameId: { type: ["string", "null"] },
         body: { type: "string" },
         position: {
           type: "object",
@@ -160,6 +169,20 @@ export const ACTION_CATALOG: {
             y: { type: "number" },
           },
         },
+      },
+    },
+  },
+  setCardFrame: {
+    name: "setCardFrame",
+    description:
+      "Set a Card's Frame membership from spatial containment (inside a Frame, or null if outside all Frames). Not a UI-only field.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["cardId", "frameId"],
+      properties: {
+        cardId: { type: "string", minLength: 1 },
+        frameId: { type: ["string", "null"] },
       },
     },
   },

@@ -47,8 +47,9 @@ WatchBot Engineer builds against (stubs, **no handlers**):
 | --- | --- | --- |
 | `createWatchBot` | `canvasId`, optional `sourceTypes` (`web` \| `news`), optional `label` | `WatchBot` |
 | `pauseWatchBot` | `watchBotId` | `WatchBot` (`status: "paused"`) |
-| `createCard` | `canvasId`, **required** `provenance`, optional body/position/frame | `Card` |
-| `updateCard` | `cardId`, **required** `provenance`, optional body/position/frame | `Card` |
+| `createCard` | `canvasId`, **required** `provenance`, optional body/position | `Card` |
+| `updateCard` | `cardId`, **required** `provenance`, optional body/position | `Card` |
+| `setCardFrame` | `cardId`, `frameId` (`string` \| `null`) | `Card` |
 
 Provenance on both card actions:
 
@@ -67,6 +68,10 @@ document.modelContext.registerTool({
   execute,       // later: same handler as UI / WatchBot
 });
 ```
+
+`setCardFrame` is the only way to persist Frame membership. Membership is **derived from spatial containment** (card placed inside / moved outside a Frame) and applied through this action — not invented as a UI-only field.
+
+Fullscreen Frame is **view-only presentation**. It is not a catalog action and must **not** rewrite stored Frame bounds or Card geometry. Zoom remains camera-only (no semantic zoom).
 
 Do not add a second catalog in the worker or in WebMCP glue.
 

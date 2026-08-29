@@ -12,6 +12,7 @@ This package is types + a typed action catalog stub only. **No handlers. No pipe
 | `pauseWatchBot` | Pause a bound WatchBot (`paused` lifecycle). |
 | `createCard` | **Requires** `provenance` (`sourceUrl`, `title`, `publishedAt`, `sourceType`). |
 | `updateCard` | **Requires** the same provenance fields. |
+| `setCardFrame` | Frame membership from spatial containment (`frameId` or `null`). |
 
 Proposed local records (sketch only — do not apply, do not invent beyond this):
 

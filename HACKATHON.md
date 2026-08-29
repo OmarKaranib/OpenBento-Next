@@ -45,7 +45,7 @@ Stage one is pass/fail theme + API fit; stage two uses the four criteria.
 
 ## Intended WebMCP fit (when built)
 
-OpenBento exposes the **same** canvas actions the human uses (`createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard`) so an agent can watch and write Cards with required provenance — not scrape the DOM.
+OpenBento exposes the **same** canvas actions the human uses (`createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard`, `setCardFrame`) so an agent can watch and write Cards with required provenance — not scrape the DOM.
 
 ## Not done yet (this phase)
 

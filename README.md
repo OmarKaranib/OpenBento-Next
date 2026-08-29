@@ -35,7 +35,7 @@ supabase/migrations      Empty — local/dev only; do not apply
 docs/                    Maintained spec copies
 ```
 
-Shared actions WatchBot Engineer builds against: `createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard`. Card provenance is required. See `@openbento/domain`.
+Shared actions: `createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard`, `setCardFrame`. Card provenance is required. Frame membership is `setCardFrame` only. See `@openbento/domain`.
 
 ## Install
 

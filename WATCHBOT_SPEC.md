@@ -18,6 +18,7 @@ A WatchBot is a live **observer/actor bound to a Canvas**. It watches sources re
 | `pauseWatchBot` | Stop discovering. Lifecycle → `paused`. |
 | `createCard` | Materialize a novel, relevant item. **Provenance required.** |
 | `updateCard` | Refresh an existing Card. **Provenance required.** |
+| `setCardFrame` | If a Card is placed inside/outside a Frame, apply membership here — not a private field. |
 
 Provenance (required on both card actions):
 

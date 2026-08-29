@@ -8,12 +8,13 @@ North star: **Railway’s canvas interaction model** — compact, dark, spatial,
 
 - **Dark infinite dotted canvas.** Background is near-black; dots are a quiet grid, not content.
 - The canvas is a viewport over a plane. Objects (Cards, Frames) live in world coordinates.
-- **Zoom is navigation only.** Zoom never changes information architecture.
+- **Zoom is camera-only navigation.** Zoom never changes information architecture.
   - No semantic zoom.
   - No “levels” that reveal different object types.
   - No collapsing a Canvas into a Card by zooming out.
   - Fit / zoom in / zoom out / pan only change the camera.
   - A Card at 20% zoom is the same Card as at 200% zoom.
+  - Zoom does not change Frame membership or stored geometry.
 
 ## Left rail
 
@@ -56,13 +57,13 @@ Model **very closely** after Railway’s compact **bottom-left vertical control 
 | Redo | Required | Shared history. |
 | Overview / layers | Optional | Include if useful; must **not** become semantic zoom. |
 
-Toolbar actions that mutate the world (Frame tool, undo/redo) must eventually call the same domain/application layer as WatchBot and WebMCP. Zoom/fit/grid do not change the domain graph.
+Toolbar actions that mutate the world (Frame tool, undo/redo, and later `setCardFrame` when a card crosses a Frame boundary) must call the same domain/application layer as WatchBot and WebMCP. Zoom/fit/grid are camera-only and do not change the domain graph.
 
 ## Frames
 
-- Bordered display regions on the canvas.
-- Can be **fullscreened** (enter / exit). Fullscreen is a presentation mode, not a new IA level.
-- Frames may contain or clip Cards visually; they are not zoom tiers.
+- Bordered display regions on the canvas. They are not zoom tiers and not a semantic hierarchy.
+- **Membership is spatial.** A Card is in a Frame when it is placed inside that Frame’s bounds, and out when moved outside. That derivation is applied through the shared domain action `setCardFrame` (`frameId` or `null`). The UI must not invent a private membership field.
+- **Fullscreen is view-only presentation.** Entering or exiting fullscreen must **not** rewrite stored Frame bounds or Card geometry. It is not a domain mutation and not a new IA level.
 - Creating a Frame is a first-class tool on the bottom-left stack.
 
 ## What this phase does not build

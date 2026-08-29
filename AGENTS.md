@@ -15,8 +15,9 @@ Human UI, WatchBot, and WebMCP **must** converge on the same shared domain/appli
 
 - Do not give WatchBot or WebMCP a private mutation API.
 - WebMCP tools map 1:1 to catalog entries via `document.modelContext.registerTool({ name, description, inputSchema, execute })`.
-- Required catalog actions WatchBot Engineer builds against: `createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard`.
+- Required catalog actions: `createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard`, `setCardFrame`.
 - `createCard` and `updateCard` **require** provenance: `sourceUrl`, `title`, `publishedAt` (`published_at`), `sourceType` (`source_type`).
+- `setCardFrame` is the only write path for Frame membership (spatial containment). Fullscreen is view-only and must not rewrite stored geometry.
 - Do not implement handlers or a real pipeline in the scaffold. Types and docs only until a later phase.
 
 ## WatchBot Engineer (first slice — after scaffold merge)

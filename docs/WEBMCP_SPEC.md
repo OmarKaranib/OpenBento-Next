@@ -45,6 +45,7 @@ Feature-detect `document.modelContext` (and fall back only for browsers without 
 | `pauseWatchBot` | `pauseWatchBot` | Pause discovery. |
 | `createCard` | `createCard` | **Requires** provenance. |
 | `updateCard` | `updateCard` | **Requires** provenance. |
+| `setCardFrame` | `setCardFrame` | Membership from spatial containment; `frameId` or `null`. |
 
 Provenance fields the agent must supply on card tools: `sourceUrl`, `title`, `publishedAt`, `sourceType`.
 

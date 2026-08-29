@@ -89,7 +89,11 @@ export interface Canvas {
 export interface Card {
   id: string;
   canvasId: string;
-  frameId?: string;
+  /**
+   * Frame membership. Written only via `setCardFrame` after spatial
+   * containment is derived. Not a UI-invented field.
+   */
+  frameId?: string | null;
   provenance: CardProvenance;
   body?: string;
   position?: { x: number; y: number };
@@ -101,8 +105,20 @@ export interface Frame {
   id: string;
   canvasId: string;
   label?: string;
+  /**
+   * Stored world geometry. Fullscreen is view-only presentation and must
+   * not rewrite these bounds or any Card position.
+   */
   bounds: { x: number; y: number; width: number; height: number };
-  fullscreen: boolean;
+}
+
+/**
+ * Ephemeral UI presentation. Not a domain action and not persisted.
+ * Entering/exiting fullscreen must not rewrite Frame.bounds or Card geometry.
+ */
+export interface FrameFullscreenView {
+  frameId: string;
+  active: boolean;
 }
 
 export type Actor = "human" | "watchbot" | "webmcp";

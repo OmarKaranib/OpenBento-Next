@@ -9,6 +9,7 @@ export {
   type DomainAction,
   type JsonSchema,
   type PauseWatchBotInput,
+  type SetCardFrameInput,
   type UpdateCardInput,
 } from "./actions";
 
@@ -27,6 +28,7 @@ export {
   type CardProvenance,
   type FirstSliceSourceType,
   type Frame,
+  type FrameFullscreenView,
   type SourceType,
   type WatchBot,
   type WatchBotEvent,

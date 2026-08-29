@@ -38,6 +38,7 @@ Human UI, WatchBot, and WebMCP **converge on `packages/domain`**. Required catal
 - `pauseWatchBot`
 - `createCard` (provenance required)
 - `updateCard` (provenance required)
+- `setCardFrame` (Frame membership from spatial containment; `frameId` or `null`)
 
 No private WatchBot mutation API. No WebMCP tools that are not catalog actions. Handlers are **not** implemented in this phase.
 
@@ -69,7 +70,7 @@ First slice (documented, **not implemented**): **web and news only**. YouTube an
 
 ### 3. Agent via WebMCP
 
-Page registers catalog actions as tools. Agent calls `createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard` with the same schemas. Execute functions (later) call the same handlers as the human UI.
+Page registers catalog actions as tools. Agent calls `createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard`, `setCardFrame` with the same schemas. Execute functions (later) call the same handlers as the human UI.
 
 ## v1 in / out
 

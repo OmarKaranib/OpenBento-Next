@@ -2,7 +2,7 @@
 
 WatchBot **runtime stub**. Types and this README only. No observer loop, no provider calls, no pipeline.
 
-A WatchBot is a live observer/actor **bound to one Canvas**. It must mutate the world only through `@openbento/domain` actions (`createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard`). Status is shown top-left next to the current Canvas name.
+A WatchBot is a live observer/actor **bound to one Canvas**. It must mutate the world only through `@openbento/domain` actions (`createWatchBot`, `pauseWatchBot`, `createCard`, `updateCard`, `setCardFrame`). Status is shown top-left next to the current Canvas name.
 
 ## Lifecycle (stub)
 
