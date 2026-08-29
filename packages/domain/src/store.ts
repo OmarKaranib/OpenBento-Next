@@ -21,6 +21,8 @@ export interface DomainStore {
   getWatchBot(id: string): Promise<WatchBot | null>;
   saveWatchBot(watchBot: WatchBot): Promise<void>;
   listWatchBotsByCanvas(canvasId: string): Promise<WatchBot[]>;
+  /** Worker scan. Not an action input; owner scoping stays in the executor. */
+  listWatchBots(): Promise<WatchBot[]>;
 
   /**
    * Persist a WatchBotEvent. `(watchBotId, dedupKey)` is unique — the same
@@ -94,6 +96,10 @@ export class InMemoryDomainStore implements DomainStore {
     return [...this.watchBots.values()]
       .filter((watchBot) => watchBot.canvasId === canvasId)
       .map((watchBot) => clone(watchBot));
+  }
+
+  async listWatchBots(): Promise<WatchBot[]> {
+    return [...this.watchBots.values()].map((watchBot) => clone(watchBot));
   }
 
   async saveWatchBotEvent(event: WatchBotEvent): Promise<void> {
