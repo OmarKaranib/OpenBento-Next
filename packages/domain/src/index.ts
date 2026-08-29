@@ -113,6 +113,7 @@ export type {
 export { InMemoryDomainStore, type DomainStore } from "./store";
 export {
   createSupabaseDomainStore,
+  createWorkerDomainStore,
   getDomainStore,
   resetDomainStore,
   setDomainSqlAdapterForTests,
@@ -130,7 +131,17 @@ export {
   createSqlContractAdapter,
   type DomainSqlAdapter,
 } from "./sql-adapter";
-export { createSupabaseJsAdapter, readSupabaseEnv } from "./supabase-js-adapter";
+export {
+  createSupabaseJsAdapter,
+  createWebAuthedClient,
+  createWorkerAuthedClient,
+  createWorkerSupabaseJsAdapter,
+  readSupabaseEnv,
+  readWebSupabaseEnv,
+  readWorkerSupabaseEnv,
+  type WebSupabaseEnv,
+  type WorkerSupabaseEnv,
+} from "./supabase-js-adapter";
 
 export {
   CARD_TYPES,

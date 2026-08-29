@@ -93,7 +93,7 @@ Taxonomy: [`docs/ANALYTICS.md`](./docs/ANALYTICS.md). No secrets, instructions, 
 
 ## D-017 — Persistence port + shared executor
 
-Handlers for `ACTION_CATALOG` live in `@openbento/domain` (`ActionExecutor`). Persistence is a `DomainStore` port. Runtime `getDomainStore()` is `SupabaseDomainStore` for UI, WebMCP, and the worker. Tests may use `InMemoryDomainStore`. Do not hard-wire Grok or any provider into the domain.
+Handlers for `ACTION_CATALOG` live in `@openbento/domain` (`ActionExecutor`). Persistence is a `DomainStore` port. Runtime `getDomainStore()` is `SupabaseDomainStore` for UI, WebMCP, and `runBoundAction` (user JWT only). The worker uses `createWorkerDomainStore()` (explicit service role). Tests may use `InMemoryDomainStore`. Do not hard-wire Grok or any provider into the domain.
 
 Next.js server-action wrappers in `apps/web/src/server` resolve the session user from Supabase Auth `getUser()` / `auth.uid()` and call the executor. They never take `ownerId` from the client payload. The unsigned `ob_local_session` cookie is not the live path. Do not use a process-wide owner port. Reload/login restore is required for PASS.
 

@@ -37,7 +37,7 @@ const executor = createActionExecutor({
 await executor.execute("createCanvas", { name: "Trump News" });
 ```
 
-`DomainStore` is the persistence port. Runtime `getDomainStore()` returns `SupabaseDomainStore` for UI, WebMCP, and the worker. Tests use `InMemoryDomainStore`. Next.js wrappers in `apps/web/src/server` resolve the session user from Supabase Auth and call this executor.
+`DomainStore` is the persistence port. Runtime `getDomainStore()` returns `SupabaseDomainStore` for UI, WebMCP, and `runBoundAction` (user JWT only; never `SUPABASE_SERVICE_ROLE_KEY`). The worker uses `createWorkerDomainStore()`. Tests use `InMemoryDomainStore`. Next.js wrappers in `apps/web/src/server` resolve the session user from Supabase Auth and call this executor.
 
 WebMCP tools use `WEBMCP_TOOL_TO_ACTION` + `createWebMcpRuntime({ execute })`. Production `execute` is `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })` in `apps/web`. This package does not construct a session `ownerId`.
 

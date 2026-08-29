@@ -7,8 +7,9 @@ through `@openbento/watchbot` and `@openbento/domain` `createActionExecutor`.
 Paused bots skip discovery. Unexpected failures set status `error` + `lastError`
 without crashing the process.
 
-Runtime persist is `getDomainStore()` (`SupabaseDomainStore`) — the same store
-as UI and WebMCP. The worker stamps `ownerId` from the WatchBot record.
+Runtime persist is `createWorkerDomainStore()` (explicit service-role factory).
+It must not use web `getDomainStore()`, which is user-JWT only. The worker
+stamps `ownerId` from the WatchBot record.
 `listWatchBots` is a store scan, not an `ACTION_CATALOG` action.
 
 ```bash

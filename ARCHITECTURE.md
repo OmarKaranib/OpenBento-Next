@@ -2,7 +2,7 @@
 
 Canonical product context: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.md).
 
-Status: **Phase 3 durable persist** on `bot/platform-persist`. Runtime persist is `getDomainStore()` → `SupabaseDomainStore` for UI, WebMCP, and the WatchBot worker. Auth is hosted Supabase (`getUser()` / `auth.uid()`). **Reload / login restore is required for PASS.** No production infra. No in-memory runtime fallback.
+Status: **Phase 3 durable persist** on `bot/platform-persist`. Runtime persist is `getDomainStore()` → `SupabaseDomainStore` for UI, WebMCP, and `runBoundAction` (user JWT only). The WatchBot worker uses `createWorkerDomainStore()` (explicit service role). Auth is hosted Supabase (`getUser()` / `auth.uid()`). **Reload / login restore is required for PASS.** No production infra. No in-memory runtime fallback.
 
 ## Monorepo
 
@@ -11,7 +11,7 @@ pnpm workspaces + TypeScript. Next.js 16 + React in `apps/web`.
 ```
 apps/web              Next.js 16 App Router. Railway-inspired workspace + login.
                       CanvasRoot mounts @xyflow/react (no edges / minimap).
-apps/worker           WatchBot worker. getDomainStore(); --fixture is tests only.
+apps/worker           WatchBot worker. createWorkerDomainStore(); --fixture is tests only.
 packages/domain       Catalog + handlers (`ActionExecutor`) + DomainStore port
                       + SupabaseDomainStore.
 packages/watchbot     SourceProvider + pipeline. Optional Grok adapter behind env.
@@ -58,7 +58,7 @@ WebMCP registers the Issue #1 snake_case map via `document.modelContext.register
 
 `createActionExecutor({ store, ownerId })` implements every `ACTION_CATALOG` name. `ownerId` is resolved **per request** from Supabase Auth (`requireOwnerIdFromRequest` → `getUser()` / `auth.uid()`) and bound by `runBoundAction` / `runDomainAction`. The unsigned `ob_local_session` cookie is **not** the live path.
 
-`getDomainStore()` always returns `SupabaseDomainStore` for UI, WebMCP, and the worker. `InMemoryDomainStore` is isolated tests only.
+`getDomainStore()` returns `SupabaseDomainStore` for UI, WebMCP, and `runBoundAction`, authenticated with the user JWT (publishable/anon + session). It never reads `SUPABASE_SERVICE_ROLE_KEY`. The worker uses `createWorkerDomainStore()`. `InMemoryDomainStore` is isolated tests only.
 
 Leftover-Card TOCTOU: the WatchBot pipeline persists `createCard` + `setCardFrame` + unique `(watch_bot_id, dedup_key)` claim in one `runInTransaction`. A unique conflict rolls back the Card. A thrown create does not occupy the unique key.
 
@@ -81,7 +81,7 @@ Public placeholders only (see `.env.example`):
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
 
-Worker may use `SUPABASE_SERVICE_ROLE_KEY` (never `NEXT_PUBLIC_`, never committed, never printed).
+Worker uses `SUPABASE_SERVICE_ROLE_KEY` only via `createWorkerDomainStore()` (never `NEXT_PUBLIC_`, never committed, never printed, never on the web `getDomainStore()` path).
 
 ## Planned infrastructure (not provisioned by this PR)
 

@@ -1,6 +1,11 @@
 import { DomainError } from "./errors";
 import type { DomainSqlAdapter } from "./sql-adapter";
-import { createSupabaseJsAdapter, readSupabaseEnv } from "./supabase-js-adapter";
+import {
+  createSupabaseJsAdapter,
+  createWorkerSupabaseJsAdapter,
+  readWebSupabaseEnv,
+  readWorkerSupabaseEnv,
+} from "./supabase-js-adapter";
 import { SupabaseDomainStore } from "./supabase-store";
 import type { DomainStore } from "./store";
 
@@ -10,8 +15,10 @@ let adapterOverride: DomainSqlAdapter | undefined;
 let accessTokenResolver: (() => Promise<string | null>) | undefined;
 
 /**
- * Same DomainStore for UI, WebMCP, and the WatchBot worker.
- * Always `SupabaseDomainStore`. No InMemory runtime fallback.
+ * Request-scoped DomainStore for UI, WebMCP, and `runBoundAction`.
+ * Always `SupabaseDomainStore` with the user JWT (publishable/anon + session).
+ * Never reads SUPABASE_SERVICE_ROLE_KEY. No InMemory runtime fallback.
+ * The WatchBot worker must use `createWorkerDomainStore()`.
  */
 export function getDomainStore(): DomainStore {
   if (injected) {
@@ -32,11 +39,20 @@ export function getDomainStore(): DomainStore {
 export function createSupabaseDomainStore(
   adapter: DomainSqlAdapter = adapterOverride ??
     createSupabaseJsAdapter({
-      ...readSupabaseEnv(),
+      ...readWebSupabaseEnv(),
       getAccessToken: accessTokenResolver,
     }),
 ): SupabaseDomainStore {
   return new SupabaseDomainStore(adapter);
+}
+
+/**
+ * Worker persist. Explicit service-role factory — never getDomainStore().
+ */
+export function createWorkerDomainStore(): SupabaseDomainStore {
+  return new SupabaseDomainStore(
+    createWorkerSupabaseJsAdapter(readWorkerSupabaseEnv()),
+  );
 }
 
 /** Web request path: resolve the user JWT so RLS sees auth.uid(). */

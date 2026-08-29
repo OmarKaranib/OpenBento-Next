@@ -16,9 +16,11 @@ afterEach(() => {
 
 describe("web getDomainStore", () => {
   it("does not construct an InMemoryDomainStore fallback", () => {
-    expect(source).not.toMatch(/new InMemoryDomainStore/);
-    expect(source).toMatch(/getDomainStore/);
+    const code = source.replace(/\/\*[\s\S]*?\*\//g, "");
+    expect(code).not.toMatch(/new InMemoryDomainStore/);
+    expect(code).toMatch(/getDomainStore/);
     expect(source).toMatch(/SupabaseDomainStore/);
+    expect(code).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY/);
   });
 
   it("uses the injected store for isolated tests only", () => {

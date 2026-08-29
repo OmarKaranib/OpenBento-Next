@@ -9,12 +9,18 @@ import type {
 } from "./schema";
 import type { DomainSqlAdapter } from "./sql-adapter";
 
-export type SupabaseEnv = {
+/** Request-scoped web/UI/WebMCP env. Never carries a service-role key. */
+export type WebSupabaseEnv = {
   url: string;
   publishableKey: string;
-  /** Worker-only. Never a NEXT_PUBLIC_ value. Never log the value. */
-  serviceRoleKey?: string;
   getAccessToken?: () => Promise<string | null>;
+};
+
+/** Worker-only env. Service role is explicit — not used by getDomainStore(). */
+export type WorkerSupabaseEnv = {
+  url: string;
+  publishableKey: string;
+  serviceRoleKey: string;
 };
 
 function mapPgError(error: { code?: string; message: string }): never {
@@ -30,24 +36,7 @@ function mapPgError(error: { code?: string; message: string }): never {
   throw new DomainError("invalid_input", error.message);
 }
 
-async function authedClient(
-  env: SupabaseEnv,
-): Promise<SupabaseClient> {
-  if (env.serviceRoleKey) {
-    return createClient(env.url, env.serviceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false },
-    });
-  }
-  const token = env.getAccessToken ? await env.getAccessToken() : null;
-  return createClient(env.url, env.publishableKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: token
-      ? { headers: { Authorization: `Bearer ${token}` } }
-      : undefined,
-  });
-}
-
-export function readSupabaseEnv(): SupabaseEnv {
+function requirePublicSupabaseEnv(): { url: string; publishableKey: string } {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const publishableKey =
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ??
@@ -58,13 +47,73 @@ export function readSupabaseEnv(): SupabaseEnv {
       "Supabase env is required (NEXT_PUBLIC_SUPABASE_URL and publishable/anon key). No in-memory runtime fallback.",
     );
   }
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || undefined;
-  return { url, publishableKey, serviceRoleKey };
+  return { url, publishableKey };
 }
 
-export function createSupabaseJsAdapter(env: SupabaseEnv): DomainSqlAdapter {
-  const client = () => authedClient(env);
+/**
+ * Web / request-scoped env. Does not read SUPABASE_SERVICE_ROLE_KEY
+ * even when that variable is present in a shared .env.
+ */
+export function readWebSupabaseEnv(): WebSupabaseEnv {
+  return requirePublicSupabaseEnv();
+}
 
+/** @deprecated Use readWebSupabaseEnv. Never includes a service-role key. */
+export function readSupabaseEnv(): WebSupabaseEnv {
+  return readWebSupabaseEnv();
+}
+
+/**
+ * Worker-only env. Reads SUPABASE_SERVICE_ROLE_KEY explicitly.
+ * Must not be used by getDomainStore() / runBoundAction.
+ */
+export function readWorkerSupabaseEnv(): WorkerSupabaseEnv {
+  const publicEnv = requirePublicSupabaseEnv();
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) {
+    throw new DomainError(
+      "unauthenticated",
+      "Worker persist requires an explicit SUPABASE_SERVICE_ROLE_KEY. Do not fall back to the web JWT client.",
+    );
+  }
+  return { ...publicEnv, serviceRoleKey };
+}
+
+/** Publishable/anon key + user JWT. Never the service-role key. */
+export async function createWebAuthedClient(
+  env: WebSupabaseEnv,
+): Promise<SupabaseClient> {
+  const token = env.getAccessToken ? await env.getAccessToken() : null;
+  return createClient(env.url, env.publishableKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+    global: token
+      ? { headers: { Authorization: `Bearer ${token}` } }
+      : undefined,
+  });
+}
+
+/** Worker service-role client. Not used by the web request path. */
+export async function createWorkerAuthedClient(
+  env: WorkerSupabaseEnv,
+): Promise<SupabaseClient> {
+  return createClient(env.url, env.serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+}
+
+export function createSupabaseJsAdapter(env: WebSupabaseEnv): DomainSqlAdapter {
+  return createAdapter(() => createWebAuthedClient(env));
+}
+
+export function createWorkerSupabaseJsAdapter(
+  env: WorkerSupabaseEnv,
+): DomainSqlAdapter {
+  return createAdapter(() => createWorkerAuthedClient(env));
+}
+
+function createAdapter(
+  client: () => Promise<SupabaseClient>,
+): DomainSqlAdapter {
   return {
     async getCanvas(id) {
       const { data, error } = await (await client())

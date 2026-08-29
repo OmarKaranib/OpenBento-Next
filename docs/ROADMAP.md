@@ -94,7 +94,7 @@ Omar assigned. PR #2. Do not merge until owner validation.
 - [x] Per-request identity from cookies/headers (no `configureAuthSession` process singleton)
 - [x] Reject client-supplied `ownerId` on the UI/server path; unauthenticated requests fail
 - [x] Hosted Supabase Auth `getUser()` / `auth.uid()` (unsigned `ob_local_session` is not the live path)
-- [x] `SupabaseDomainStore` via `getDomainStore()` for UI, WebMCP, and the worker
+- [x] `SupabaseDomainStore` via `getDomainStore()` for UI/WebMCP (user JWT); worker uses `createWorkerDomainStore()`
 
 ---
 
@@ -103,7 +103,7 @@ Omar assigned. PR #2. Do not merge until owner validation.
 **Platform Engineer** — branch `bot/platform-persist`. Draft PR. Do not merge without Bento Lead / owner review.
 
 - [x] `SupabaseDomainStore` implements `DomainStore`
-- [x] `getDomainStore()` is that store for UI, WebMCP, and the worker (no InMemory runtime fallback)
+- [x] `getDomainStore()` is the user-JWT store for UI/WebMCP/`runBoundAction` (no InMemory runtime fallback; worker uses `createWorkerDomainStore()`)
 - [x] Hosted Supabase Auth; `requireOwnerIdFromRequest` uses `auth.uid()`
 - [x] Persist Canvas, Card, Frame, WatchBot, WatchBotEvent, viewport
 - [x] RLS owner isolation; `assertSameCanvasMembership` still required
