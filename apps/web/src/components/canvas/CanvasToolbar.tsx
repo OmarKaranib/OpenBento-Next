@@ -62,8 +62,8 @@ export function CanvasToolbar() {
                   if (tool.id === "zoom-out") void zoomOut({ duration: 160 });
                   if (tool.id === "fit") void fitView({ padding: 0.2, duration: 200 });
                   if (tool.id === "frame") setFrameToolActive(!frameToolActive);
-                  if (tool.id === "undo") undo();
-                  if (tool.id === "redo") redo();
+                  if (tool.id === "undo") void undo();
+                  if (tool.id === "redo") void redo();
                 }}
               >
                 <Icon className="h-3.5 w-3.5" strokeWidth={1.75} />

@@ -45,7 +45,6 @@ export function useCanvasCommands() {
       const frameId = resolveCardFrameMembership(
         { ...position, ...size },
         snapshot.frames,
-        card,
       );
       if ((card.frameId ?? null) !== frameId) {
         calls.push({
@@ -54,7 +53,7 @@ export function useCanvasCommands() {
         });
       }
       if (calls.length > 0) {
-        commit(calls);
+        void commit(calls);
       }
     },
     [commit, snapshot.frames],
@@ -94,7 +93,7 @@ export function useCanvasCommands() {
       for (const change of membershipCallsForCards(others, nextFrames)) {
         calls.push({ name: "setCardFrame", input: change });
       }
-      commit(calls);
+      void commit(calls);
     },
     [commit, snapshot.cards, snapshot.frames],
   );
@@ -115,21 +114,21 @@ export function useCanvasCommands() {
       for (const change of membershipCallsForCards(snapshot.cards, nextFrames)) {
         calls.push({ name: "setCardFrame", input: change });
       }
-      commit(calls);
+      void commit(calls);
     },
     [commit, snapshot.cards, snapshot.frames],
   );
 
   const persistCreatedFrame = useCallback(
-    (canvasId: string, bounds: Frame["bounds"], name?: string) => {
-      const created = commit([
+    async (canvasId: string, bounds: Frame["bounds"], name?: string) => {
+      const created = await commit([
         { name: "createFrame", input: { canvasId, bounds, name } },
       ]);
       const frame = created[0] as Frame;
       const nextFrames = [...snapshot.frames, frame];
       const membership = membershipCallsForCards(snapshot.cards, nextFrames);
       if (membership.length > 0) {
-        commit(
+        await commit(
           membership.map((change) => ({
             name: "setCardFrame" as const,
             input: change,

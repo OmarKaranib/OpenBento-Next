@@ -95,7 +95,7 @@ export function FrameDrawLayer() {
         setDraft(null);
         setFrameToolActive(false);
         if (bounds.width >= 48 && bounds.height >= 48) {
-          persistCreatedFrame(canvasId, bounds, "Frame");
+          void persistCreatedFrame(canvasId, bounds, "Frame");
         }
       }}
     >

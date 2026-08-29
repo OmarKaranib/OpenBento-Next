@@ -120,16 +120,16 @@ function CanvasSurface() {
       if (meta && event.key.toLowerCase() === "z" && !typing) {
         event.preventDefault();
         if (event.shiftKey) {
-          redo();
+          void redo();
         } else {
-          undo();
+          void undo();
         }
         return;
       }
       if (event.key === "Escape") {
         setFrameToolActive(false);
         if (fullscreen?.active) {
-          execute(
+          void execute(
             "fullscreenFrame",
             { frameId: fullscreen.frameId, active: false },
             { history: false },
@@ -256,7 +256,7 @@ function CanvasSurface() {
             window.clearTimeout(viewportTimer.current);
           }
           viewportTimer.current = window.setTimeout(() => {
-            execute(
+            void execute(
               "updateCanvasViewport",
               {
                 canvasId: canvas.id,
@@ -285,7 +285,7 @@ function CanvasSurface() {
             x: event.clientX,
             y: event.clientY,
           });
-          execute(
+          void execute(
             "createCard",
             buildCreateNoteCardInput({
               canvasId: canvas.id,
@@ -310,7 +310,7 @@ function CanvasSurface() {
           type="button"
           className="absolute right-3 top-3 z-30 rounded-md border border-zinc-700 bg-[#141820]/95 px-3 py-1.5 text-xs text-zinc-200 shadow-lg hover:bg-zinc-800"
           onClick={() => {
-            execute(
+            void execute(
               "fullscreenFrame",
               { frameId: fullscreen!.frameId, active: false },
               { history: false },

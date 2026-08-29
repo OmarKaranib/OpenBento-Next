@@ -51,7 +51,7 @@ export function NoteCardNode({ data, selected }: NodeProps<NoteNode>) {
           if (readOnly || next === card.payload.text) {
             return;
           }
-          execute("updateCard", {
+          void execute("updateCard", {
             cardId: card.id,
             type: "note",
             payload: { text: next },

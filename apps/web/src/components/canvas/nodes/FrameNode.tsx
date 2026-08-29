@@ -46,7 +46,7 @@ export function FrameNode({ data, selected }: NodeProps<FrameNode>) {
             const next = (name ?? storedName).trim() || "Frame";
             setName(null);
             if (!readOnly && next !== (frame.name ?? "Frame")) {
-              execute("updateFrame", { frameId: frame.id, name: next });
+              void execute("updateFrame", { frameId: frame.id, name: next });
             }
           }}
           onKeyDown={(event) => {
@@ -61,7 +61,7 @@ export function FrameNode({ data, selected }: NodeProps<FrameNode>) {
             className="nodrag nopan flex h-6 w-6 items-center justify-center rounded-md border border-zinc-700 bg-[#161a22] text-zinc-400 hover:text-zinc-100"
             aria-label="Fullscreen Frame"
             onClick={() => {
-              execute(
+              void execute(
                 "fullscreenFrame",
                 { frameId: frame.id, active: true },
                 { history: false },

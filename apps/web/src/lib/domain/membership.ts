@@ -1,8 +1,5 @@
 import type { Card, Frame, Rect } from "@openbento/domain";
-import {
-  canSetCardFrame,
-  selectSmallestContainingFrame,
-} from "@openbento/domain";
+import { selectSmallestContainingFrame } from "@openbento/domain";
 
 export function cardWorldBounds(card: Pick<Card, "position" | "size">): Rect {
   return {
@@ -14,26 +11,17 @@ export function cardWorldBounds(card: Pick<Card, "position" | "size">): Rect {
 }
 
 /**
- * Geometric-feeling Frame membership for the UI path.
+ * Derive a candidate Frame id from geometry only.
  *
- * Uses `selectSmallestContainingFrame` (smallest area; equal-area → newest
- * `createdAt`) then `canSetCardFrame` so a Card cannot join a Frame on
- * another Canvas.
+ * Does **not** write `card.frameId`. The UI must pass the result to
+ * `setCardFrame`, which the shared executor applies after
+ * `assertSameCanvasMembership` / `canSetCardFrame`.
  */
 export function resolveCardFrameMembership(
   cardBounds: Rect,
-  frames: ReadonlyArray<Frame>,
-  card: Pick<Card, "canvasId">,
+  frames: ReadonlyArray<Pick<Frame, "id" | "bounds" | "createdAt">>,
 ): string | null {
-  const frameId = selectSmallestContainingFrame(cardBounds, frames);
-  if (frameId === null) {
-    return null;
-  }
-  const frame = frames.find((entry) => entry.id === frameId);
-  if (!canSetCardFrame({ card, frameId, frame: frame ?? null })) {
-    return null;
-  }
-  return frameId;
+  return selectSmallestContainingFrame(cardBounds, frames);
 }
 
 export function membershipCallsForCards(
@@ -42,11 +30,7 @@ export function membershipCallsForCards(
 ): Array<{ cardId: string; frameId: string | null }> {
   const calls: Array<{ cardId: string; frameId: string | null }> = [];
   for (const card of cards) {
-    const next = resolveCardFrameMembership(
-      cardWorldBounds(card),
-      frames,
-      card,
-    );
+    const next = resolveCardFrameMembership(cardWorldBounds(card), frames);
     const current = card.frameId ?? null;
     if (next !== current) {
       calls.push({ cardId: card.id, frameId: next });

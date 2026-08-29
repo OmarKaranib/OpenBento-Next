@@ -46,7 +46,7 @@ export function SidePanels() {
             {railPanel === "settings" ? (
               <PlaceholderCopy
                 title="Settings"
-                body="Account and product settings will land with Platform auth. This session uses a temporary in-memory adapter."
+                body="Account and product settings will land with Platform auth. Catalog writes already go through createActionExecutor."
               />
             ) : null}
           </div>
@@ -101,7 +101,7 @@ function CanvasesPanel() {
         onSubmit={(event) => {
           event.preventDefault();
           const name = draft.trim() || "Untitled";
-          execute("createCanvas", { name });
+          void execute("createCanvas", { name });
           setDraft("");
         }}
       >
@@ -127,7 +127,7 @@ function CanvasesPanel() {
                     event.preventDefault();
                     const name = editingName.trim();
                     if (name) {
-                      execute("renameCanvas", { canvasId: canvas.id, name });
+                      void execute("renameCanvas", { canvasId: canvas.id, name });
                     }
                     setEditingId(null);
                   }}
@@ -154,7 +154,7 @@ function CanvasesPanel() {
                     className="flex-1 truncate text-left text-sm text-zinc-200"
                     onClick={() => {
                       if (!current) {
-                        execute(
+                        void execute(
                           "switchCanvas",
                           { canvasId: canvas.id },
                           { history: false },

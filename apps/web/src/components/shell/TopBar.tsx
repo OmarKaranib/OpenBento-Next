@@ -22,7 +22,7 @@ export function TopBar() {
           className="ml-1 flex items-center gap-1 rounded-md px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200"
           onClick={() => {
             if (!canvasId) return;
-            execute(
+            void execute(
               "createCard",
               buildCreateNoteCardInput({
                 canvasId,

@@ -51,6 +51,6 @@ Frame tool: click → crosshair → drag rectangle → name/move/resize.
 - Overlapping Frames: smallest area wins; equal-area ties use newest `createdAt`.
 - **Fullscreen Frame** is view-only presentation (`fullscreenFrame`). Chrome hides; Frame + member Cards show; **stored geometry is not rewritten**.
 
-## Temporary adapter
+## Shared executor
 
-Until Platform handlers exist, `apps/web` uses an in-memory client that executes the same `@openbento/domain` action names and types. It is not a parallel UI API. Do not persist it to production infrastructure.
+The workspace calls `createActionExecutor` from `@openbento/domain` (`packages/domain/src/executor.ts`). Persistence is Platform's `DomainStore` port (`InMemoryDomainStore` in the domain package). `apps/web` must not reimplement that store. Membership is written only via `setCardFrame`.

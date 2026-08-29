@@ -55,7 +55,7 @@ export function CanvasSwitcher() {
             key={canvas.id}
             onSelect={() => {
               if (canvas.id !== current.id) {
-                execute("switchCanvas", { canvasId: canvas.id }, { history: false });
+                void execute("switchCanvas", { canvasId: canvas.id }, { history: false });
               }
             }}
           >
@@ -73,7 +73,7 @@ export function CanvasSwitcher() {
               event.preventDefault();
               const next = name.trim();
               if (next) {
-                execute("renameCanvas", { canvasId: current.id, name: next });
+                void execute("renameCanvas", { canvasId: current.id, name: next });
                 setRenaming(false);
               }
             }}
@@ -102,7 +102,7 @@ export function CanvasSwitcher() {
         )}
         <DropdownMenuItem
           onSelect={() => {
-            execute("createCanvas", { name: "Untitled" });
+            void execute("createCanvas", { name: "Untitled" });
           }}
         >
           <Plus className="h-3.5 w-3.5" />

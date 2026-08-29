@@ -10,44 +10,44 @@ import {
 import type { ActionName } from "@openbento/domain";
 import type { ActionInputByName, CatalogCall, CatalogResult } from "@/lib/domain/inputs";
 import {
-  InMemoryDomainAdapter,
+  WorkspaceSession,
   type ExecuteOptions,
   type SessionSnapshot,
-} from "@/lib/domain/memory-adapter";
+} from "@/lib/domain/workspace-session";
 
 type WorkspaceContextValue = {
-  adapter: InMemoryDomainAdapter;
+  session: WorkspaceSession;
   snapshot: SessionSnapshot;
   execute: <N extends ActionName>(
     name: N,
     input: ActionInputByName[N],
     options?: ExecuteOptions,
-  ) => CatalogResult<N>;
-  commit: (calls: CatalogCall[], options?: ExecuteOptions) => unknown[];
-  undo: () => boolean;
-  redo: () => boolean;
+  ) => Promise<CatalogResult<N>>;
+  commit: (calls: CatalogCall[], options?: ExecuteOptions) => Promise<unknown[]>;
+  undo: () => Promise<boolean>;
+  redo: () => Promise<boolean>;
 };
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
-  const adapter = useMemo(() => new InMemoryDomainAdapter(), []);
+  const session = useMemo(() => new WorkspaceSession(), []);
   const snapshot = useSyncExternalStore(
-    adapter.subscribe,
-    adapter.getSnapshot,
-    adapter.getSnapshot,
+    session.subscribe,
+    session.getSnapshot,
+    session.getSnapshot,
   );
 
   const value = useMemo<WorkspaceContextValue>(
     () => ({
-      adapter,
+      session,
       snapshot,
-      execute: (name, input, options) => adapter.execute(name, input, options),
-      commit: (calls, options) => adapter.commit(calls, options),
-      undo: () => adapter.undo(),
-      redo: () => adapter.redo(),
+      execute: (name, input, options) => session.execute(name, input, options),
+      commit: (calls, options) => session.commit(calls, options),
+      undo: () => session.undo(),
+      redo: () => session.redo(),
     }),
-    [adapter, snapshot],
+    [session, snapshot],
   );
 
   return (

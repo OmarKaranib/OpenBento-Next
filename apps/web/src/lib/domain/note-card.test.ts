@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { isValidCardPayload } from "@openbento/domain";
-import { InMemoryDomainAdapter } from "./memory-adapter";
+import {
+  createActionExecutor,
+  InMemoryDomainStore,
+  isValidCardPayload,
+} from "@openbento/domain";
 import { buildCreateNoteCardInput } from "./note-card";
 
 describe("UI createCard path is Note-only", () => {
-  it("builds a discriminated note + NotePayload and persists via createCard", () => {
-    const adapter = new InMemoryDomainAdapter({ seedDefaultCanvas: false });
-    const canvas = adapter.execute("createCanvas", { name: "Story" });
+  it("builds a discriminated note + NotePayload and persists via createCard", async () => {
+    const executor = createActionExecutor({
+      store: new InMemoryDomainStore(),
+      ownerId: "local-session",
+    });
+    const canvas = await executor.createCanvas({ name: "Story" });
     const input = buildCreateNoteCardInput({
       canvasId: canvas.id,
       position: { x: 40, y: 80 },
@@ -19,18 +25,21 @@ describe("UI createCard path is Note-only", () => {
     expect(isValidCardPayload("note", input.payload)).toBe(true);
     expect(isValidCardPayload("youtube", input.payload)).toBe(false);
 
-    const card = adapter.execute("createCard", input);
+    const card = await executor.execute("createCard", input);
     expect(card.type).toBe("note");
     expect(card.payload).toEqual({ text: "Follow this story" });
     expect(card.position).toEqual({ x: 40, y: 80 });
     expect(card.size).toEqual({ width: 240, height: 160 });
   });
 
-  it("rejects a note-typed payload that is not NotePayload", () => {
-    const adapter = new InMemoryDomainAdapter({ seedDefaultCanvas: false });
-    const canvas = adapter.execute("createCanvas", { name: "Story" });
-    expect(() =>
-      adapter.execute("createCard", {
+  it("rejects a note-typed payload that is not NotePayload", async () => {
+    const executor = createActionExecutor({
+      store: new InMemoryDomainStore(),
+      ownerId: "local-session",
+    });
+    const canvas = await executor.createCanvas({ name: "Story" });
+    await expect(
+      executor.createCard({
         canvasId: canvas.id,
         type: "note",
         payload: {
@@ -42,6 +51,6 @@ describe("UI createCard path is Note-only", () => {
           },
         },
       } as never),
-    ).toThrow(/PAYLOAD_SCHEMAS|Invalid input/);
+    ).rejects.toMatchObject({ code: "invalid_input" });
   });
 });
