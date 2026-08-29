@@ -1,6 +1,6 @@
 /**
  * Shared domain types for Canvas, Card, Frame, and WatchBot.
- * Types and catalog only — no persistence handlers.
+ * Persistence is behind `DomainStore`. Handlers live in `executor.ts`.
  */
 
 export type Actor = "human" | "watchbot" | "webmcp";

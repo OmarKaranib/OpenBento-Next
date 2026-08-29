@@ -1,6 +1,7 @@
 /**
- * Proposed local/dev record shapes only.
- * Do not apply SQL. Do not create a production Supabase project.
+ * Local/dev record shapes matching `supabase/migrations`.
+ * Those SQL files are local/dev only. Do not apply them to a hosted/production
+ * database. Do not create or mutate a production Supabase project.
  * ownerId is stored on Canvas and WatchBot rows; it is never an action input.
  */
 

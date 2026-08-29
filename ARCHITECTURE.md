@@ -2,7 +2,7 @@
 
 Canonical product context: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.md).
 
-Status: **Phase 0 foundation**. Types, catalog, docs, lint/typecheck/test/build. No Canvas UI, no WatchBot pipeline, no WebMCP tools, no production infra.
+Status: **Phase 1 platform (handlers + local/dev schema)**. Shared `ACTION_CATALOG` executor, `DomainStore` port, local/dev SQL + RLS. No Canvas UI, no WatchBot pipeline, no WebMCP tools, no production infra.
 
 ## Monorepo
 
@@ -12,10 +12,10 @@ pnpm workspaces + TypeScript. Next.js 16 + React in `apps/web`.
 apps/web              Next.js 16 App Router. Placeholder page only.
                       @xyflow/react is a future canvas dependency (not mounted).
 apps/worker           WatchBot worker stub. No job system.
-packages/domain       Full master action catalog + types + pure helpers.
+packages/domain       Catalog + handlers (`ActionExecutor`) + `DomainStore` port.
 packages/watchbot     SourceProvider port + runtime types. No adapter.
 packages/ui           Token / placeholder kit.
-supabase/migrations   Empty of real migrations. Local/dev only. Do not apply.
+supabase/migrations   Local/dev SQL + RLS matching schema.ts. Do not apply to production.
 docs/                 Maintained specs + OPENBENTO_MASTER_CONTEXT.md
 ```
 
@@ -52,15 +52,21 @@ Locked rules:
 
 WebMCP later registers the same names via `document.modelContext.registerTool({ name, description, inputSchema, execute })`.
 
-## Data ownership sketch (not applied)
+## Shared executor
 
-No production database. No migrations to run. Shapes live in `packages/domain/src/schema.ts`.
+`createActionExecutor({ store, ownerId })` implements every `ACTION_CATALOG` name. `ownerId` is session-derived. Persistence is injected (`InMemoryDomainStore` for tests; later local Supabase can implement `DomainStore`). Next.js wrappers in `apps/web/src/server` pass the session user only.
+
+## Data ownership (local/dev SQL)
+
+SQL is in `supabase/migrations`. **Do not apply to production. Do not create a hosted Supabase project from this work.** Shapes live in `packages/domain/src/schema.ts`.
 
 - **Canvas** — `owner_id`, name, persisted viewport (x, y, zoom)
-- **Card** — canvas, optional `frame_id`, type, geometry, optional provenance columns
+- **Card** — canvas, optional `frame_id`, type, `jsonb` payload (not title/body)
 - **Frame** — canvas, name, stored bounds (fullscreen does not rewrite these)
 - **WatchBot** — `owner_id`, canvas, **instruction**, status `running|paused|error`
 - **WatchBotEvent** — discovery/dedup/novelty records
+
+RLS: every table is owner-scoped via `auth.uid()` (cards/frames join through canvas ownership). Handlers still call `assertSameCanvasMembership`. RLS is not a substitute. Never trust a client-supplied user id.
 
 ## Planned infrastructure (not provisioned)
 
@@ -83,4 +89,4 @@ Event taxonomy: [`docs/ANALYTICS.md`](./docs/ANALYTICS.md). No secrets, instruct
 
 ## Non-goals (this phase)
 
-No Canvas UI, WatchBot pipeline, WebMCP tools, billing/Stripe, xAI/Grok API wiring, production Supabase, Railway services, or deploy. Do not modify `OmarKaranib/OpenBento`.
+No Canvas UI, WatchBot pipeline, WebMCP `registerTool`, billing/Stripe, xAI/Grok API wiring, production Supabase, Railway services, or deploy. Do not modify `OmarKaranib/OpenBento`. Do not apply migrations to any hosted database.

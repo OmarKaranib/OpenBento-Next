@@ -20,7 +20,8 @@ import type {
 
 /**
  * Full master action catalog. Human UI, WatchBot, and WebMCP share these names.
- * No handlers. `ownerId` is server-derived and must never appear on inputs.
+ * Handlers live in `executor.ts` and read identity from session context only.
+ * `ownerId` is server-derived and must never appear on inputs.
  */
 export const ACTION_NAMES = [
   "createCanvas",
@@ -147,6 +148,29 @@ export interface GetWatchBotStatusInput {
 export interface FullscreenFrameInput {
   frameId: string;
   active: boolean;
+}
+
+export interface ActionInputMap {
+  createCanvas: CreateCanvasInput;
+  renameCanvas: RenameCanvasInput;
+  switchCanvas: SwitchCanvasInput;
+  updateCanvasViewport: UpdateCanvasViewportInput;
+  createCard: CreateCardInput;
+  updateCard: UpdateCardInput;
+  moveCard: MoveCardInput;
+  resizeCard: ResizeCardInput;
+  setCardFrame: SetCardFrameInput;
+  createFrame: CreateFrameInput;
+  updateFrame: UpdateFrameInput;
+  moveFrame: MoveFrameInput;
+  resizeFrame: ResizeFrameInput;
+  createWatchBot: CreateWatchBotInput;
+  updateWatchBot: UpdateWatchBotInput;
+  pauseWatchBot: PauseWatchBotInput;
+  resumeWatchBot: ResumeWatchBotInput;
+  getCanvasState: GetCanvasStateInput;
+  getWatchBotStatus: GetWatchBotStatusInput;
+  fullscreenFrame: FullscreenFrameInput;
 }
 
 export interface ActionResultMap {

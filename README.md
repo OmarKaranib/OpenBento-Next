@@ -4,7 +4,7 @@ AI-native live intelligence canvas (Canvas, Card, Frame, WatchBot).
 
 **Canonical context:** [docs/OPENBENTO_MASTER_CONTEXT.md](./docs/OPENBENTO_MASTER_CONTEXT.md)
 
-This is **Phase 0 foundation**: full shared domain catalog, docs, and green lint/typecheck/test/build. There is no working canvas, WatchBot pipeline, WebMCP tools, or deploy.
+This is **Phase 1 platform** on top of the Phase 0 catalog: shared action handlers, a persistence port, and local/dev SQL + RLS. There is no working canvas UI, WatchBot pipeline, WebMCP tools, or deploy.
 
 Legacy [`OmarKaranib/OpenBento`](https://github.com/OmarKaranib/OpenBento) is frozen reference.
 
@@ -32,10 +32,10 @@ Maintained under [`docs/`](./docs/). Copies also live at the repo root.
 ```
 apps/web                 Next.js 16 placeholder
 apps/worker              Worker stub
-packages/domain          Full 20-action catalog
+packages/domain          20-action catalog + shared executor + store port
 packages/watchbot        SourceProvider types
 packages/ui              Tokens
-supabase/migrations      Empty — do not apply
+supabase/migrations      Local/dev SQL + RLS — do not apply to production
 docs/                    Specs + master context
 ```
 
