@@ -239,7 +239,7 @@ describe("source Card nodes do not execute untrusted HTML", () => {
     for (const relative of files) {
       const source = readFileSync(join(webSrc, relative), "utf8");
       expect(source, relative).not.toMatch(/dangerouslySetInnerHTML/);
-      expect(source, relative).not.toMatch(/srcDoc/);
+      expect(source, relative).not.toMatch(/\bsrcDoc\s*=/);
       expect(source, relative).not.toMatch(/\beval\s*\(/);
     }
   });

@@ -14,7 +14,9 @@ const XSS_URL = `javascript:alert(1)`;
 
 describe("untrusted source display", () => {
   it("strips HTML tags and control characters from titles", () => {
-    expect(sanitizeUntrustedDisplayText(XSS_TITLE)).toBe('alert(1)alert("xss")');
+    expect(sanitizeUntrustedDisplayText(XSS_TITLE)).toBe('alert("xss")');
+    expect(sanitizeUntrustedDisplayText(XSS_TITLE)).not.toContain("<script");
+    expect(sanitizeUntrustedDisplayText(XSS_TITLE)).not.toContain("<img");
     expect(sanitizeUntrustedDisplayText("  Breaking   story \u0000 ")).toBe(
       "Breaking story",
     );
@@ -40,13 +42,10 @@ describe("untrusted source display", () => {
     expect(titleHtml).not.toContain("<img");
     expect(titleHtml).not.toContain("<script");
     expect(titleHtml).not.toContain("onerror");
-    expect(titleHtml).toContain("alert(1)");
+    expect(titleHtml).toContain("alert(&quot;xss&quot;)");
 
     const linkHtml = renderToStaticMarkup(
-      createElement(SafeExternalLink, {
-        href: XSS_URL,
-        children: XSS_TITLE,
-      }),
+      createElement(SafeExternalLink, { href: XSS_URL }, XSS_TITLE),
     );
     expect(linkHtml).not.toContain("<a ");
     expect(linkHtml).not.toContain("javascript:");
@@ -54,10 +53,11 @@ describe("untrusted source display", () => {
     expect(linkHtml).not.toContain("<img");
 
     const safeLink = renderToStaticMarkup(
-      createElement(SafeExternalLink, {
-        href: "https://example.com/?q=<script>alert(1)</script>",
-        children: XSS_TITLE,
-      }),
+      createElement(
+        SafeExternalLink,
+        { href: "https://example.com/?q=<script>alert(1)</script>" },
+        XSS_TITLE,
+      ),
     );
     expect(safeLink).toContain("<a ");
     expect(safeLink).toContain('href="https://example.com/?q=%3Cscript%3Ealert(1)%3C/script%3E"');

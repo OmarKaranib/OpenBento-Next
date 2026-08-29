@@ -25,7 +25,7 @@ function nextCardPosition(index: number): { x: number; y: number } {
 }
 
 function AddSourceCardButton({ type }: { type: CreatableSourceCardType }) {
-  const module = getCardType(type);
+  const cardType = getCardType(type);
   const { snapshot } = useWorkspace();
   const { persistCreatedCard } = useCanvasCommands();
   const [open, setOpen] = useState(false);
@@ -35,7 +35,7 @@ function AddSourceCardButton({ type }: { type: CreatableSourceCardType }) {
   const canvasId = snapshot.currentCanvasId;
   const Icon = ICONS[type];
 
-  if (!module) {
+  if (!cardType) {
     return null;
   }
 
@@ -55,7 +55,7 @@ function AddSourceCardButton({ type }: { type: CreatableSourceCardType }) {
           className="flex items-center gap-1 rounded-md px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200"
         >
           <Icon className="h-3.5 w-3.5" />
-          {module.label}
+          {cardType.label}
         </button>
       </PopoverTrigger>
       <PopoverContent side="bottom" className="w-80">
@@ -74,7 +74,7 @@ function AddSourceCardButton({ type }: { type: CreatableSourceCardType }) {
                 sourceUrl,
                 title,
                 position: nextCardPosition(snapshot.cards.length),
-                size: module.defaultSize,
+                size: cardType.defaultSize,
               });
               void persistCreatedCard(input);
               setSourceUrl("");
@@ -86,7 +86,7 @@ function AddSourceCardButton({ type }: { type: CreatableSourceCardType }) {
             }
           }}
         >
-          <p className="text-xs font-medium text-zinc-300">Add {module.label}</p>
+          <p className="text-xs font-medium text-zinc-300">Add {cardType.label}</p>
           <Input
             required
             type="url"
@@ -98,7 +98,7 @@ function AddSourceCardButton({ type }: { type: CreatableSourceCardType }) {
             }
             value={sourceUrl}
             onChange={(event) => setSourceUrl(event.target.value)}
-            aria-label={`${module.label} URL`}
+            aria-label={`${cardType.label} URL`}
           />
           <Input
             type="text"
@@ -106,7 +106,7 @@ function AddSourceCardButton({ type }: { type: CreatableSourceCardType }) {
             placeholder="Title (optional)"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            aria-label={`${module.label} title`}
+            aria-label={`${cardType.label} title`}
           />
           {error ? <p className="text-[11px] text-red-400">{error}</p> : null}
           <Button type="submit" size="sm">
