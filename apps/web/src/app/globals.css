@@ -12,8 +12,44 @@
   --font-mono: var(--font-geist-mono);
 }
 
+html,
 body {
+  height: 100%;
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+.react-flow {
+  background: #0b0d10;
+}
+
+.react-flow__node {
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+  border-radius: 0;
+}
+
+.react-flow__node.selectable:hover,
+.react-flow__node.selected {
+  box-shadow: none;
+}
+
+.react-flow__handle {
+  display: none;
+}
+
+.react-flow__attribution {
+  background: transparent !important;
+  color: #3d4450 !important;
+}
+
+.react-flow__attribution a {
+  color: #3d4450 !important;
+}
+
+.react-flow__resize-control {
+  border-color: #64748b;
 }
