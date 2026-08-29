@@ -6,9 +6,12 @@ import {
   cardToRecord,
   frameFromRecord,
   frameToRecord,
+  publishedAtToTimestamptz,
+  watchBotEventToRecord,
   watchBotFromRecord,
   watchBotToRecord,
 } from "./mappers";
+import type { WatchBotEvent } from "./types";
 import type { CardRecord } from "./schema";
 
 describe("record mappers", () => {
@@ -88,5 +91,39 @@ describe("record mappers", () => {
         updatedAt: row.updated_at,
       }).payload,
     ).toEqual({ text: "ok" });
+  });
+
+  it("maps unknown publishedAt to SQL null on watch_bot_events only", () => {
+    expect(publishedAtToTimestamptz("")).toBeNull();
+    expect(publishedAtToTimestamptz("   ")).toBeNull();
+    expect(publishedAtToTimestamptz("soon")).toBeNull();
+    expect(publishedAtToTimestamptz(undefined)).toBeNull();
+    expect(publishedAtToTimestamptz("2026-08-28T12:00:00.000Z")).toBe(
+      "2026-08-28T12:00:00.000Z",
+    );
+
+    const base: WatchBotEvent = {
+      id: "e1",
+      watchBotId: "w1",
+      canvasId: "c1",
+      kind: "discovered",
+      sourceUrl: "https://news.example.com/undated",
+      dedupKey: "news:https://news.example.com/undated",
+      discoveredAt: "2026-08-29T18:00:00.000Z",
+    };
+    expect(watchBotEventToRecord({ ...base, publishedAt: "" }).published_at).toBeNull();
+    expect(
+      watchBotEventToRecord({ ...base, publishedAt: "   " }).published_at,
+    ).toBeNull();
+    expect(
+      watchBotEventToRecord({ ...base, publishedAt: "not-a-date" }).published_at,
+    ).toBeNull();
+    expect(watchBotEventToRecord(base).published_at).toBeNull();
+    expect(
+      watchBotEventToRecord({
+        ...base,
+        publishedAt: "2026-08-28T12:00:00.000Z",
+      }).published_at,
+    ).toBe("2026-08-28T12:00:00.000Z");
   });
 });

@@ -179,6 +179,28 @@ export function watchBotToRecord(watchBot: WatchBot): WatchBotRecord {
   };
 }
 
+/**
+ * watch_bot_events.published_at is timestamptz. Empty / unknown / unparseable
+ * must be SQL null — `?? null` does not coerce `""`, and `''::timestamptz`
+ * is 22007. Card JSON provenance.publishedAt stays `""` when unknown.
+ */
+export function publishedAtToTimestamptz(
+  value: string | undefined,
+): string | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  const timestamp = Date.parse(trimmed);
+  if (Number.isNaN(timestamp)) {
+    return null;
+  }
+  return new Date(timestamp).toISOString();
+}
+
 export function watchBotEventFromRecord(
   row: WatchBotEventRecord,
 ): WatchBotEvent {
@@ -210,7 +232,7 @@ export function watchBotEventToRecord(event: WatchBotEvent): WatchBotEventRecord
     novelty_score: event.noveltyScore ?? null,
     discovered_at: event.discoveredAt,
     title: event.title ?? null,
-    published_at: event.publishedAt ?? null,
+    published_at: publishedAtToTimestamptz(event.publishedAt),
     source_type: event.sourceType ?? null,
     card_id: event.cardId ?? null,
     detail: event.detail ?? null,

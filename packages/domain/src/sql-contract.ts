@@ -258,6 +258,15 @@ export class SqlContractEngine {
         "watch_bot_events unique (watch_bot_id, dedup_key) violated",
       );
     }
+    if (row.published_at !== null) {
+      const published = row.published_at.trim();
+      if (published.length === 0 || Number.isNaN(Date.parse(published))) {
+        throw new DomainError(
+          "invalid_input",
+          `invalid input syntax for type timestamp with time zone: "${row.published_at}"`,
+        );
+      }
+    }
     this.tables.watchBotEvents.set(row.id, clone(row));
   }
 

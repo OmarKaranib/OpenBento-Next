@@ -1,9 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createActionExecutor,
+  createSqlContractAdapter,
   DomainError,
   InMemoryDomainStore,
   isValidCardPayload,
+  SharedSqlTables,
+  SupabaseDomainStore,
   type ActionExecutor,
   type CreateCardInput,
 } from "@openbento/domain";
@@ -304,6 +307,67 @@ describe("WatchBot pipeline with fake provider", () => {
       expect(card.payload.provenance.publishedAt).toBe("");
       expect(card.payload.provenance.publishedAt).not.toBe(frozenNow);
       expect(card.payload.provenance.discoveredAt).toBe(frozenNow);
+    }
+  });
+
+  it("persists undated event published_at as SQL null and still creates the Card", async () => {
+    const frozenNow = "2026-08-29T18:00:00.000Z";
+    const tables = new SharedSqlTables();
+    const store = new SupabaseDomainStore(
+      createSqlContractAdapter(tables, { ownerId: OWNER }),
+    );
+    const executor = createActionExecutor({ store, ownerId: OWNER });
+    const canvas = await executor.createCanvas({ name: "Ontario Watch" });
+    await executor.createFrame({
+      canvasId: canvas.id,
+      name: "Main Story",
+      bounds: { x: 0, y: 0, width: 1600, height: 1000 },
+    });
+    const watchBot = await executor.createWatchBot({
+      canvasId: canvas.id,
+      instruction: INSTRUCTION,
+      sourceTypes: ["web", "news"],
+    });
+    const provider = new FakeSourceProvider([
+      {
+        sourceUrl: "https://news.example.com/ontario-undated-sql",
+        title: "Officials debate renaming Lake Ontario",
+        publishedAt: "",
+        sourceType: "news",
+        rawExcerpt: "A proposal to rename Lake Ontario prompted official statements.",
+      },
+    ]);
+
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      now: () => frozenNow,
+    });
+    expect(result.cardsCreated).toBe(1);
+    expect(result.items[0]?.kind).toBe("card_created");
+
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(1);
+    const card = state.cards[0];
+    expect(card?.type).toBe("news");
+    if (card && "provenance" in card.payload) {
+      expect(card.payload.provenance.publishedAt).toBe("");
+    }
+    const cardRow = [...tables.cards.values()].find((row) => row.id === card?.id);
+    expect(cardRow?.payload).toEqual(
+      expect.objectContaining({
+        provenance: expect.objectContaining({ publishedAt: "" }),
+      }),
+    );
+
+    const eventRows = [...tables.watchBotEvents.values()];
+    expect(eventRows.length).toBeGreaterThan(0);
+    expect(eventRows.some((row) => row.kind === "card_created")).toBe(true);
+    for (const row of eventRows) {
+      expect(row.published_at).toBeNull();
+      expect(row.published_at).not.toBe("");
     }
   });
 
