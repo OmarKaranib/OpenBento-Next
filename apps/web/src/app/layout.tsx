@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "OpenBento Next (Phase 0 foundation)",
+  title: "OpenBento",
   description:
-    "OpenBento-Next Phase 0 foundation — Canvas, Card, Frame, WatchBot.",
+    "OpenBento — AI-native live intelligence canvas. Phase 1 workspace.",
 };
 
 export default function RootLayout({
@@ -29,7 +29,7 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col bg-[#0b0d10] text-zinc-100">
+      <body className="h-full overflow-hidden bg-[#0b0d10] text-zinc-100">
         {children}
       </body>
     </html>

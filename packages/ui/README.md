@@ -1,3 +1,3 @@
 # `@openbento/ui`
 
-Shared UI kit stub. Tokens and placeholder exports only. No canvas chrome, rail, or toolbar in this phase.
+Shared visual tokens for the Phase 1 Railway-inspired workspace. Chrome lives in `apps/web`.
