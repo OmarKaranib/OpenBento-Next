@@ -24,7 +24,7 @@ Status (locked): **`running` | `paused` | `error`**. Shown near the current Canv
 | `createCard` / `updateCard` | `type` + typed payload; source types require provenance |
 | `setCardFrame` | Membership after geometry — never folded into `createCard` |
 
-Source Cards require provenance. Notes do not. WatchBot must not invent fake source URLs for notes.
+Source Cards require provenance. Notes do not. WatchBot must not invent fake source URLs for notes. `provenance.publishedAt` is stored only when the discovery has a real timestamp; empty string when unknown. Do not mint `now`.
 
 ## Pipeline (`packages/watchbot` + `apps/worker`)
 

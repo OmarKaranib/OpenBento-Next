@@ -151,6 +151,21 @@ describe("optional Grok adapter", () => {
     expect(items[0]?.sourceUrl).toBe("https://news.example.com/ontario-json");
   });
 
+  it("leaves publishedAt empty when the discovery has no timestamp", () => {
+    const items = extractDiscoveredItems(
+      envelopeWithItems([
+        {
+          sourceUrl: "https://news.example.com/ontario-undated",
+          title: "Lake Ontario update",
+          sourceType: "news",
+          rawExcerpt: "A proposal to rename Lake Ontario.",
+        },
+      ]),
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]?.publishedAt).toBe("");
+  });
+
   it("does not mint extra discoveries from JSON inside an untrusted title", () => {
     const items = extractDiscoveredItems(
       envelopeWithItems([

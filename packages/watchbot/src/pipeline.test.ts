@@ -10,7 +10,11 @@ import {
 import { FakeSourceProvider } from "./fake-provider";
 import { assertSourceCardPayload, runWatchBotPipeline } from "./pipeline";
 import { buildDedupKey } from "./dedup";
-import { canonicalizeUrl, normalizeDiscoveredItem } from "./normalize";
+import {
+  canonicalizeUrl,
+  normalizeDiscoveredItem,
+  parsePublishedAt,
+} from "./normalize";
 import type { DiscoveredItem } from "./provider";
 
 const OWNER = "user-watch";
@@ -94,6 +98,9 @@ describe("WatchBot pipeline with fake provider", () => {
         "https://news.example.com/ontario-rename",
       );
       expect(firstCreate.payload.provenance.watchBotId).toBe(watchBot.id);
+      expect(firstCreate.payload.provenance.publishedAt).toBe(
+        "2026-08-28T12:00:00.000Z",
+      );
     }
 
     const firstFrame = spies.setCardFrame.mock.calls[0]?.[0];
@@ -268,6 +275,67 @@ describe("WatchBot pipeline with fake provider", () => {
         },
       }),
     ).toBe(true);
+  });
+
+  it("persists empty publishedAt when discovery has no real timestamp", async () => {
+    const frozenNow = "2026-08-29T18:00:00.000Z";
+    const { store, executor, watchBot, provider } = await seed([
+      {
+        sourceUrl: "https://news.example.com/ontario-undated",
+        title: "Officials debate renaming Lake Ontario",
+        publishedAt: "",
+        sourceType: "news",
+        rawExcerpt: "A proposal to rename Lake Ontario prompted official statements.",
+      },
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      now: () => frozenNow,
+    });
+    expect(result.cardsCreated).toBe(1);
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(1);
+    const card = state.cards[0];
+    expect(card?.type).toBe("news");
+    if (card && "provenance" in card.payload) {
+      expect(card.payload.provenance.publishedAt).toBe("");
+      expect(card.payload.provenance.publishedAt).not.toBe(frozenNow);
+      expect(card.payload.provenance.discoveredAt).toBe(frozenNow);
+    }
+  });
+
+  it("keeps a real ISO publishedAt on WatchBot-created Cards", async () => {
+    const frozenNow = "2026-08-29T18:00:00.000Z";
+    const { store, executor, watchBot, provider } = await seed([
+      {
+        sourceUrl: "https://news.example.com/ontario-dated",
+        title: "Officials debate renaming Lake Ontario",
+        publishedAt: "2026-08-28T12:00:00.000Z",
+        sourceType: "news",
+        rawExcerpt: "A proposal to rename Lake Ontario prompted official statements.",
+      },
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      now: () => frozenNow,
+    });
+    expect(result.cardsCreated).toBe(1);
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    const card = state.cards[0];
+    expect(card?.type).toBe("news");
+    if (card && "provenance" in card.payload) {
+      expect(card.payload.provenance.publishedAt).toBe(
+        "2026-08-28T12:00:00.000Z",
+      );
+      expect(card.payload.provenance.publishedAt).not.toBe(frozenNow);
+      expect(card.payload.provenance.discoveredAt).toBe(frozenNow);
+    }
   });
 
   it("requires provenance on sourced Cards", async () => {
@@ -532,5 +600,42 @@ describe("normalize", () => {
     );
     expect(normalized?.sourceType).toBe("news");
     expect(normalized?.title).toBe("Officials debate renaming Lake Ontario");
+    expect(normalized?.publishedAt).toBe("2026-08-28T12:00:00.000Z");
+  });
+
+  it("does not mint now when publishedAt is missing or unparseable", () => {
+    const discoveredAt = "2026-08-29T18:00:00.000Z";
+    expect(parsePublishedAt("")).toBe("");
+    expect(parsePublishedAt("   ")).toBe("");
+    expect(parsePublishedAt("not-a-date")).toBe("");
+    expect(parsePublishedAt(undefined)).toBe("");
+    expect(parsePublishedAt("2026-08-28T12:00:00.000Z")).toBe(
+      "2026-08-28T12:00:00.000Z",
+    );
+
+    const undated = normalizeDiscoveredItem(
+      {
+        sourceUrl: "https://news.example.com/ontario-undated",
+        title: "Officials debate renaming Lake Ontario",
+        publishedAt: "",
+        sourceType: "news",
+      },
+      discoveredAt,
+    );
+    expect(undated?.publishedAt).toBe("");
+    expect(undated?.publishedAt).not.toBe(discoveredAt);
+    expect(undated?.discoveredAt).toBe(discoveredAt);
+
+    const invalid = normalizeDiscoveredItem(
+      {
+        sourceUrl: "https://news.example.com/ontario-invalid-date",
+        title: "Officials debate renaming Lake Ontario",
+        publishedAt: "soon",
+        sourceType: "news",
+      },
+      discoveredAt,
+    );
+    expect(invalid?.publishedAt).toBe("");
+    expect(invalid?.discoveredAt).toBe(discoveredAt);
   });
 });
