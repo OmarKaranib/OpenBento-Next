@@ -1,6 +1,7 @@
 "use client";
 
 import { StickyNote } from "lucide-react";
+import { useCanvasCommands } from "@/components/canvas/use-canvas-commands";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { buildCreateNoteCardInput } from "@/lib/domain/note-card";
 import { CanvasSwitcher } from "./CanvasSwitcher";
@@ -8,7 +9,8 @@ import { WatchBotStatus } from "./WatchBotStatus";
 import { AgentEntry } from "./AgentEntry";
 
 export function TopBar() {
-  const { snapshot, execute } = useWorkspace();
+  const { snapshot } = useWorkspace();
+  const { persistCreatedNote } = useCanvasCommands();
   const canvasId = snapshot.currentCanvasId;
 
   return (
@@ -22,8 +24,7 @@ export function TopBar() {
           className="ml-1 flex items-center gap-1 rounded-md px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200"
           onClick={() => {
             if (!canvasId) return;
-            void execute(
-              "createCard",
+            void persistCreatedNote(
               buildCreateNoteCardInput({
                 canvasId,
                 text: "",

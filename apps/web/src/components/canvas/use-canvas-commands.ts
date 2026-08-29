@@ -1,12 +1,12 @@
 "use client";
 
 import { useCallback } from "react";
-import type { Card, Frame, Point, Size } from "@openbento/domain";
+import type { Card, CreateCardInput, Frame, Point, Size } from "@openbento/domain";
 import type { CatalogCall } from "@/lib/domain/inputs";
 import {
   cardWorldBounds,
   membershipCallsForCards,
-  resolveCardFrameMembership,
+  planCardGeometry,
   translateFrameMembers,
 } from "@/lib/domain/membership";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
@@ -22,40 +22,38 @@ export function useCanvasCommands() {
 
   const persistCardGeometry = useCallback(
     (card: Card, next: { position?: Point; size?: Size }) => {
-      const position = next.position ?? card.position;
-      const size = next.size ?? card.size;
+      const plan = planCardGeometry(card, next, snapshot.frames);
       const calls: CatalogCall[] = [];
-      if (
-        next.position &&
-        (next.position.x !== card.position.x || next.position.y !== card.position.y)
-      ) {
-        calls.push({
-          name: "moveCard",
-          input: { cardId: card.id, position },
-        });
+      if (plan.move) {
+        calls.push({ name: "moveCard", input: plan.move });
       }
-      if (
-        next.size &&
-        (next.size.width !== card.size.width || next.size.height !== card.size.height)
-      ) {
-        calls.push({
-          name: "resizeCard",
-          input: { cardId: card.id, size },
-        });
+      if (plan.resize) {
+        calls.push({ name: "resizeCard", input: plan.resize });
       }
-      const frameId = resolveCardFrameMembership(
-        { ...position, ...size },
-        snapshot.frames,
-      );
-      if ((card.frameId ?? null) !== frameId) {
-        calls.push({
-          name: "setCardFrame",
-          input: { cardId: card.id, frameId },
-        });
+      if (plan.membership) {
+        calls.push({ name: "setCardFrame", input: plan.membership });
       }
       if (calls.length > 0) {
         void commit(calls);
       }
+    },
+    [commit, snapshot.frames],
+  );
+
+  const persistCreatedNote = useCallback(
+    async (input: CreateCardInput) => {
+      const created = await commit([{ name: "createCard", input }]);
+      const card = created[0] as Card;
+      const membership = membershipCallsForCards([card], snapshot.frames);
+      if (membership.length > 0) {
+        await commit(
+          membership.map((change) => ({
+            name: "setCardFrame" as const,
+            input: change,
+          })),
+        );
+      }
+      return card;
     },
     [commit, snapshot.frames],
   );
@@ -145,6 +143,7 @@ export function useCanvasCommands() {
 
   return {
     persistCardGeometry,
+    persistCreatedNote,
     persistFrameMove,
     persistFrameResize,
     persistCreatedFrame,

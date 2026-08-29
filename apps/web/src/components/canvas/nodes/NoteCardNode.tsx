@@ -31,6 +31,7 @@ export function NoteCardNode({ data, selected }: NodeProps<NoteNode>) {
         color="#64748b"
         onResizeEnd={(_event, params) => {
           persistCardGeometry(card, {
+            position: { x: params.x, y: params.y },
             size: { width: params.width, height: params.height },
           });
         }}

@@ -73,7 +73,8 @@ function CanvasSurface() {
     setFrameToolActive,
     snapToGrid,
   } = useWorkspaceUi();
-  const { persistCardGeometry, persistFrameMove } = useCanvasCommands();
+  const { persistCardGeometry, persistCreatedNote, persistFrameMove } =
+    useCanvasCommands();
   const { screenToFlowPosition, setViewport, fitView } = useReactFlow();
   const interactingRef = useRef(false);
   const viewportTimer = useRef<number | null>(null);
@@ -285,8 +286,7 @@ function CanvasSurface() {
             x: event.clientX,
             y: event.clientY,
           });
-          void execute(
-            "createCard",
+          void persistCreatedNote(
             buildCreateNoteCardInput({
               canvasId: canvas.id,
               position,

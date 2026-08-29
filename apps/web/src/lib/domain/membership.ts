@@ -1,4 +1,4 @@
-import type { Card, Frame, Point, Rect } from "@openbento/domain";
+import type { Card, Frame, Point, Rect, Size } from "@openbento/domain";
 import { selectSmallestContainingFrame } from "@openbento/domain";
 
 export function cardWorldBounds(card: Pick<Card, "position" | "size">): Rect {
@@ -73,4 +73,42 @@ export function membershipCallsForCards(
     }
   }
   return calls;
+}
+
+export type CardGeometryPlan = {
+  move?: { cardId: string; position: Point };
+  resize?: { cardId: string; size: Size };
+  membership?: { cardId: string; frameId: string | null };
+};
+
+/**
+ * Persist drag/resize: emit moveCard / resizeCard when origin or size
+ * change, then remembership from the **new** world bounds (NW/NE/SW
+ * resizes move x/y). Apply `membership` with `setCardFrame`.
+ */
+export function planCardGeometry(
+  card: Card,
+  next: { position?: Point; size?: Size },
+  frames: ReadonlyArray<Frame>,
+): CardGeometryPlan {
+  const position = next.position ?? card.position;
+  const size = next.size ?? card.size;
+  const plan: CardGeometryPlan = {};
+  if (
+    next.position &&
+    (next.position.x !== card.position.x || next.position.y !== card.position.y)
+  ) {
+    plan.move = { cardId: card.id, position };
+  }
+  if (
+    next.size &&
+    (next.size.width !== card.size.width || next.size.height !== card.size.height)
+  ) {
+    plan.resize = { cardId: card.id, size };
+  }
+  const [change] = membershipCallsForCards([{ ...card, position, size }], frames);
+  if (change) {
+    plan.membership = change;
+  }
+  return plan;
 }
