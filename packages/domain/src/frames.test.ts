@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { containsRect, selectSmallestContainingFrame } from "./frames";
+import {
+  assertSameCanvasMembership,
+  canSetCardFrame,
+  containsRect,
+  SameCanvasMembershipError,
+  sameCanvasMembershipReason,
+  selectSmallestContainingFrame,
+} from "./frames";
 
 describe("frame containment", () => {
   const outer = {
@@ -53,5 +60,62 @@ describe("frame containment", () => {
         [outer, inner],
       ),
     ).toBeNull();
+  });
+});
+
+describe("same-canvas Frame membership", () => {
+  const card = { canvasId: "canvas-a" };
+  const frame = { id: "frame-1", canvasId: "canvas-a" };
+
+  it("allows clearing membership when frameId is null", () => {
+    expect(canSetCardFrame({ card, frameId: null })).toBe(true);
+    expect(canSetCardFrame({ card, frameId: null, frame: null })).toBe(true);
+    expect(() => assertSameCanvasMembership(card, null, null)).not.toThrow();
+  });
+
+  it("rejects when frameId is non-null but frame is missing", () => {
+    expect(canSetCardFrame({ card, frameId: "frame-1" })).toBe(false);
+    expect(canSetCardFrame({ card, frameId: "frame-1", frame: null })).toBe(
+      false,
+    );
+    expect(sameCanvasMembershipReason({ card, frameId: "frame-1" })).toBe(
+      "missing_frame",
+    );
+    expect(() => assertSameCanvasMembership(card, undefined, "frame-1")).toThrow(
+      SameCanvasMembershipError,
+    );
+  });
+
+  it("rejects when Card and Frame canvas IDs differ", () => {
+    const otherFrame = { id: "frame-1", canvasId: "canvas-b" };
+    expect(
+      canSetCardFrame({ card, frameId: "frame-1", frame: otherFrame }),
+    ).toBe(false);
+    expect(
+      sameCanvasMembershipReason({
+        card,
+        frameId: "frame-1",
+        frame: otherFrame,
+      }),
+    ).toBe("canvas_mismatch");
+    expect(() =>
+      assertSameCanvasMembership(card, otherFrame, "frame-1"),
+    ).toThrow(/same Canvas/);
+  });
+
+  it("rejects when the loaded Frame id does not match frameId", () => {
+    expect(
+      canSetCardFrame({ card, frameId: "frame-other", frame }),
+    ).toBe(false);
+    expect(
+      sameCanvasMembershipReason({ card, frameId: "frame-other", frame }),
+    ).toBe("frame_id_mismatch");
+  });
+
+  it("allows membership when Card and Frame share a canvas", () => {
+    expect(canSetCardFrame({ card, frameId: "frame-1", frame })).toBe(true);
+    expect(() =>
+      assertSameCanvasMembership(card, frame, "frame-1"),
+    ).not.toThrow();
   });
 });

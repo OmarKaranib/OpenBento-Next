@@ -731,7 +731,7 @@ Security principles:
 - derive identity from authenticated session/token,
 - all Canvas/Card/Frame/WatchBot access must be owner-scoped,
 - prevent IDOR across users and Canvases,
-- validate that a Card and Frame belong to the same Canvas before membership assignment,
+- validate that a Card and Frame belong to the same Canvas before membership assignment (Platform uses `canSetCardFrame` / `assertSameCanvasMembership`; RLS is not sufficient on its own),
 - use RLS where appropriate,
 - validate server inputs,
 - do not expose service-role or provider secrets client-side.

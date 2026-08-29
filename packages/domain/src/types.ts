@@ -132,6 +132,14 @@ export type CardPayloadByType = {
 
 export type CardPayload = CardPayloadByType[CardType];
 
+/**
+ * Discriminated type/payload pair.
+ * `type: "note"` cannot carry a YouTube payload; `type: "youtube"` cannot carry `{ text }`.
+ */
+export type DiscriminatedCardContent = {
+  [K in CardType]: { type: K; payload: CardPayloadByType[K] };
+}[CardType];
+
 /** Locked WatchBot lifecycle. */
 export const WATCHBOT_STATUSES = ["running", "paused", "error"] as const;
 export type WatchBotStatus = (typeof WATCHBOT_STATUSES)[number];
@@ -147,12 +155,9 @@ export interface Canvas {
   lastOpenedAt?: string;
 }
 
-export interface Card {
+export type Card = {
   id: string;
   canvasId: string;
-  type: CardType;
-  /** Typed payload for `type`. Notes have text only; source types carry provenance. */
-  payload: CardPayload;
   /**
    * Frame membership. Written via `setCardFrame` after spatial containment.
    * Overlapping Frames: smallest area wins; equal area uses newest createdAt.
@@ -163,7 +168,7 @@ export interface Card {
   zIndex?: number;
   createdAt: string;
   updatedAt: string;
-}
+} & DiscriminatedCardContent;
 
 export interface Frame {
   id: string;

@@ -46,6 +46,7 @@ describe("provenance rules", () => {
     ]);
     expect(ACTION_CATALOG.updateCard.inputSchema.required).toEqual([
       "cardId",
+      "type",
       "payload",
     ]);
     expect(ACTION_CATALOG.createCard.inputSchema.properties).not.toHaveProperty(

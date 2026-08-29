@@ -1,9 +1,13 @@
+import {
+  PAYLOAD_SCHEMA_ONE_OF,
+  typePayloadCouplingAllOf,
+} from "./payloads";
+import { CARD_TYPES } from "./types";
 import type {
   Canvas,
   CanvasState,
   Card,
-  CardPayload,
-  CardType,
+  DiscriminatedCardContent,
   Frame,
   FrameFullscreenView,
   Point,
@@ -61,19 +65,16 @@ export interface UpdateCanvasViewportInput {
   viewport: Viewport;
 }
 
-export interface CreateCardInput {
+export type CreateCardInput = {
   canvasId: string;
-  type: CardType;
-  /** Typed payload for `type`. Source types include provenance here. */
-  payload: CardPayload;
   position?: Point;
   size?: Size;
-}
+} & DiscriminatedCardContent;
 
-export interface UpdateCardInput {
+/** cardId plus a type/payload pair. Type and payload must be provided together. */
+export type UpdateCardInput = {
   cardId: string;
-  payload: CardPayload;
-}
+} & DiscriminatedCardContent;
 
 export interface MoveCardInput {
   cardId: string;
@@ -176,7 +177,19 @@ export type JsonSchema = {
   required: string[];
   additionalProperties: false;
   properties: Record<string, unknown>;
+  allOf?: ReadonlyArray<unknown>;
 };
+
+const cardTypeSchema = {
+  type: "string",
+  enum: [...CARD_TYPES],
+} as const;
+
+const payloadOneOfSchema = {
+  oneOf: PAYLOAD_SCHEMA_ONE_OF,
+};
+
+const typePayloadAllOf = typePayloadCouplingAllOf();
 
 const pointSchema = {
   type: "object",
@@ -272,48 +285,35 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
   createCard: {
     name: "createCard",
     description:
-      "Create a Card as type plus typed payload. Source payloads require provenance; notes must not include it.",
+      "Create a Card as type plus typed payload. Source payloads require provenance; notes must not include it. Payload schemas are PAYLOAD_SCHEMAS.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
       required: ["canvasId", "type", "payload"],
       properties: {
         canvasId: { type: "string", minLength: 1 },
-        type: {
-          type: "string",
-          enum: [
-            "note",
-            "article",
-            "web",
-            "news",
-            "youtube",
-            "x",
-            "reddit",
-            "instagram",
-            "ai_summary",
-            "watchbot_status",
-            "timeline",
-            "chart",
-          ],
-        },
-        payload: { type: "object" },
+        type: cardTypeSchema,
+        payload: payloadOneOfSchema,
         position: pointSchema,
         size: sizeSchema,
       },
+      allOf: typePayloadAllOf,
     },
   },
   updateCard: {
     name: "updateCard",
     description:
-      "Replace a Card's typed payload. Does not move or resize. Does not re-require provenance on its own.",
+      "Replace a Card's typed payload. Requires type+payload together. Does not move or resize. Does not re-require provenance on its own.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
-      required: ["cardId", "payload"],
+      required: ["cardId", "type", "payload"],
       properties: {
         cardId: { type: "string", minLength: 1 },
-        payload: { type: "object" },
+        type: cardTypeSchema,
+        payload: payloadOneOfSchema,
       },
+      allOf: typePayloadAllOf,
     },
   },
   moveCard: {
@@ -347,7 +347,7 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
   setCardFrame: {
     name: "setCardFrame",
     description:
-      "Set Frame membership from spatial containment. Smallest area wins; equal-area ties use newest createdAt. frameId is null when outside all Frames.",
+      "Set Frame membership from spatial containment. Smallest area wins; equal-area ties use newest createdAt. frameId is null when outside all Frames. Platform must call canSetCardFrame / assertSameCanvasMembership; do not rely on RLS alone.",
     inputSchema: {
       type: "object",
       additionalProperties: false,

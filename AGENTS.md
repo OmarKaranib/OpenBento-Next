@@ -18,8 +18,8 @@ Human UI, WatchBot, and WebMCP use `@openbento/domain` (`ACTION_NAMES`, 20 actio
 - `createWatchBot` requires `instruction`.
 - `moveCard` / `resizeCard` / `updateCanvasViewport` are first-class.
 - Provenance on source Cards only; notes have no fake URL.
-- A Card is `type` + typed `payload`, not title/body.
-- `setCardFrame`: smallest area wins; equal-area ties use newest `createdAt`.
+- A Card is a discriminated `type` + matching `payload` (`PAYLOAD_SCHEMAS` shared by UI, server, WatchBot, WebMCP).
+- `setCardFrame`: smallest area wins; equal-area ties use newest `createdAt`. Platform uses `canSetCardFrame` / `assertSameCanvasMembership` (not RLS alone).
 - `fullscreenFrame` is view-only; no geometry rewrite.
 - WatchBot status: `running` | `paused` | `error` only.
 - Zoom is camera-only. No semantic zoom.

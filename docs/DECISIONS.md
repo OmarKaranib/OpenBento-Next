@@ -52,7 +52,13 @@ No deploy, no production Supabase project, no Railway services, no applied migra
 
 ## D-010 — Card is type plus typed payload
 
-A Card is `type` + typed `payload`, not title/body. Externally discovered source types require `payload.provenance`. Notes are `{ text }` and must not include a fake source URL. `moveCard` / `resizeCard` do not re-require provenance.
+A Card is a discriminated `type` + matching `payload`, not title/body:
+
+`{ [K in CardType]: { type: K; payload: CardPayloadByType[K] } }[CardType]`
+
+Externally discovered source types require `payload.provenance`. Notes are `{ text }` and must not include a fake source URL. `moveCard` / `resizeCard` do not re-require provenance.
+
+Runtime validation is shared `PAYLOAD_SCHEMAS` in `@openbento/domain`. The catalog `inputSchema`, `isValidCardPayload`, Platform server, WatchBot, and WebMCP must use those schemas — they must not invent separate payload shapes.
 
 ## D-011 — Local schema sketch
 
@@ -65,6 +71,8 @@ Status: `running` | `paused` | `error`. `instruction` required on create. Provid
 ## D-013 — `setCardFrame` from spatial containment
 
 Membership is derived from geometry and applied through `setCardFrame`. Smallest area wins. Equal-area ties use newest `createdAt` (deterministic; array order must not decide). UI must not invent a private membership field.
+
+Platform must call `canSetCardFrame` / `assertSameCanvasMembership` before writing membership. That helper rejects cross-canvas Card/Frame pairs and a non-null `frameId` without a loaded Frame. **RLS is not a substitute** for this domain check.
 
 ## D-014 — ownerId is server-derived
 
