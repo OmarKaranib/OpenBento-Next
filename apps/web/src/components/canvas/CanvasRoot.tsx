@@ -141,9 +141,50 @@ function CanvasSurface() {
     return () => window.removeEventListener("keydown", onKey);
   }, [execute, fullscreen, redo, setFrameToolActive, undo]);
 
-  const onNodesChange = useCallback((changes: NodeChange[]) => {
-    setNodes((current) => applyNodeChanges(changes, current));
-  }, []);
+  const onNodesChange = useCallback(
+    (changes: NodeChange[]) => {
+      setNodes((current) => {
+        let next = applyNodeChanges(changes, current);
+        for (const change of changes) {
+          if (change.type !== "position" || !change.position) {
+            continue;
+          }
+          const parsed = parseFlowNodeId(change.id);
+          if (parsed?.kind !== "frame") {
+            continue;
+          }
+          const previous = current.find((node) => node.id === change.id);
+          if (!previous) {
+            continue;
+          }
+          const dx = change.position.x - previous.position.x;
+          const dy = change.position.y - previous.position.y;
+          if (dx === 0 && dy === 0) {
+            continue;
+          }
+          next = next.map((node) => {
+            const info = parseFlowNodeId(node.id);
+            if (info?.kind !== "card") {
+              return node;
+            }
+            const card = snapshot.cards.find((entry) => entry.id === info.entityId);
+            if (card?.frameId !== parsed.entityId) {
+              return node;
+            }
+            return {
+              ...node,
+              position: {
+                x: node.position.x + dx,
+                y: node.position.y + dy,
+              },
+            };
+          });
+        }
+        return next;
+      });
+    },
+    [snapshot.cards],
+  );
 
   const defaultViewport = useMemo(
     () => canvas?.viewport ?? { x: 0, y: 0, zoom: 1 },

@@ -1,4 +1,4 @@
-import type { Card, Frame, Rect } from "@openbento/domain";
+import type { Card, Frame, Point, Rect } from "@openbento/domain";
 import { selectSmallestContainingFrame } from "@openbento/domain";
 
 export function cardWorldBounds(card: Pick<Card, "position" | "size">): Rect {
@@ -25,11 +25,39 @@ export function resolveCardFrameMembership(
 }
 
 /**
+ * Slide current members with a Frame. Positions stay world-absolute.
+ * After this, remembership ALL cards — a translated member may now sit
+ * inside a smaller overlapping Frame.
+ */
+export function translateFrameMembers(
+  cards: ReadonlyArray<Card>,
+  frameId: string,
+  delta: Point,
+): Card[] {
+  if (delta.x === 0 && delta.y === 0) {
+    return [...cards];
+  }
+  return cards.map((card) => {
+    if (card.frameId !== frameId) {
+      return card;
+    }
+    return {
+      ...card,
+      position: {
+        x: card.position.x + delta.x,
+        y: card.position.y + delta.y,
+      },
+    };
+  });
+}
+
+/**
  * Re-derive Frame membership for every Card on the canvas.
  *
- * After Frame move/resize/create, pass ALL current-canvas cards — not only
- * non-members. Cards now outside get `frameId: null`; newly contained cards
- * get the smallest containing Frame. The UI must apply each result with
+ * After Frame translate/resize/create, pass ALL current-canvas cards — not
+ * only non-members. Cards now outside get `frameId: null`; newly contained
+ * cards get the smallest containing Frame. A member that now sits in a
+ * smaller overlapping Frame gets that smaller id. Apply each result with
  * `setCardFrame` (executor asserts same-canvas).
  */
 export function membershipCallsForCards(

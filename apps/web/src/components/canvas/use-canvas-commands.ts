@@ -7,6 +7,7 @@ import {
   cardWorldBounds,
   membershipCallsForCards,
   resolveCardFrameMembership,
+  translateFrameMembers,
 } from "@/lib/domain/membership";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 
@@ -71,10 +72,28 @@ export function useCanvasCommands() {
         x: position.x,
         y: position.y,
       });
+      const nextCards = translateFrameMembers(snapshot.cards, frame.id, {
+        x: dx,
+        y: dy,
+      });
       const calls: CatalogCall[] = [
         { name: "moveFrame", input: { frameId: frame.id, position } },
       ];
-      for (const change of membershipCallsForCards(snapshot.cards, nextFrames)) {
+      for (const card of nextCards) {
+        const previous = snapshot.cards.find((entry) => entry.id === card.id);
+        if (
+          !previous ||
+          (card.position.x === previous.position.x &&
+            card.position.y === previous.position.y)
+        ) {
+          continue;
+        }
+        calls.push({
+          name: "moveCard",
+          input: { cardId: card.id, position: card.position },
+        });
+      }
+      for (const change of membershipCallsForCards(nextCards, nextFrames)) {
         calls.push({ name: "setCardFrame", input: change });
       }
       void commit(calls);
