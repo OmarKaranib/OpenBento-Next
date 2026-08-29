@@ -1,5 +1,7 @@
 # Execution roadmap (Issue #1)
 
+**Phase 0 checkpoint (in progress, assigned by Omar):** PR https://github.com/OmarKaranib/OpenBento-Next/pull/2. Validation: `pnpm lint` pass; `pnpm typecheck` pass; `pnpm test` pass (12); `pnpm --filter web build` pass. Agent cannot merge and cannot write GitHub issue #1 (403). Paste this file into #1 after merge permissions allow.
+
 This is the **single living roadmap** for OpenBento-Next. Canonical product context: [`docs/OPENBENTO_MASTER_CONTEXT.md`](https://github.com/OmarKaranib/OpenBento-Next/blob/main/docs/OPENBENTO_MASTER_CONTEXT.md).
 
 Do not spawn a swarm of extra issues. Track work here and in PRs.
@@ -25,7 +27,7 @@ Shared domain catalog in `@openbento/domain` (20 actions — **not** a 5-action 
 - `moveCard`, `resizeCard`, `updateCanvasViewport` are first-class.
 - `ownerId` is **server-derived from session**. Never on action inputs. Canvas and WatchBot records still carry `ownerId`.
 - Provenance required on externally discovered **source Cards only**. Notes do not get a fake source URL. `moveCard`/`resizeCard` do not re-require provenance.
-- Overlapping Frames: **smallest containing Frame wins** `setCardFrame`.
+- Overlapping Frames: smallest area wins `setCardFrame`; equal-area ties use newest `createdAt`.
 - WatchBot status: **`running` \| `paused` \| `error`** only.
 - Zoom is camera-only. No semantic zoom.
 

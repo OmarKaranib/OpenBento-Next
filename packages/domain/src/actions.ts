@@ -2,7 +2,7 @@ import type {
   Canvas,
   CanvasState,
   Card,
-  CardProvenance,
+  CardPayload,
   CardType,
   Frame,
   FrameFullscreenView,
@@ -64,22 +64,15 @@ export interface UpdateCanvasViewportInput {
 export interface CreateCardInput {
   canvasId: string;
   type: CardType;
-  title?: string;
-  body?: string;
+  /** Typed payload for `type`. Source types include provenance here. */
+  payload: CardPayload;
   position?: Point;
   size?: Size;
-  /**
-   * Required for source Card types. Forbidden as a fake URL on notes.
-   * Not re-required by moveCard / resizeCard.
-   */
-  provenance?: CardProvenance;
 }
 
 export interface UpdateCardInput {
   cardId: string;
-  title?: string;
-  body?: string;
-  provenance?: CardProvenance;
+  payload: CardPayload;
 }
 
 export interface MoveCardInput {
@@ -222,25 +215,6 @@ const viewportSchema = {
   },
 } as const;
 
-const provenanceSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["sourceUrl", "title", "publishedAt", "sourceType"],
-  properties: {
-    sourceUrl: { type: "string", format: "uri" },
-    title: { type: "string", minLength: 1 },
-    publishedAt: { type: "string", format: "date-time" },
-    sourceType: {
-      type: "string",
-      enum: ["web", "news", "youtube", "x", "reddit", "instagram"],
-    },
-    author: { type: "string" },
-    externalId: { type: "string" },
-    discoveredAt: { type: "string", format: "date-time" },
-    watchBotId: { type: "string" },
-  },
-} as const;
-
 export interface DomainAction<N extends ActionName = ActionName> {
   name: N;
   description: string;
@@ -298,11 +272,11 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
   createCard: {
     name: "createCard",
     description:
-      "Create a Card. Provenance is required for source types only; notes must not invent a source URL.",
+      "Create a Card as type plus typed payload. Source payloads require provenance; notes must not include it.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
-      required: ["canvasId", "type"],
+      required: ["canvasId", "type", "payload"],
       properties: {
         canvasId: { type: "string", minLength: 1 },
         type: {
@@ -322,27 +296,23 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
             "chart",
           ],
         },
-        title: { type: "string" },
-        body: { type: "string" },
+        payload: { type: "object" },
         position: pointSchema,
         size: sizeSchema,
-        provenance: provenanceSchema,
       },
     },
   },
   updateCard: {
     name: "updateCard",
     description:
-      "Update Card content. Does not move or resize. Does not re-require provenance.",
+      "Replace a Card's typed payload. Does not move or resize. Does not re-require provenance on its own.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
-      required: ["cardId"],
+      required: ["cardId", "payload"],
       properties: {
         cardId: { type: "string", minLength: 1 },
-        title: { type: "string" },
-        body: { type: "string" },
-        provenance: provenanceSchema,
+        payload: { type: "object" },
       },
     },
   },
@@ -377,7 +347,7 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
   setCardFrame: {
     name: "setCardFrame",
     description:
-      "Set Frame membership from spatial containment. Overlapping Frames: smallest containing Frame wins. frameId is null when outside all Frames.",
+      "Set Frame membership from spatial containment. Smallest area wins; equal-area ties use newest createdAt. frameId is null when outside all Frames.",
     inputSchema: {
       type: "object",
       additionalProperties: false,

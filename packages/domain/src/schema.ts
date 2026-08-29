@@ -14,6 +14,7 @@ import type {
   WatchBotStatus,
 } from "./types";
 
+
 export interface CanvasRecord {
   id: string;
   owner_id: OwnerId;
@@ -31,17 +32,13 @@ export interface CardRecord {
   canvas_id: string;
   frame_id: string | null;
   type: CardType;
-  title: string | null;
-  body: string | null;
+  /** Typed payload JSON for `type`. Not title/body columns. */
+  payload: Record<string, unknown>;
   x: number;
   y: number;
   width: number;
   height: number;
   z_index: number | null;
-  source_url: string | null;
-  source_title: string | null;
-  published_at: string | null;
-  source_type: SourceType | null;
   created_at: string;
   updated_at: string;
 }

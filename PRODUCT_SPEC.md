@@ -11,7 +11,7 @@ Canonical: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.
 | Primitive | Definition |
 | --- | --- |
 | **Canvas** | Persistent spatial workspace. Camera zoom only. Viewport persistable. |
-| **Card** | Positioned, resizable content. Registry of types (note, article, YouTube, X, …). |
+| **Card** | Positioned, resizable content. `type` + typed payload (Note first). Source types carry provenance; notes do not. |
 | **Frame** | Persisted bordered region. Fullscreen is view-only. |
 | **WatchBot** | Persistent monitor (`running` \| `paused` \| `error`). Requires an instruction. |
 

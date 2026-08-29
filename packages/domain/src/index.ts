@@ -33,9 +33,21 @@ export {
   containsRect,
   rectArea,
   selectSmallestContainingFrame,
+  type FrameContainmentCandidate,
 } from "./frames";
 
-export { cardTypeRequiresProvenance, isNoteCardType } from "./provenance";
+export {
+  cardTypeRequiresProvenance,
+  isNoteCardType,
+  isValidCardPayload,
+  isValidNotePayload,
+  isValidSourcePayload,
+} from "./provenance";
+
+export {
+  WEBMCP_TOOL_TO_ACTION,
+  type WebMcpToolName,
+} from "./webmcp";
 
 export type {
   CanvasRecord,
@@ -52,11 +64,19 @@ export {
   WATCHBOT_SOURCE_TYPES,
   WATCHBOT_STATUSES,
   type Actor,
+  type AiSummaryPayload,
   type Canvas,
   type CanvasState,
   type Card,
+  type CardPayload,
+  type CardPayloadByType,
   type CardProvenance,
   type CardType,
+  type ChartPayload,
+  type NotePayload,
+  type SourceCardPayload,
+  type TimelinePayload,
+  type WatchBotStatusPayload,
   type Frame,
   type FrameFullscreenView,
   type OwnerId,

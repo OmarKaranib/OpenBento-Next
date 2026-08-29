@@ -18,8 +18,8 @@ This package is types, catalog, and pure helpers. **No handlers. No pipeline. No
 
 `moveCard`, `resizeCard`, and `updateCanvasViewport` are first-class. `ownerId` is server-derived from session and **must not** appear on action inputs. Canvas and WatchBot **records** still carry `ownerId`.
 
-Provenance is required on externally discovered source Cards only. Notes do not get a fake source URL. `moveCard` / `resizeCard` do not re-require provenance.
+A Card is `type` plus a typed `payload`. Notes use `{ text }` and must not include provenance. Source types require `payload.provenance`. `moveCard` / `resizeCard` do not re-require provenance.
 
-Overlapping Frames: smallest containing Frame wins `setCardFrame`.
+Overlapping Frames: smallest area wins `setCardFrame`. Equal-area ties use newest `createdAt`.
 
 WatchBot status: `running` | `paused` | `error` only.

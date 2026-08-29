@@ -78,6 +78,14 @@ describe("master action catalog", () => {
     ]);
   });
 
+  it("creates and updates Cards via type plus payload", () => {
+    expect(ACTION_CATALOG.createCard.inputSchema.required).toContain("payload");
+    expect(ACTION_CATALOG.updateCard.inputSchema.required).toContain("payload");
+    expect(ACTION_CATALOG.createCard.inputSchema.properties).toHaveProperty(
+      "payload",
+    );
+  });
+
   it("describes fullscreenFrame as view-only", () => {
     expect(ACTION_CATALOG.fullscreenFrame.description).toMatch(/view-only/i);
     expect(ACTION_CATALOG.fullscreenFrame.description).toMatch(

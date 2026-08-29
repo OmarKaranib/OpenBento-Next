@@ -40,7 +40,7 @@ One catalog in `packages/domain` (20 actions):
 - WatchBot: `createWatchBot` (requires `instruction`), `updateWatchBot`, `pauseWatchBot`, `resumeWatchBot`
 - Read/view: `getCanvasState`, `getWatchBotStatus`, `fullscreenFrame`
 
-`moveCard`, `resizeCard`, `updateCanvasViewport` are first-class. WebMCP maps 1:1.
+`moveCard`, `resizeCard`, `updateCanvasViewport` are first-class. WebMCP tools use the Issue #1 snake_case → camelCase map only (`WEBMCP_SPEC.md`).
 
 ## D-008 — MIT for WebMCP detectability
 
@@ -50,9 +50,9 @@ Keep MIT `LICENSE` at repo root.
 
 No deploy, no production Supabase project, no Railway services, no applied migrations, no merge without owner validation.
 
-## D-010 — Provenance on source Cards only
+## D-010 — Card is type plus typed payload
 
-Externally discovered source Cards require provenance. Notes do not get a fake source URL. `moveCard` / `resizeCard` do not re-require provenance.
+A Card is `type` + typed `payload`, not title/body. Externally discovered source types require `payload.provenance`. Notes are `{ text }` and must not include a fake source URL. `moveCard` / `resizeCard` do not re-require provenance.
 
 ## D-011 — Local schema sketch
 
@@ -64,7 +64,7 @@ Status: `running` | `paused` | `error`. `instruction` required on create. Provid
 
 ## D-013 — `setCardFrame` from spatial containment
 
-Membership is derived from geometry and applied through `setCardFrame`. Overlapping Frames: **smallest containing Frame wins**. UI must not invent a private membership field.
+Membership is derived from geometry and applied through `setCardFrame`. Smallest area wins. Equal-area ties use newest `createdAt` (deterministic; array order must not decide). UI must not invent a private membership field.
 
 ## D-014 — ownerId is server-derived
 

@@ -75,7 +75,7 @@ export interface Viewport {
 
 /**
  * Provenance for externally discovered source Cards only.
- * Notes must not invent a fake source URL.
+ * Lives on the source payload — never as a fake URL on notes.
  */
 export interface CardProvenance {
   sourceUrl: string;
@@ -87,6 +87,50 @@ export interface CardProvenance {
   discoveredAt?: string;
   watchBotId?: string;
 }
+
+/** Note payload. No provenance field. */
+export interface NotePayload {
+  text: string;
+}
+
+/** Externally discovered source payload. Provenance is required. */
+export interface SourceCardPayload {
+  provenance: CardProvenance;
+}
+
+export interface AiSummaryPayload {
+  summary: string;
+  sourceCardIds: string[];
+}
+
+export interface WatchBotStatusPayload {
+  watchBotId: string;
+}
+
+export interface TimelinePayload {
+  itemCardIds: string[];
+}
+
+export interface ChartPayload {
+  kind: string;
+}
+
+export type CardPayloadByType = {
+  note: NotePayload;
+  article: SourceCardPayload;
+  web: SourceCardPayload;
+  news: SourceCardPayload;
+  youtube: SourceCardPayload;
+  x: SourceCardPayload;
+  reddit: SourceCardPayload;
+  instagram: SourceCardPayload;
+  ai_summary: AiSummaryPayload;
+  watchbot_status: WatchBotStatusPayload;
+  timeline: TimelinePayload;
+  chart: ChartPayload;
+};
+
+export type CardPayload = CardPayloadByType[CardType];
 
 /** Locked WatchBot lifecycle. */
 export const WATCHBOT_STATUSES = ["running", "paused", "error"] as const;
@@ -107,18 +151,16 @@ export interface Card {
   id: string;
   canvasId: string;
   type: CardType;
+  /** Typed payload for `type`. Notes have text only; source types carry provenance. */
+  payload: CardPayload;
   /**
    * Frame membership. Written via `setCardFrame` after spatial containment.
-   * Overlapping Frames: smallest containing Frame wins.
+   * Overlapping Frames: smallest area wins; equal area uses newest createdAt.
    */
   frameId?: string | null;
-  title?: string;
-  body?: string;
   position: Point;
   size: Size;
   zIndex?: number;
-  /** Required for source Card types; omitted on notes. */
-  provenance?: CardProvenance;
   createdAt: string;
   updatedAt: string;
 }

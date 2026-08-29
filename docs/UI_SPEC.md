@@ -48,7 +48,8 @@ Frame tool: click → crosshair → drag rectangle → name/move/resize.
 
 - Cards are freely positioned and resizable via `moveCard` / `resizeCard`.
 - Frame membership **feels geometric**. Internally persist `card.frameId` through `setCardFrame`.
-- Overlapping Frames: **smallest containing Frame wins**.
+- Cards are `type` + typed payload (Note is first). Source types carry provenance on the payload; notes do not.
+- Overlapping Frames: smallest area wins; equal-area ties use newest `createdAt`.
 - **Fullscreen Frame** is view-only presentation (`fullscreenFrame`). Chrome hides; Frame + member Cards show; **stored geometry is not rewritten**.
 
 ## This phase

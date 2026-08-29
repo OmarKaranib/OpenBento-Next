@@ -93,4 +93,4 @@ Properties: `canvasId`, `actionCount`. No prompt/instruction text.
 | --- | --- |
 | `ob.webmcp.tool` | A registered tool ran |
 
-Properties: `toolName` (catalog action name), `success` (`true` \| `false`), `canvasId` if known. No input bodies.
+Properties: `toolName` (snake_case WebMCP name from the Issue #1 map), `success` (`true` \| `false`), `canvasId` if known. No input bodies.

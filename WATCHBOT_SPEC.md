@@ -21,7 +21,7 @@ Status (locked): **`running` | `paused` | `error`**. Shown near the current Canv
 | `pauseWatchBot` | → `paused` |
 | `resumeWatchBot` | → `running` |
 | `getWatchBotStatus` | Read status |
-| `createCard` / `updateCard` | Sourced Cards with provenance when type requires it |
+| `createCard` / `updateCard` | `type` + typed payload; source types require provenance |
 | `setCardFrame` | Membership if a discovery is placed in a Frame |
 
 Source Cards require provenance. Notes do not. WatchBot must not invent fake source URLs for notes.
