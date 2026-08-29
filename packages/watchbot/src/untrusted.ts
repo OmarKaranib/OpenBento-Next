@@ -18,12 +18,28 @@ export function sanitizeUntrustedText(value: unknown, maxLength = 500): string {
     .slice(0, maxLength);
 }
 
+function stemToken(token: string): string {
+  if (token.length > 5 && token.endsWith("ing")) {
+    return token.slice(0, -3);
+  }
+  if (token.length > 4 && token.endsWith("ed")) {
+    return token.slice(0, -2);
+  }
+  if (token.length > 4 && token.endsWith("es")) {
+    return token.slice(0, -2);
+  }
+  if (token.length > 3 && token.endsWith("s")) {
+    return token.slice(0, -1);
+  }
+  return token;
+}
+
 /** Opaque string for scoring only. Never executed, never parsed as code. */
 export function tokenizeForScoring(value: string): string[] {
   const cleaned = sanitizeUntrustedText(value, 2_000).toLowerCase();
   return cleaned
     .split(/[^a-z0-9]+/i)
-    .map((token) => token.trim())
+    .map((token) => stemToken(token.trim()))
     .filter((token) => token.length >= 3);
 }
 

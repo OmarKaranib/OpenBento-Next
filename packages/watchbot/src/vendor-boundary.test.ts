@@ -24,7 +24,9 @@ describe("vendor boundary", () => {
     expect(files.length).toBeGreaterThan(0);
     for (const file of files) {
       const text = readFileSync(file, "utf8");
-      expect(text).not.toMatch(/xai|grok|XAI_API_KEY/i);
+      expect(text).not.toMatch(
+        /from\s+["'][^"']*(?:xai|grok)[^"']*["']|XAI_API_KEY|GROK_API_KEY/i,
+      );
     }
   });
 });

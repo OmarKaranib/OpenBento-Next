@@ -138,9 +138,7 @@ function extractDiscoveredItems(body: unknown): DiscoveredItem[] {
       }
     }
     for (const nested of Object.values(record)) {
-      if (nested && typeof nested === "object") {
-        visit(nested);
-      }
+      visit(nested);
     }
   };
 
