@@ -5,3 +5,33 @@ export {
   type WatchBotRuntimeBinding,
 } from "./types";
 export type { WatchBot, WatchBotStatus } from "./types";
+export {
+  WATCHBOT_V0_SOURCE_TYPES,
+  canonicalizeUrl,
+  isWatchBotV0SourceType,
+  normalizeDiscoveredItem,
+  sourceTypeToCardType,
+  type NormalizedItem,
+  type WatchBotV0SourceType,
+} from "./normalize";
+export { buildDedupKey } from "./dedup";
+export { NOVELTY_THRESHOLD, isNovelEnough, scoreNovelty } from "./novelty";
+export { RELEVANCE_THRESHOLD, isRelevantEnough, scoreRelevance } from "./relevance";
+export {
+  assertSourceCardPayload,
+  runWatchBotPipeline,
+  type PipelineCycleResult,
+  type PipelineItemResult,
+  type RunWatchBotPipelineInput,
+} from "./pipeline";
+export { FakeSourceProvider } from "./fake-provider";
+export {
+  createGrokSourceProvider,
+  grokEnvApiKey,
+  type GrokSourceProviderOptions,
+} from "./adapters/grok";
+export {
+  noopWatchBotTelemetry,
+  type EmitWatchBotTelemetry,
+  type WatchBotCostTelemetry,
+} from "./telemetry";

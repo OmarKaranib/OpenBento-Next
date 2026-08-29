@@ -2,14 +2,14 @@ import type { WatchBot, WatchBotStatus } from "@openbento/domain";
 
 export type { WatchBot, WatchBotStatus };
 
-/** Runtime binding stub. No scheduler or actor loop in this package yet. */
+/** Runtime binding for a WatchBot on a Canvas. */
 export interface WatchBotRuntimeBinding {
   watchBot: WatchBot;
   canvasId: string;
 }
 
 /**
- * Planned pipeline stages. Implementation belongs in `apps/worker` later.
+ * Pipeline stages. Implementation lives in this package; the worker runs them.
  */
 export const WATCHBOT_PIPELINE_STAGES = [
   "discover",

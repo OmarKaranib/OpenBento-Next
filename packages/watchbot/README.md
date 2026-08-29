@@ -1,17 +1,28 @@
 # `@openbento/watchbot`
 
-WatchBot **runtime stub**. Types and this README only.
+WatchBot **v0 first slice**: provider-agnostic discovery port plus the
+`discover → normalize → dedup → novelty → relevance → provenance → Card` pipeline.
 
-A WatchBot is a persistent monitoring agent bound to a Canvas. Status is `running` | `paused` | `error` only, shown near the current Canvas name.
+A WatchBot is a persistent monitoring agent bound to a Canvas. Status is
+`running` | `paused` | `error` only.
 
-It mutates the world only through `@openbento/domain` actions. `createWatchBot` requires an `instruction`. `ownerId` is session-derived.
+It mutates the world only through `@openbento/domain` actions via
+`createActionExecutor`. `createWatchBot` requires an `instruction`.
+`ownerId` is session-derived.
 
 ## SourceProvider
 
-Provider-agnostic port in `src/provider.ts`. First adapter (planned): xAI/Grok, not wired into the domain.
+Provider-agnostic port in `src/provider.ts`. Tests inject `FakeSourceProvider`.
+An optional xAI/Grok adapter lives in `src/adapters/grok.ts` and is constructed
+only when `XAI_API_KEY` / `GROK_API_KEY` is set. `@openbento/domain` does not
+import Grok.
 
-Initial sources from the master context: web/news, then X, then YouTube. Implementation is later in `apps/worker`.
+First slice sources: **web and news only**. X and YouTube discovery are not
+implemented.
 
-## Pipeline (not implemented)
+## Pipeline
 
-`discover → normalize → dedup → novelty → relevance → provenance → Card`
+`runWatchBotPipeline` claims `UNIQUE (watchBotId, dedupKey)` on the first
+normalized event. Conflict → `duplicate`, no Card, no overwrite. Membership is
+two calls: `createCard` (bounds only) then `setCardFrame` using
+`selectSmallestContainingFrame`.

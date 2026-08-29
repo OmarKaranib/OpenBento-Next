@@ -74,4 +74,30 @@ describe("watch_bot_events unique (watch_bot_id, dedup_key)", () => {
     expect(forA[0]?.watchBotId).toBe("bot-a");
     expect(forB[0]?.watchBotId).toBe("bot-b");
   });
+
+  it("lists every WatchBot for the worker scan", async () => {
+    const store = new InMemoryDomainStore();
+    await store.saveWatchBot({
+      id: "bot-1",
+      ownerId: "user-a",
+      canvasId: "canvas-1",
+      instruction: "Watch",
+      status: "running",
+      sourceTypes: ["web"],
+      createdAt: "2026-08-29T00:00:00.000Z",
+      updatedAt: "2026-08-29T00:00:00.000Z",
+    });
+    await store.saveWatchBot({
+      id: "bot-2",
+      ownerId: "user-b",
+      canvasId: "canvas-2",
+      instruction: "Watch",
+      status: "paused",
+      sourceTypes: ["news"],
+      createdAt: "2026-08-29T00:00:00.000Z",
+      updatedAt: "2026-08-29T00:00:00.000Z",
+    });
+    const all = await store.listWatchBots();
+    expect(all.map((bot) => bot.id).sort()).toEqual(["bot-1", "bot-2"]);
+  });
 });

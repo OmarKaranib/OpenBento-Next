@@ -2,7 +2,7 @@
 
 Canonical product context: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.md).
 
-Status: **Phase 1 Canvas UI** on `bot/canvas`, rebased onto platform `492f951`. Workspace calls `createActionExecutor`. No second web store. No WatchBot pipeline, no WebMCP tools, no production infra.
+Status: **Phase 4 WatchBot v0 first slice** on `bot/watchbot` (web/news only). Human UI and WatchBot share `createActionExecutor`. No second store. No WebMCP tools, no production infra.
 
 ## Monorepo
 
@@ -11,9 +11,9 @@ pnpm workspaces + TypeScript. Next.js 16 + React in `apps/web`.
 ```
 apps/web              Next.js 16 App Router. Phase 1 Railway-inspired workspace.
                       CanvasRoot mounts @xyflow/react (no edges / minimap).
-apps/worker           WatchBot worker stub. No job system.
+apps/worker           WatchBot worker. In-memory fixture cycle; pause skips discovery.
 packages/domain       Catalog + handlers (`ActionExecutor`) + `DomainStore` port.
-packages/watchbot     SourceProvider port + runtime types. No adapter.
+packages/watchbot     SourceProvider + pipeline. Optional Grok adapter behind env.
 packages/ui           Shared visual tokens for the workspace chrome.
 supabase/migrations   Local/dev SQL + RLS matching schema.ts. Do not apply to production.
 docs/                 Maintained specs + OPENBENTO_MASTER_CONTEXT.md
@@ -89,4 +89,4 @@ Event taxonomy: [`docs/ANALYTICS.md`](./docs/ANALYTICS.md). No secrets, instruct
 
 ## Non-goals (this phase)
 
-No WatchBot pipeline, WebMCP `registerTool`, billing/Stripe, xAI/Grok API wiring, production Supabase, Railway services, or deploy. Do not modify `OmarKaranib/OpenBento`. Do not apply migrations to any hosted database. The Canvas UI must not reimplement `InMemoryDomainStore`.
+No X/YouTube discovery, WebMCP `registerTool`, billing/Stripe, production Supabase, Railway services, or deploy. Do not modify `OmarKaranib/OpenBento`. Do not apply migrations to any hosted database. The Canvas UI must not reimplement `InMemoryDomainStore`. Domain must not import Grok/xAI.

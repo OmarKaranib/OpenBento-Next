@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "echo \"worker stub — no job system in this scaffold\""
+    "start": "tsx src/index.ts --once",
+    "start:loop": "tsx src/index.ts --loop"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.5"
   },
   "dependencies": {
     "@openbento/domain": "workspace:*",

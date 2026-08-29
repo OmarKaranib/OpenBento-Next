@@ -4,9 +4,11 @@ AI-native live intelligence canvas (Canvas, Card, Frame, WatchBot).
 
 **Canonical context:** [docs/OPENBENTO_MASTER_CONTEXT.md](./docs/OPENBENTO_MASTER_CONTEXT.md)
 
-This is **Phase 1 Canvas** on top of the Phase 1 platform catalog. `apps/web` mounts a Railway-inspired workspace: left rail, top Canvas switcher, Agent placeholder, and an XYFlow dotted canvas. Humans can create, switch, and rename Canvases; add Note Cards from the top **Note** control or by double-clicking empty canvas (world coordinates, then `setCardFrame` from geometry); move and resize Notes and Frames; and fullscreen a Frame without rewriting stored geometry.
+This is **Phase 4 WatchBot v0 first slice** (web/news) on top of the Phase 1 canvas and the shared 20-action catalog.
 
-Persistence is the in-memory `DomainStore` behind `createActionExecutor`. There is no WatchBot pipeline, WebMCP tools, source Cards, Auth/`runBoundAction`, or production deploy.
+`apps/web` mounts a Railway-inspired workspace: left rail, top Canvas switcher, Agent placeholder, and an XYFlow dotted canvas. Humans can create, switch, and rename Canvases; add Note Cards from the top **Note** control or by double-clicking empty canvas (world coordinates, then `setCardFrame` from geometry); move and resize Notes and Frames; and fullscreen a Frame without rewriting stored geometry.
+
+WatchBot writes sourced Cards through the same `createActionExecutor`. Persistence is the in-memory `DomainStore`. No WebMCP tools, Auth/`runBoundAction`, or production deploy.
 
 Legacy [`OmarKaranib/OpenBento`](https://github.com/OmarKaranib/OpenBento) is frozen reference.
 
@@ -33,9 +35,9 @@ Maintained under [`docs/`](./docs/). Copies also live at the repo root.
 
 ```
 apps/web                 Next.js 16 Railway-inspired workspace (CanvasRoot)
-apps/worker              Worker stub
+apps/worker              WatchBot worker (fixture cycle)
 packages/domain          20-action catalog + shared executor + store port
-packages/watchbot        SourceProvider types
+packages/watchbot        SourceProvider + pipeline; optional Grok adapter
 packages/ui              Tokens
 supabase/migrations      Local/dev SQL + RLS — do not apply to production
 docs/                    Specs + master context
@@ -51,6 +53,7 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm --filter web build
+pnpm --filter worker start
 ```
 
 Local workspace (in-memory store, no hosted backend):

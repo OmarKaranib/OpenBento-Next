@@ -88,7 +88,19 @@ Omar assigned. PR #2. Do not merge until owner validation.
 
 ## Later phases (master context §17)
 
-2. Source Cards · 3. Platform hardening (RLS) · 4. WatchBot v0 · 5. WatchBot management · 6. Agent + WebMCP · 7. Hackathon polish · 8. Commercialization after challenge
+2. Source Cards · 3. Platform hardening (RLS) · **4. WatchBot v0 first slice (this PR: web/news worker + shared-action pipeline)** · 5. WatchBot management · 6. Agent + WebMCP · 7. Hackathon polish · 8. Commercialization after challenge
+
+### Phase 4 — WatchBot v0 (in progress on `bot/watchbot`)
+
+- [x] Provider-agnostic `SourceProvider` + fake provider for tests
+- [x] Pipeline: discover → normalize → dedup → novelty → relevance → provenance → Card
+- [x] Cards via `createActionExecutor` (`createCard` then `setCardFrame`)
+- [x] `UNIQUE (watchBotId, dedupKey)` conflict → duplicate, no overwrite
+- [x] Worker cycle: pause skips discovery; errors set `error` + `lastError`
+- [x] Optional Grok adapter behind env (unused in default tests)
+- [ ] X discovery
+- [ ] YouTube discovery
+- [ ] Adaptive cadence / production worker hosting
 
 ---
 

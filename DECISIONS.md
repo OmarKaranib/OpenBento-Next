@@ -66,7 +66,7 @@ Rows: Canvas, Card, Frame, WatchBot, WatchBotEvent. SQL lives in `supabase/migra
 
 ## D-012 — WatchBot as OpenBento primitive
 
-Status: `running` | `paused` | `error`. `instruction` required on create. Provider-agnostic `SourceProvider`; Grok is a planned adapter, not domain.
+Status: `running` | `paused` | `error`. `instruction` required on create. Provider-agnostic `SourceProvider`; optional Grok adapter is env-gated and is not imported by domain. First slice sources are web/news only.
 
 ## D-013 — `setCardFrame` from spatial containment
 
