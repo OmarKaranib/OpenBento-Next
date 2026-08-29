@@ -198,3 +198,21 @@ export function watchBotEventFromRecord(
     detail: row.detail ?? undefined,
   };
 }
+
+export function watchBotEventToRecord(event: WatchBotEvent): WatchBotEventRecord {
+  return {
+    id: event.id,
+    watch_bot_id: event.watchBotId,
+    canvas_id: event.canvasId,
+    kind: event.kind,
+    source_url: event.sourceUrl,
+    dedup_key: event.dedupKey,
+    novelty_score: event.noveltyScore ?? null,
+    discovered_at: event.discoveredAt,
+    title: event.title ?? null,
+    published_at: event.publishedAt ?? null,
+    source_type: event.sourceType ?? null,
+    card_id: event.cardId ?? null,
+    detail: event.detail ?? null,
+  };
+}

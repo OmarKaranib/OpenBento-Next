@@ -15,7 +15,7 @@ export default function WebMcpJudgePage() {
     <main className="h-full overflow-auto bg-[#0b0d10] px-6 py-10 text-zinc-100">
       <div className="mx-auto max-w-3xl">
         <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-          Isolated Phase 2 · draft
+          Phase 3 persist · draft
         </p>
         <h1 className="mt-2 text-2xl font-medium">OpenBento WebMCP</h1>
         <p className="mt-3 text-sm leading-6 text-zinc-400">
@@ -77,7 +77,7 @@ export default function WebMcpJudgePage() {
           <p>
             Programmatic eval (same session path as tools):{" "}
             <code className="text-zinc-300">pnpm test</code>. Tests call{" "}
-            <code className="text-zinc-300">requestAuthFromOwnerCookie</code>{" "}
+            <code className="text-zinc-300">requestAuthFromVerifiedUser</code>{" "}
             and invoke tools through{" "}
             <code className="text-zinc-300">createBoundWebMcpRuntime</code>. An
             unset request fails closed (
@@ -98,8 +98,11 @@ export default function WebMcpJudgePage() {
             and does not rewrite stored geometry.
           </p>
           <p>
-            No SQL apply. No deploy. Isolated Phase 2 PR against{" "}
-            <code className="text-zinc-300">main</code>.
+            Runtime persist is <code className="text-zinc-300">getDomainStore()</code>{" "}
+            → <code className="text-zinc-300">SupabaseDomainStore</code>. Auth is
+            hosted Supabase <code className="text-zinc-300">getUser()</code> /{" "}
+            <code className="text-zinc-300">auth.uid()</code>. Reload/login
+            restore is required for PASS. No SQL apply from this PR. No deploy.
           </p>
         </section>
 

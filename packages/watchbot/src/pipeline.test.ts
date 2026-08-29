@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   createActionExecutor,
+  DomainError,
   InMemoryDomainStore,
   isValidCardPayload,
   type ActionExecutor,
@@ -141,6 +142,38 @@ describe("WatchBot pipeline with fake provider", () => {
 
     const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
     expect(state.cards).toHaveLength(1);
+  });
+
+  it("does not leave an orphan Card when the unique claim conflicts", async () => {
+    const { store, executor, watchBot, provider, canvas } = await seed([newsItem]);
+    const key = buildDedupKey({
+      sourceType: "news",
+      canonicalUrl: canonicalizeUrl(newsItem.sourceUrl) ?? "",
+    });
+    const original = store.saveWatchBotEvent.bind(store);
+    store.saveWatchBotEvent = async (event) => {
+      if (event.kind === "card_created") {
+        throw new DomainError(
+          "conflict",
+          "watch_bot_events unique (watch_bot_id, dedup_key) violated",
+        );
+      }
+      return original(event);
+    };
+
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.cardsCreated).toBe(0);
+    expect(result.items[0]?.kind).toBe("duplicate");
+    const state = await executor.getCanvasState({ canvasId: canvas.id });
+    expect(state.cards).toHaveLength(0);
+    store.saveWatchBotEvent = original;
+    const events = await store.listWatchBotEventsByWatchBot(watchBot.id);
+    expect(events.some((event) => event.dedupKey === key)).toBe(false);
   });
 
   it("does not occupy the unique key when createCard throws", async () => {

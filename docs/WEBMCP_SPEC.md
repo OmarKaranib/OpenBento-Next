@@ -31,7 +31,7 @@ document.modelContext.registerTool({
 | `resume_watchbot` | `resumeWatchBot` |
 | `get_watchbot_status` | `getWatchBotStatus` |
 
-`ownerId` is request-scoped via `requireOwnerIdFromRequest` (cookies/headers). It is never accepted on tool arguments. Tools use `getDomainStore()` — the same store as Canvas. An unset session fails closed (`unauthenticated`).
+`ownerId` is request-scoped via `requireOwnerIdFromRequest` (Supabase Auth `getUser()` / `auth.uid()`). It is never accepted on tool arguments. Tools use `getDomainStore()` — the same `SupabaseDomainStore` as Canvas and the worker. An unset session fails closed (`unauthenticated`).
 
 `create_card` is bounds-only (`frameId` on tool input is rejected). After `create_card`, `move_card`, and `resize_card`, `invoke` / `runWebMcpTool` runs a follow-up `setCardFrame` from `selectSmallestContainingFrame` through the same `runBoundAction` execute. Membership is not folded into `createCard`. `fullscreen_frame` is view-only and must not rewrite stored geometry.
 
@@ -53,7 +53,7 @@ Judges: ChatGPT in-app browser or Chrome 149+ with `chrome://flags/#enable-webmc
 pnpm test
 ```
 
-Tests use `requestAuthFromOwnerCookie` and invoke tools through `createBoundWebMcpRuntime` (`apps/web/src/webmcp/bound-runtime.ts`). That function always calls `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })`. `createActionExecutor` runs inside `runBoundAction`.
+Tests use `requestAuthFromVerifiedUser` and invoke tools through `createBoundWebMcpRuntime` (`apps/web/src/webmcp/bound-runtime.ts`). That function always calls `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })`. `createActionExecutor` runs inside `runBoundAction`.
 
 `ob.webmcp.tool` analytics: `toolName` (snake_case) + `success`/`fail` only. No input bodies. Not wired to PostHog in this phase.
 

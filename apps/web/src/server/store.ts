@@ -1,21 +1,18 @@
-import { InMemoryDomainStore, type DomainStore } from "@openbento/domain";
+import {
+  getDomainStore,
+  resetDomainStore,
+  setDomainStore,
+  setSupabaseAccessTokenResolver,
+  type DomainStore,
+} from "@openbento/domain";
+import { getSupabaseAccessToken } from "./supabase";
+
+setSupabaseAccessTokenResolver(getSupabaseAccessToken);
 
 /**
- * Persistence handle for server actions.
- * Local/dev uses the in-memory adapter. A later local Supabase store can
- * replace this without changing ACTION_CATALOG or the executor.
- * Not connected to a hosted database.
+ * Persistence handle for server actions, WebMCP, and the worker.
+ * Always the same `getDomainStore()` → `SupabaseDomainStore`.
+ * No InMemory runtime fallback.
  */
-let store: DomainStore = new InMemoryDomainStore();
-
-export function getDomainStore(): DomainStore {
-  return store;
-}
-
-export function setDomainStore(next: DomainStore): void {
-  store = next;
-}
-
-export function resetDomainStore(): void {
-  store = new InMemoryDomainStore();
-}
+export { getDomainStore, resetDomainStore, setDomainStore };
+export type { DomainStore };

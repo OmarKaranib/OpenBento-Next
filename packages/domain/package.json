@@ -9,5 +9,8 @@
   "types": "./src/index.ts",
   "files": [
     "src"
-  ]
+  ],
+  "dependencies": {
+    "@supabase/supabase-js": "^2.57.4"
+  }
 }

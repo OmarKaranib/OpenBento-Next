@@ -4,10 +4,19 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "../../..");
-const sql = readFileSync(
-  join(repoRoot, "supabase/migrations/20260829140000_init_openbento_schema.sql"),
-  "utf8",
-);
+const sql = [
+  readFileSync(
+    join(repoRoot, "supabase/migrations/20260829140000_init_openbento_schema.sql"),
+    "utf8",
+  ),
+  readFileSync(
+    join(
+      repoRoot,
+      "supabase/migrations/20260829200000_watch_bot_event_card_same_canvas.sql",
+    ),
+    "utf8",
+  ),
+].join("\n");
 
 describe("local/dev schema SQL", () => {
   it("defines the schema.ts tables and not title/body card columns", () => {
@@ -59,5 +68,20 @@ describe("local/dev schema SQL", () => {
       /constraint watch_bot_events_watch_bot_id_dedup_key_key/,
     );
     expect(sql).toMatch(/unique \(watch_bot_id, dedup_key\)/);
+  });
+
+  it("protects watch_bot_events.card_id with a same-canvas composite FK", () => {
+    expect(sql).toMatch(/watch_bot_events_card_same_canvas_fkey/);
+    expect(sql).toMatch(/foreign key \(card_id, canvas_id\)/);
+    expect(sql).toMatch(/references public\.cards \(id, canvas_id\)/);
+    expect(sql).toMatch(/unique \(id, canvas_id\)/);
+  });
+
+  it("defines an invoker transaction helper for leftover-Card TOCTOU", () => {
+    const fn = sql.match(
+      /create or replace function public\.apply_domain_transaction[\s\S]*?language plpgsql\s+security invoker/,
+    )?.[0];
+    expect(fn).toBeDefined();
+    expect(fn).not.toMatch(/security definer/i);
   });
 });

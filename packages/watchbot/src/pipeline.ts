@@ -366,47 +366,57 @@ async function processItem(input: {
   }
 
   const position = nextCardPosition(canvas.cards.length);
-  const card = await executor.createCard({
-    canvasId: watchBot.canvasId,
-    type: cardType,
-    payload,
-    position,
-    size: { ...SOURCE_CARD_SIZE },
-  });
-
-  const afterCreate = await executor.getCanvasState({
-    canvasId: watchBot.canvasId,
-  });
-  const frameId = selectSmallestContainingFrame(
-    {
-      x: card.position.x,
-      y: card.position.y,
-      width: card.size.width,
-      height: card.size.height,
-    },
-    afterCreate.frames,
-  );
-  await executor.setCardFrame({ cardId: card.id, frameId });
 
   /**
-   * Unique claim is persisted last, only after createCard + setCardFrame.
-   * A thrown createCard must not occupy the key and block a later retry.
+   * createCard + setCardFrame + unique claim in one store transaction.
+   * Two-call membership stays (createCard has no frameId). A unique
+   * conflict rolls back the Card. A thrown create does not occupy the key.
    */
   try {
-    await store.saveWatchBotEvent({
-      id: id(),
-      watchBotId: watchBot.id,
-      canvasId: watchBot.canvasId,
-      kind: "card_created",
-      sourceUrl: normalized.canonicalUrl,
-      dedupKey,
-      noveltyScore,
-      discoveredAt: now(),
-      title: normalized.title,
-      publishedAt: normalized.publishedAt,
-      sourceType: asSourceType(normalized.sourceType),
-      cardId: card.id,
+    const card = await store.runInTransaction(async () => {
+      const created = await executor.createCard({
+        canvasId: watchBot.canvasId,
+        type: cardType,
+        payload,
+        position,
+        size: { ...SOURCE_CARD_SIZE },
+      });
+      const afterCreate = await executor.getCanvasState({
+        canvasId: watchBot.canvasId,
+      });
+      const frameId = selectSmallestContainingFrame(
+        {
+          x: created.position.x,
+          y: created.position.y,
+          width: created.size.width,
+          height: created.size.height,
+        },
+        afterCreate.frames,
+      );
+      await executor.setCardFrame({ cardId: created.id, frameId });
+      await store.saveWatchBotEvent({
+        id: id(),
+        watchBotId: watchBot.id,
+        canvasId: watchBot.canvasId,
+        kind: "card_created",
+        sourceUrl: normalized.canonicalUrl,
+        dedupKey,
+        noveltyScore,
+        discoveredAt: now(),
+        title: normalized.title,
+        publishedAt: normalized.publishedAt,
+        sourceType: asSourceType(normalized.sourceType),
+        cardId: created.id,
+      });
+      return created;
     });
+
+    return {
+      kind: "card_created",
+      dedupKey,
+      cardId: card.id,
+      noveltyScore,
+    };
   } catch (error) {
     if (isDomainError(error) && error.code === "conflict") {
       await persistStageEvent(store, {
@@ -420,17 +430,10 @@ async function processItem(input: {
         title: normalized.title,
         detail: "unique (watchBotId, dedupKey) conflict",
       });
-      return { kind: "duplicate", dedupKey, cardId: card.id };
+      return { kind: "duplicate", dedupKey };
     }
     throw error;
   }
-
-  return {
-    kind: "card_created",
-    dedupKey,
-    cardId: card.id,
-    noveltyScore,
-  };
 }
 
 function stageDedupKey(claimKey: string, stage: string, eventId: string): string {

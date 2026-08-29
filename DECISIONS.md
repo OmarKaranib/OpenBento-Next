@@ -80,7 +80,7 @@ Platform must call `canSetCardFrame` / `assertSameCanvasMembership` before writi
 
 ## D-015 — Planned regions (not provisioned)
 
-- **Supabase:** North Virginia, **us-east-1** — database, auth, storage. No project yet.
+- **Supabase:** North Virginia, **us-east-1** — database, auth, storage. Hosted **dev** project exists (org `openbento`). Platform applies reviewed migrations. Not production.
 - **Railway:** **US East / Virginia** — web runtime + WatchBot worker. No services yet.
 
 ## D-016 — Observability (not wired)
@@ -93,9 +93,9 @@ Taxonomy: [`docs/ANALYTICS.md`](./docs/ANALYTICS.md). No secrets, instructions, 
 
 ## D-017 — Persistence port + shared executor
 
-Handlers for `ACTION_CATALOG` live in `@openbento/domain` (`ActionExecutor`). Persistence is a `DomainStore` port. Tests use `InMemoryDomainStore`. A later local Supabase adapter can implement the same port. Do not hard-wire Grok or any provider into the domain.
+Handlers for `ACTION_CATALOG` live in `@openbento/domain` (`ActionExecutor`). Persistence is a `DomainStore` port. Runtime `getDomainStore()` is `SupabaseDomainStore` for UI, WebMCP, and the worker. Tests may use `InMemoryDomainStore`. Do not hard-wire Grok or any provider into the domain.
 
-Next.js server-action wrappers in `apps/web/src/server` resolve the session user **from the incoming request** (cookies/headers) and call the executor. They never take `ownerId` from the client payload. Local/dev may mint an httpOnly session cookie on the server. Do not use a process-wide owner port.
+Next.js server-action wrappers in `apps/web/src/server` resolve the session user from Supabase Auth `getUser()` / `auth.uid()` and call the executor. They never take `ownerId` from the client payload. The unsigned `ob_local_session` cookie is not the live path. Do not use a process-wide owner port. Reload/login restore is required for PASS.
 
 ## D-018 — RLS is owner-scoped; membership is still a domain check
 
@@ -103,4 +103,4 @@ Local/dev RLS policies scope Canvas/Card/Frame/WatchBot access via `auth.uid()` 
 
 ## D-019 — Auth identity is request-scoped
 
-`configureAuthSession` as a process singleton is forbidden. `runBoundAction` waits for a per-request owner from cookies/headers. A local/dev session is allowed only if the server mints and reads it. Hosted Supabase Auth / `getUser()` is a later adapter — do not create a production project for this phase.
+`configureAuthSession` as a process singleton is forbidden. `runBoundAction` waits for a per-request owner from Supabase Auth `getUser()` / `auth.uid()`. Hosted Auth is the live path. Do not create a production project for this phase.

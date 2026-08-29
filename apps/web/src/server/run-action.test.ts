@@ -1,7 +1,7 @@
 import { ACTION_NAMES, InMemoryDomainStore } from "@openbento/domain";
 import { describe, expect, it } from "vitest";
 import { runBoundAction, runDomainActionFromRequest } from "./run-action";
-import { requestAuthFromOwnerCookie } from "./session";
+import { requestAuthFromVerifiedUser } from "./session";
 
 describe("session-bound server wrappers", () => {
   it("uses the session owner and ignores a client-supplied ownerId", async () => {
@@ -37,7 +37,7 @@ describe("session-bound server wrappers", () => {
   it("binds authenticated requests to the request session owner", async () => {
     const store = new InMemoryDomainStore();
     const canvas = await runDomainActionFromRequest(
-      requestAuthFromOwnerCookie("cookie-owner"),
+      requestAuthFromVerifiedUser("cookie-owner"),
       "createCanvas",
       { name: "Mine" },
       { store },
@@ -46,7 +46,7 @@ describe("session-bound server wrappers", () => {
 
     await expect(
       runDomainActionFromRequest(
-        requestAuthFromOwnerCookie("cookie-owner"),
+        requestAuthFromVerifiedUser("cookie-owner"),
         "createCanvas",
         { name: "Poison", ownerId: "attacker" } as never,
         { store },
@@ -58,13 +58,13 @@ describe("session-bound server wrappers", () => {
     const store = new InMemoryDomainStore();
     const [a, b] = await Promise.all([
       runDomainActionFromRequest(
-        requestAuthFromOwnerCookie("owner-alpha"),
+        requestAuthFromVerifiedUser("owner-alpha"),
         "createCanvas",
         { name: "A" },
         { store },
       ),
       runDomainActionFromRequest(
-        requestAuthFromOwnerCookie("owner-bravo"),
+        requestAuthFromVerifiedUser("owner-bravo"),
         "createCanvas",
         { name: "B" },
         { store },
@@ -74,7 +74,7 @@ describe("session-bound server wrappers", () => {
     expect(b.ownerId).toBe("owner-bravo");
     await expect(
       runDomainActionFromRequest(
-        requestAuthFromOwnerCookie("owner-bravo"),
+        requestAuthFromVerifiedUser("owner-bravo"),
         "getCanvasState",
         { canvasId: a.id },
         { store },

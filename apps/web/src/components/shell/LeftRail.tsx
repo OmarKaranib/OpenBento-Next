@@ -73,7 +73,7 @@ export function LeftRail() {
               <User className="h-4 w-4" strokeWidth={1.75} />
             </button>
           </TooltipTrigger>
-          <TooltipContent side="right">Profile (local session)</TooltipContent>
+          <TooltipContent side="right">Profile</TooltipContent>
         </Tooltip>
       </div>
     </aside>

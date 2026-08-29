@@ -1,50 +1,57 @@
-import { DomainError } from "@openbento/domain";
 import { describe, expect, it } from "vitest";
 import {
   LOCAL_DEV_SESSION_COOKIE,
   ownerIdFromRequest,
-  requestAuthFromOwnerCookie,
+  requestAuthFromVerifiedUser,
   requireOwnerIdFromRequest,
 } from "./session";
 
-describe("per-request session identity", () => {
-  it("fails when the request has no session cookie", () => {
-    expect(ownerIdFromRequest({})).toBeNull();
-    try {
+describe("per-request Supabase Auth identity", () => {
+  it("fails when the request has no verified session", async () => {
+    expect(await ownerIdFromRequest({})).toBeNull();
+    await expect(
       requireOwnerIdFromRequest({
         cookies: { get: () => undefined },
         headers: { get: () => null },
-      });
-      throw new Error("expected unauthenticated");
-    } catch (error) {
-      expect(error).toBeInstanceOf(DomainError);
-      expect(error).toMatchObject({ code: "unauthenticated" });
-    }
+      }),
+    ).rejects.toMatchObject({ code: "unauthenticated" });
   });
 
-  it("resolves owner from this request's cookie, not a process singleton", () => {
-    const a = requireOwnerIdFromRequest(requestAuthFromOwnerCookie("session-user-a"));
-    const b = requireOwnerIdFromRequest(requestAuthFromOwnerCookie("session-user-b"));
+  it("resolves owner from auth.uid() / getUser(), not a process singleton", async () => {
+    const a = await requireOwnerIdFromRequest(
+      requestAuthFromVerifiedUser("session-user-a"),
+    );
+    const b = await requireOwnerIdFromRequest(
+      requestAuthFromVerifiedUser("session-user-b"),
+    );
     expect(a).toBe("session-user-a");
     expect(b).toBe("session-user-b");
   });
 
-  it("reads the session token from the Cookie header when cookies() is absent", () => {
-    const ownerId = requireOwnerIdFromRequest({
-      headers: {
-        get(name: string) {
-          return name.toLowerCase() === "cookie"
-            ? `${LOCAL_DEV_SESSION_COOKIE}=header-owner-1`
-            : null;
+  it("ignores the unsigned ob_local_session cookie as a live path", async () => {
+    expect(
+      await ownerIdFromRequest({
+        cookies: {
+          get(name: string) {
+            return name === LOCAL_DEV_SESSION_COOKIE
+              ? { value: "cookie-forged-owner" }
+              : undefined;
+          },
         },
-      },
-    });
-    expect(ownerId).toBe("header-owner-1");
+        headers: {
+          get(name: string) {
+            return name.toLowerCase() === "cookie"
+              ? `${LOCAL_DEV_SESSION_COOKIE}=header-forged-owner`
+              : null;
+          },
+        },
+      }),
+    ).toBeNull();
   });
 
-  it("ignores a client-supplied owner header and ownerId-looking fields", () => {
+  it("ignores a client-supplied owner header and ownerId-looking fields", async () => {
     expect(
-      ownerIdFromRequest({
+      await ownerIdFromRequest({
         headers: {
           get(name: string) {
             if (name.toLowerCase() === "x-owner-id") return "attacker";
@@ -64,5 +71,12 @@ describe("per-request session identity", () => {
     expect(
       (session as { resetAuthSession?: unknown }).resetAuthSession,
     ).toBeUndefined();
+  });
+
+  it("accepts getUser() as the authenticated session source", async () => {
+    const ownerId = await requireOwnerIdFromRequest({
+      getUser: async () => ({ id: "auth-uid-user-1" }),
+    });
+    expect(ownerId).toBe("auth-uid-user-1");
   });
 });

@@ -101,3 +101,97 @@ describe("watch_bot_events unique (watch_bot_id, dedup_key)", () => {
     expect(all.map((bot) => bot.id).sort()).toEqual(["bot-1", "bot-2"]);
   });
 });
+
+describe("leftover-Card transaction and same-canvas event card_id", () => {
+  it("rolls back a Card when the unique claim conflicts", async () => {
+    const store = new InMemoryDomainStore();
+    const card = {
+      id: "card-orphan",
+      canvasId: "canvas-1",
+      type: "news" as const,
+      payload: {
+        provenance: {
+          sourceUrl: "https://example.com/story",
+          title: "Story",
+          publishedAt: "2026-08-29T00:00:00.000Z",
+          sourceType: "news" as const,
+        },
+      },
+      position: { x: 0, y: 0 },
+      size: { width: 10, height: 10 },
+      createdAt: "2026-08-29T00:00:00.000Z",
+      updatedAt: "2026-08-29T00:00:00.000Z",
+    };
+    await store.saveWatchBotEvent(
+      discovery({
+        id: "event-1",
+        watchBotId: "bot-1",
+        dedupKey: "web:https://example.com/story",
+      }),
+    );
+
+    await expect(
+      store.runInTransaction(async (tx) => {
+        await tx.saveCard(card);
+        await tx.saveWatchBotEvent(
+          discovery({
+            id: "event-2",
+            watchBotId: "bot-1",
+            dedupKey: "web:https://example.com/story",
+          }),
+        );
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+
+    expect(await store.getCard("card-orphan")).toBeNull();
+    const events = await store.listWatchBotEventsByWatchBot("bot-1");
+    expect(events).toHaveLength(1);
+    expect(events[0]?.id).toBe("event-1");
+  });
+
+  it("does not occupy the unique key when the transaction throws before claim", async () => {
+    const store = new InMemoryDomainStore();
+    await expect(
+      store.runInTransaction(async (tx) => {
+        await tx.saveCard({
+          id: "card-thrown",
+          canvasId: "canvas-1",
+          type: "note",
+          payload: { text: "x" },
+          position: { x: 0, y: 0 },
+          size: { width: 10, height: 10 },
+          createdAt: "2026-08-29T00:00:00.000Z",
+          updatedAt: "2026-08-29T00:00:00.000Z",
+        });
+        throw new Error("create_failed");
+      }),
+    ).rejects.toThrow("create_failed");
+    expect(await store.getCard("card-thrown")).toBeNull();
+    expect(await store.listWatchBotEventsByWatchBot("bot-1")).toEqual([]);
+  });
+
+  it("rejects an event card_id on a different canvas", async () => {
+    const store = new InMemoryDomainStore();
+    await store.saveCard({
+      id: "card-other",
+      canvasId: "canvas-b",
+      type: "note",
+      payload: { text: "other" },
+      position: { x: 0, y: 0 },
+      size: { width: 10, height: 10 },
+      createdAt: "2026-08-29T00:00:00.000Z",
+      updatedAt: "2026-08-29T00:00:00.000Z",
+    });
+    await expect(
+      store.saveWatchBotEvent({
+        ...discovery({
+          id: "event-cross",
+          watchBotId: "bot-1",
+          dedupKey: "web:cross",
+        }),
+        canvasId: "canvas-a",
+        cardId: "card-other",
+      }),
+    ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+});

@@ -7,12 +7,16 @@ through `@openbento/watchbot` and `@openbento/domain` `createActionExecutor`.
 Paused bots skip discovery. Unexpected failures set status `error` + `lastError`
 without crashing the process.
 
+Runtime persist is `getDomainStore()` (`SupabaseDomainStore`) — the same store
+as UI and WebMCP. The worker stamps `ownerId` from the WatchBot record.
+`listWatchBots` is a store scan, not an `ACTION_CATALOG` action.
+
 ```bash
-pnpm --filter worker start
+pnpm --filter worker start          # isolated --fixture cycle (tests / local demo)
 ```
 
-Default start seeds an in-memory fixture and runs **one cycle**. No hosted
-database, no secrets, no network. Optional `--provider=grok` uses the env-gated
+`--fixture` seeds an in-memory store for isolated tests only. It is not a
+production/runtime fallback. Optional `--provider=grok` uses the env-gated
 adapter when `XAI_API_KEY` is set.
 
 Do not apply Supabase migrations from this app.

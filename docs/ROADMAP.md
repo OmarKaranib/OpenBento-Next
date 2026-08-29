@@ -79,7 +79,7 @@ Omar assigned. PR #2. Do not merge until owner validation.
 
 - [x] Session-derived `ownerId` (never client-supplied) — `ActionExecutor` + web wrappers
 - [x] Domain action server boundary for the catalog (`createActionExecutor` / `runDomainAction`)
-- [x] Persist Canvas / Card / Frame / WatchBot behind `DomainStore` (in-memory + local/dev SQL)
+- [x] Persist Canvas / Card / Frame / WatchBot / WatchBotEvent / viewport behind `DomainStore` (`SupabaseDomainStore` at runtime)
 - [x] Same-canvas checks before `setCardFrame` (`assertSameCanvasMembership`)
 - [x] Local/dev RLS owner-scoped via `auth.uid()` (not applied to production)
 - [ ] No production Supabase/Railway without approval
@@ -92,12 +92,26 @@ Omar assigned. PR #2. Do not merge until owner validation.
 
 - [x] Canvas mutations through `runBoundAction` / `runDomainAction` (no browser executor with a baked-in owner)
 - [x] Per-request identity from cookies/headers (no `configureAuthSession` process singleton)
-- [x] Local/dev httpOnly session minted server-side (no hosted Supabase project)
 - [x] Reject client-supplied `ownerId` on the UI/server path; unauthenticated requests fail
-- [ ] Hosted Supabase Auth `getUser()` adapter (later; SQL still unapplied)
-- [ ] Local Supabase `DomainStore` adapter (later)
+- [x] Hosted Supabase Auth `getUser()` / `auth.uid()` (unsigned `ob_local_session` is not the live path)
+- [x] `SupabaseDomainStore` via `getDomainStore()` for UI, WebMCP, and the worker
 
 ---
+
+## Phase 3 — Durable persist
+
+**Platform Engineer** — branch `bot/platform-persist`. Draft PR. Do not merge without Bento Lead / owner review.
+
+- [x] `SupabaseDomainStore` implements `DomainStore`
+- [x] `getDomainStore()` is that store for UI, WebMCP, and the worker (no InMemory runtime fallback)
+- [x] Hosted Supabase Auth; `requireOwnerIdFromRequest` uses `auth.uid()`
+- [x] Persist Canvas, Card, Frame, WatchBot, WatchBotEvent, viewport
+- [x] RLS owner isolation; `assertSameCanvasMembership` still required
+- [x] Unique `(watch_bot_id, dedup_key)`
+- [x] Same-canvas composite FK on `watch_bot_events.card_id`
+- [x] Leftover-Card TOCTOU transaction
+- [x] Two-call membership; `listWatchBots` off catalog
+- [x] Reload/login restore required for PASS
 
 ## Later phases (master context §17)
 

@@ -84,6 +84,13 @@ export type WorkspaceSessionOptions = {
   resetStore: () => void | Promise<void>;
   prepare?: () => void | Promise<void>;
   seedDefaultCanvas?: boolean;
+  /** Reload/login restore. Not a catalog action. */
+  restoreCanvases?: () => Promise<Canvas[]>;
+  /**
+   * Tests that wipe an isolated InMemory store may replay the command log.
+   * Durable persist must not replay creates after a no-op reset.
+   */
+  replayOnReset?: boolean;
 };
 
 function isMutating(name: ActionName): boolean {
@@ -142,6 +149,20 @@ export class WorkspaceSession {
     }
     if (this.options.seedDefaultCanvas === false) {
       return;
+    }
+    if (this.options.restoreCanvases) {
+      const canvases = await this.options.restoreCanvases();
+      const preferred = pickRestoredCanvas(canvases);
+      if (preferred) {
+        for (const canvas of canvases) {
+          this.canvases.set(canvas.id, canvas);
+        }
+        await this.commit(
+          [{ name: "switchCanvas", input: { canvasId: preferred.id } }],
+          { history: false },
+        );
+        return;
+      }
     }
     await this.commit([{ name: "createCanvas", input: { name: "Untitled" } }], {
       history: false,
@@ -271,6 +292,17 @@ export class WorkspaceSession {
     this.frames = [];
     this.watchBots = [];
     this.fullscreen = null;
+    if (this.options.replayOnReset === false) {
+      if (this.options.restoreCanvases) {
+        for (const canvas of await this.options.restoreCanvases()) {
+          this.canvases.set(canvas.id, canvas);
+        }
+        const preferred = pickRestoredCanvas([...this.canvases.values()]);
+        this.currentCanvasId = preferred?.id ?? null;
+      }
+      await this.publish();
+      return;
+    }
     for (const call of this.fullLog) {
       await this.apply(call);
     }
@@ -301,6 +333,17 @@ export class WorkspaceSession {
       listener();
     }
   }
+}
+
+function pickRestoredCanvas(canvases: Canvas[]): Canvas | undefined {
+  if (canvases.length === 0) {
+    return undefined;
+  }
+  return [...canvases].sort((a, b) => {
+    const aOpened = a.lastOpenedAt ?? a.updatedAt;
+    const bOpened = b.lastOpenedAt ?? b.updatedAt;
+    return bOpened.localeCompare(aOpened);
+  })[0];
 }
 
 function removeLastBatch(

@@ -1,7 +1,7 @@
 /**
- * Local/dev record shapes matching `supabase/migrations`.
- * Those SQL files are local/dev only. Do not apply them to a hosted/production
- * database. Do not create or mutate a production Supabase project.
+ * Record shapes matching `supabase/migrations`.
+ * Platform applies reviewed SQL to the hosted **dev** project. Do not apply
+ * them from this agent. Do not create or mutate a production Supabase project.
  * ownerId is stored on Canvas and WatchBot rows; it is never an action input.
  */
 

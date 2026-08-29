@@ -53,4 +53,4 @@ Frame tool: click → crosshair → drag rectangle → name/move/resize.
 
 ## Shared executor
 
-The workspace calls `createActionExecutor` from `@openbento/domain` (`packages/domain/src/executor.ts`). Persistence is Platform's `DomainStore` port (`InMemoryDomainStore` in the domain package). `apps/web` must not reimplement that store. Membership is written only via `setCardFrame`.
+The workspace calls `createActionExecutor` from `@openbento/domain` (`packages/domain/src/executor.ts`). Persistence is Platform's `DomainStore` port (`getDomainStore()` → `SupabaseDomainStore`). `apps/web` must not reimplement that store. Membership is written only via `setCardFrame`. Reload/login restore is required for PASS.
