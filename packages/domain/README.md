@@ -39,4 +39,6 @@ await executor.execute("createCanvas", { name: "Trump News" });
 
 `DomainStore` is the persistence port. Tests use `InMemoryDomainStore`. A later local Supabase adapter can implement the same interface. Next.js wrappers in `apps/web/src/server` resolve the session user and call this executor.
 
+WebMCP tools use `WEBMCP_TOOL_TO_ACTION` + `createWebMcpRuntime({ execute })`. Production `execute` is `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })` in `apps/web`. This package does not construct a session `ownerId`.
+
 SQL matching `src/schema.ts` lives in `supabase/migrations`. **Local/dev only. Do not apply to production.**

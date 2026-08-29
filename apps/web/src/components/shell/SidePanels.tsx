@@ -1,6 +1,7 @@
 "use client";
 
 import { X } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { useWorkspaceUi } from "@/components/workspace/workspace-ui";
@@ -72,6 +73,16 @@ export function SidePanels() {
           <p className="mt-3 text-sm leading-6 text-zinc-500">
             Interactive Agent panel arrives in a later phase. This control stays
             in the top-right — not the left rail or Canvas toolbar.
+          </p>
+          <p className="mt-3 text-sm leading-6 text-zinc-500">
+            WebMCP tools on this page are the Issue #1 snake_case catalog
+            wrappers. They dispatch through{" "}
+            <code className="text-zinc-400">runBoundAction</code> +{" "}
+            <code className="text-zinc-400">requireOwnerIdFromRequest</code>.{" "}
+            <Link className="text-zinc-300 underline" href="/webmcp">
+              Judge notes
+            </Link>
+            .
           </p>
         </aside>
       ) : null}

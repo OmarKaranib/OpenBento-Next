@@ -61,9 +61,23 @@ export {
 } from "./provenance";
 
 export {
+  WEBMCP_TOOL_NAMES,
   WEBMCP_TOOL_TO_ACTION,
+  isWebMcpToolName,
+  listWebMcpTools,
+  type WebMcpToolDefinition,
   type WebMcpToolName,
 } from "./webmcp";
+
+export {
+  applyCardFrameFromGeometry,
+  assertWebMcpToolInputKeys,
+  createWebMcpRuntime,
+  followUpCardFrameFromGeometry,
+  type WebMcpExecute,
+  type WebMcpRuntime,
+  type WebMcpToolEvent,
+} from "./webmcp-runtime";
 
 export { DomainError, isDomainError, type DomainErrorCode } from "./errors";
 
