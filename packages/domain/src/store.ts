@@ -1,4 +1,5 @@
-import type { Canvas, Card, Frame, WatchBot } from "./types";
+import { DomainError } from "./errors";
+import type { Canvas, Card, Frame, WatchBot, WatchBotEvent } from "./types";
 
 /**
  * Persistence port. Handlers depend on this, not on Supabase or any provider.
@@ -20,6 +21,13 @@ export interface DomainStore {
   getWatchBot(id: string): Promise<WatchBot | null>;
   saveWatchBot(watchBot: WatchBot): Promise<void>;
   listWatchBotsByCanvas(canvasId: string): Promise<WatchBot[]>;
+
+  /**
+   * Persist a WatchBotEvent. `(watchBotId, dedupKey)` is unique — the same
+   * pair as `UNIQUE (watch_bot_id, dedup_key)` on watch_bot_events.
+   */
+  saveWatchBotEvent(event: WatchBotEvent): Promise<void>;
+  listWatchBotEventsByWatchBot(watchBotId: string): Promise<WatchBotEvent[]>;
 }
 
 function clone<T>(value: T): T {
@@ -32,6 +40,7 @@ export class InMemoryDomainStore implements DomainStore {
   private readonly cards = new Map<string, Card>();
   private readonly frames = new Map<string, Frame>();
   private readonly watchBots = new Map<string, WatchBot>();
+  private readonly watchBotEvents = new Map<string, WatchBotEvent>();
 
   async getCanvas(id: string): Promise<Canvas | null> {
     const row = this.canvases.get(id);
@@ -85,5 +94,29 @@ export class InMemoryDomainStore implements DomainStore {
     return [...this.watchBots.values()]
       .filter((watchBot) => watchBot.canvasId === canvasId)
       .map((watchBot) => clone(watchBot));
+  }
+
+  async saveWatchBotEvent(event: WatchBotEvent): Promise<void> {
+    const duplicate = [...this.watchBotEvents.values()].find(
+      (existing) =>
+        existing.watchBotId === event.watchBotId &&
+        existing.dedupKey === event.dedupKey &&
+        existing.id !== event.id,
+    );
+    if (duplicate) {
+      throw new DomainError(
+        "conflict",
+        "watch_bot_events unique (watch_bot_id, dedup_key) violated",
+      );
+    }
+    this.watchBotEvents.set(event.id, clone(event));
+  }
+
+  async listWatchBotEventsByWatchBot(
+    watchBotId: string,
+  ): Promise<WatchBotEvent[]> {
+    return [...this.watchBotEvents.values()]
+      .filter((event) => event.watchBotId === watchBotId)
+      .map((event) => clone(event));
   }
 }

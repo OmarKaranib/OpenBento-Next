@@ -15,7 +15,7 @@ Local / explicit-dev migrations only.
 - `cards` (`type` + `jsonb payload` — not title/body)
 - `frames`
 - `watch_bots` (`instruction`, `status` in `running` / `paused` / `error`)
-- `watch_bot_events`
+- `watch_bot_events` — `UNIQUE (watch_bot_id, dedup_key)` so one discovery fingerprint per bot; another bot may reuse the key
 
 Composite foreign key `cards_frame_same_canvas_fkey` prevents `card.frame_id` from pointing at a frame on another canvas.
 

@@ -1,7 +1,8 @@
 export type DomainErrorCode =
   | "unauthenticated"
   | "not_found"
-  | "invalid_input";
+  | "invalid_input"
+  | "conflict";
 
 export class DomainError extends Error {
   readonly code: DomainErrorCode;

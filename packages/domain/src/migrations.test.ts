@@ -53,4 +53,11 @@ describe("local/dev schema SQL", () => {
     expect(sql).toMatch(/Never trust a client-supplied user id/i);
     expect(sql).toMatch(/Do NOT apply this migration to a hosted or production/i);
   });
+
+  it("uniques watch_bot_events on (watch_bot_id, dedup_key)", () => {
+    expect(sql).toMatch(
+      /constraint watch_bot_events_watch_bot_id_dedup_key_key/,
+    );
+    expect(sql).toMatch(/unique \(watch_bot_id, dedup_key\)/);
+  });
 });

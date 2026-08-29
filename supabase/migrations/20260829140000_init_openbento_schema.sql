@@ -140,7 +140,10 @@ create table public.watch_bot_events (
   constraint watch_bot_events_card_id_fkey
     foreign key (card_id)
     references public.cards (id)
-    on delete set null
+    on delete set null,
+  -- One discovery fingerprint per WatchBot. Another bot may reuse the same key.
+  constraint watch_bot_events_watch_bot_id_dedup_key_key
+    unique (watch_bot_id, dedup_key)
 );
 
 -- ---------------------------------------------------------------------------
@@ -488,3 +491,6 @@ comment on column public.cards.payload is
 
 comment on constraint cards_frame_same_canvas_fkey on public.cards is
   'Prevents card.frame_id from referencing a frame on another canvas. Handlers still call assertSameCanvasMembership.';
+
+comment on constraint watch_bot_events_watch_bot_id_dedup_key_key on public.watch_bot_events is
+  'One discovery fingerprint per WatchBot. A different WatchBot may reuse the same dedup_key.';
