@@ -80,9 +80,14 @@ describe("master action catalog", () => {
 
   it("creates and updates Cards via type plus payload", () => {
     expect(ACTION_CATALOG.createCard.inputSchema.required).toContain("payload");
+    expect(ACTION_CATALOG.createCard.inputSchema.required).toContain("type");
     expect(ACTION_CATALOG.updateCard.inputSchema.required).toContain("payload");
+    expect(ACTION_CATALOG.updateCard.inputSchema.required).toContain("type");
     expect(ACTION_CATALOG.createCard.inputSchema.properties).toHaveProperty(
       "payload",
+    );
+    expect(ACTION_CATALOG.createCard.inputSchema.properties.payload).not.toEqual(
+      { type: "object" },
     );
   });
 

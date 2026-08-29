@@ -30,18 +30,33 @@ export {
 } from "./actions";
 
 export {
+  assertSameCanvasMembership,
+  canSetCardFrame,
   containsRect,
   rectArea,
+  sameCanvasMembershipReason,
   selectSmallestContainingFrame,
+  SameCanvasMembershipError,
   type FrameContainmentCandidate,
+  type SameCanvasMembershipCode,
+  type SameCanvasMembershipInput,
 } from "./frames";
+
+export {
+  PAYLOAD_SCHEMA_ONE_OF,
+  PAYLOAD_SCHEMAS,
+  PROVENANCE_SCHEMA,
+  isCardProvenance,
+  isValidCardPayload,
+  isValidNotePayload,
+  isValidSourcePayload,
+  matchesJsonSchema,
+  typePayloadCouplingAllOf,
+} from "./payloads";
 
 export {
   cardTypeRequiresProvenance,
   isNoteCardType,
-  isValidCardPayload,
-  isValidNotePayload,
-  isValidSourcePayload,
 } from "./provenance";
 
 export {
@@ -73,6 +88,7 @@ export {
   type CardProvenance,
   type CardType,
   type ChartPayload,
+  type DiscriminatedCardContent,
   type NotePayload,
   type SourceCardPayload,
   type TimelinePayload,

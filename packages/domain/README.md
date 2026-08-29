@@ -18,8 +18,8 @@ This package is types, catalog, and pure helpers. **No handlers. No pipeline. No
 
 `moveCard`, `resizeCard`, and `updateCanvasViewport` are first-class. `ownerId` is server-derived from session and **must not** appear on action inputs. Canvas and WatchBot **records** still carry `ownerId`.
 
-A Card is `type` plus a typed `payload`. Notes use `{ text }` and must not include provenance. Source types require `payload.provenance`. `moveCard` / `resizeCard` do not re-require provenance.
+A Card is a discriminated `type` plus a matching `payload` (`{ [K in CardType]: { type: K; payload: CardPayloadByType[K] } }[CardType]`). Notes use `{ text }` and must not include provenance. Source types require `payload.provenance`. Shared `PAYLOAD_SCHEMAS` back the catalog, `isValidCardPayload`, and future server/WebMCP. `moveCard` / `resizeCard` do not re-require provenance.
 
-Overlapping Frames: smallest area wins `setCardFrame`. Equal-area ties use newest `createdAt`.
+Overlapping Frames: smallest area wins `setCardFrame`. Equal-area ties use newest `createdAt`. Platform must call `canSetCardFrame` / `assertSameCanvasMembership` before writing membership — do not rely on RLS alone.
 
 WatchBot status: `running` | `paused` | `error` only.

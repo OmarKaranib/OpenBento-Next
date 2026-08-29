@@ -44,8 +44,8 @@ Locked rules:
 - `moveCard`, `resizeCard`, and `updateCanvasViewport` are **first-class**. Do not fold them into `updateCard`.
 - `ownerId` is **server-derived from the session**. It must **not** appear on action inputs. Canvas and WatchBot **records** still carry `ownerId`.
 - Provenance is required on **externally discovered source Cards only**. Notes do not get a fake source URL. `moveCard` / `resizeCard` do not re-require provenance.
-- A Card is **`type` + typed `payload`**, not title/body. Source payloads require provenance; notes must not include it.
-- `setCardFrame` applies membership from spatial containment. Smallest area wins; **equal-area ties use newest `createdAt`**. Array order must not decide ties.
+- A Card is **discriminated `type` + matching `payload`**. `Card` / `CreateCardInput` / `UpdateCardInput` use `{ [K in CardType]: { type: K; payload: CardPayloadByType[K] } }[CardType]`. Runtime validation uses shared `PAYLOAD_SCHEMAS` (catalog, `isValidCardPayload`, future server/WebMCP). Source payloads require provenance; notes must not include it.
+- `setCardFrame` applies membership from spatial containment. Smallest area wins; **equal-area ties use newest `createdAt`**. Array order must not decide ties. Platform must call `canSetCardFrame` / `assertSameCanvasMembership` before persisting membership — **do not rely on RLS alone**. Same-canvas is required; `frameId` non-null requires a loaded Frame.
 - `fullscreenFrame` is **view-only**. It must not rewrite stored Frame or Card geometry.
 - Zoom / `updateCanvasViewport` is **camera-only**. No semantic zoom.
 - WatchBot status: **`running` \| `paused` \| `error`** only.
