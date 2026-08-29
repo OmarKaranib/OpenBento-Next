@@ -7,6 +7,7 @@ import {
   cardWorldBounds,
   membershipCallsForCards,
   planCardGeometry,
+  planFrameGeometry,
   translateFrameMembers,
 } from "@/lib/domain/membership";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
@@ -100,22 +101,26 @@ export function useCanvasCommands() {
   );
 
   const persistFrameResize = useCallback(
-    (frame: Frame, size: Size) => {
-      if (size.width === frame.bounds.width && size.height === frame.bounds.height) {
-        return;
+    (frame: Frame, next: { position?: Point; size?: Size }) => {
+      const plan = planFrameGeometry(
+        frame,
+        next,
+        snapshot.cards,
+        snapshot.frames,
+      );
+      const calls: CatalogCall[] = [];
+      if (plan.move) {
+        calls.push({ name: "moveFrame", input: plan.move });
       }
-      const nextFrames = withFrameBounds(snapshot.frames, frame.id, {
-        ...frame.bounds,
-        width: size.width,
-        height: size.height,
-      });
-      const calls: CatalogCall[] = [
-        { name: "resizeFrame", input: { frameId: frame.id, size } },
-      ];
-      for (const change of membershipCallsForCards(snapshot.cards, nextFrames)) {
+      if (plan.resize) {
+        calls.push({ name: "resizeFrame", input: plan.resize });
+      }
+      for (const change of plan.membership) {
         calls.push({ name: "setCardFrame", input: change });
       }
-      void commit(calls);
+      if (calls.length > 0) {
+        void commit(calls);
+      }
     },
     [commit, snapshot.cards, snapshot.frames],
   );

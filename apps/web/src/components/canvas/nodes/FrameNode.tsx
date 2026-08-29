@@ -29,8 +29,8 @@ export function FrameNode({ data, selected }: NodeProps<FrameNode>) {
         color="#94a3b8"
         onResizeEnd={(_event, params) => {
           persistFrameResize(frame, {
-            width: params.width,
-            height: params.height,
+            position: { x: params.x, y: params.y },
+            size: { width: params.width, height: params.height },
           });
         }}
       />

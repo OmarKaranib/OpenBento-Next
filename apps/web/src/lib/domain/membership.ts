@@ -112,3 +112,56 @@ export function planCardGeometry(
   }
   return plan;
 }
+
+export type FrameGeometryPlan = {
+  move?: { frameId: string; position: Point };
+  resize?: { frameId: string; size: Size };
+  membership: Array<{ cardId: string; frameId: string | null }>;
+};
+
+/**
+ * Persist Frame resize: emit moveFrame when NW/NE/SW origin changes,
+ * resizeFrame for size, then remembership EVERY card against the new
+ * bounds. Cards stay in world coords (no group-translate on resize).
+ */
+export function planFrameGeometry(
+  frame: Frame,
+  next: { position?: Point; size?: Size },
+  cards: ReadonlyArray<Card>,
+  frames: ReadonlyArray<Frame>,
+): FrameGeometryPlan {
+  const position = next.position ?? { x: frame.bounds.x, y: frame.bounds.y };
+  const size = next.size ?? { width: frame.bounds.width, height: frame.bounds.height };
+  const plan: FrameGeometryPlan = { membership: [] };
+  if (
+    next.position &&
+    (next.position.x !== frame.bounds.x || next.position.y !== frame.bounds.y)
+  ) {
+    plan.move = { frameId: frame.id, position };
+  }
+  if (
+    next.size &&
+    (next.size.width !== frame.bounds.width ||
+      next.size.height !== frame.bounds.height)
+  ) {
+    plan.resize = { frameId: frame.id, size };
+  }
+  if (!plan.move && !plan.resize) {
+    return plan;
+  }
+  const nextFrames = frames.map((entry) =>
+    entry.id === frame.id
+      ? {
+          ...entry,
+          bounds: {
+            x: position.x,
+            y: position.y,
+            width: size.width,
+            height: size.height,
+          },
+        }
+      : entry,
+  );
+  plan.membership = membershipCallsForCards(cards, nextFrames);
+  return plan;
+}
