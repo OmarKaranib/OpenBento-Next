@@ -7,6 +7,7 @@
 
 import {
   CARD_TYPES,
+  SOURCE_CARD_TYPES,
   SOURCE_TYPES,
   type CardPayloadByType,
   type CardProvenance,
@@ -47,6 +48,26 @@ export type ObjectJsonSchema = JsonSchemaNode & {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Source URLs cross the WebMCP, WatchBot, and UI trust boundaries. Accept only
+ * navigable public http(s) URLs; display code independently sanitizes them.
+ */
+export function isSafeSourceUrl(value: unknown): value is string {
+  if (typeof value !== "string" || value.trim().length === 0) {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    return (
+      (url.protocol === "http:" || url.protocol === "https:") &&
+      url.username.length === 0 &&
+      url.password.length === 0
+    );
+  } catch {
+    return false;
+  }
 }
 
 function valueMatchesType(
@@ -270,5 +291,13 @@ export function isValidCardPayload<T extends CardType>(
   type: T,
   payload: unknown,
 ): payload is CardPayloadByType[T] {
-  return matchesJsonSchema(PAYLOAD_SCHEMAS[type], payload);
+  if (!matchesJsonSchema(PAYLOAD_SCHEMAS[type], payload)) {
+    return false;
+  }
+  if (!(SOURCE_CARD_TYPES as readonly string[]).includes(type)) {
+    return true;
+  }
+  return isSafeSourceUrl(
+    (payload as { provenance: { sourceUrl: unknown } }).provenance.sourceUrl,
+  );
 }

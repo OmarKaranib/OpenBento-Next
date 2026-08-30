@@ -14,16 +14,16 @@ export function WebMcpHost() {
   const tools = listWebMcpTools();
 
   useEffect(() => {
-    const controller = new AbortController();
     const registered = listWebMcpTools();
     void registerOpenBentoWebMcpTools(
       {
         tools: registered,
         invoke: (toolName, input) => runWebMcpTool(toolName, input),
       },
-      { signal: controller.signal },
-    );
-    return () => controller.abort();
+    ).catch(() => {
+      // WebMCP is optional in ordinary browsers. A host registration failure
+      // must not prevent the human Canvas from rendering or recovering.
+    });
   }, []);
 
   return (

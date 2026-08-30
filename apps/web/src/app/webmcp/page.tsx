@@ -5,7 +5,7 @@ import Link from "next/link";
 export const metadata: Metadata = {
   title: "OpenBento WebMCP",
   description:
-    "Phase 2 WebMCP tools — 1:1 snake_case wrappers around the shared domain catalog.",
+    "Use WebMCP to let an agent build and organize an OpenBento live intelligence Canvas.",
 };
 
 export default function WebMcpJudgePage() {
@@ -15,22 +15,37 @@ export default function WebMcpJudgePage() {
     <main className="h-full overflow-auto bg-[#0b0d10] px-6 py-10 text-zinc-100">
       <div className="mx-auto max-w-3xl">
         <p className="text-xs uppercase tracking-[0.2em] text-zinc-500">
-          Phase 3 persist · draft
+          WebMCP Challenge preview
         </p>
         <h1 className="mt-2 text-2xl font-medium">OpenBento WebMCP</h1>
         <p className="mt-3 text-sm leading-6 text-zinc-400">
-          Tools are 1:1 snake_case wrappers over{" "}
-          <code className="text-zinc-300">@openbento/domain</code>{" "}
-          <code className="text-zinc-300">ACTION_CATALOG</code>. Execute goes
-          through <code className="text-zinc-300">runBoundAction</code> +{" "}
-          <code className="text-zinc-300">requireOwnerIdFromRequest</code>,
-          which constructs{" "}
-          <code className="text-zinc-300">createActionExecutor</code> with the
-          request session owner and{" "}
-          <code className="text-zinc-300">getDomainStore()</code>.{" "}
-          <code className="text-zinc-300">ownerId</code> is never accepted on
-          tool arguments. No demo or echo tools.
+          OpenBento is a living intelligence Canvas for following an evolving
+          story through original sources, Cards, Frames, and persistent
+          WatchBots. WebMCP lets an agent operate that visual workspace with a
+          person instead of only returning a chat response.
         </p>
+
+        <section className="mt-8">
+          <h2 className="text-sm font-medium text-zinc-200">Why WebMCP matters</h2>
+          <p className="mt-3 text-sm leading-6 text-zinc-400">
+            A human can arrange and inspect the Canvas directly while an agent
+            can create a Canvas, add and position Cards, draw a Frame, enter a
+            focused Frame view, and start or manage a WatchBot. Every tool uses
+            the same domain operation as the human interface, so agent changes
+            appear in the same workspace with the same ownership and geometry
+            rules.
+          </p>
+        </section>
+
+        <section className="mt-8 space-y-3 text-sm leading-6 text-zinc-400">
+          <h2 className="text-sm font-medium text-zinc-200">Try this</h2>
+          <ul className="list-disc space-y-1 pl-5">
+            <li>“Create a Canvas called Climate Briefing.”</li>
+            <li>“Add a Note Card for the key question, then move it into a Frame named Evidence.”</li>
+            <li>“Fullscreen the Evidence Frame for a focused monitoring view.”</li>
+            <li>“Create a WatchBot that monitors meaningful developments and preserves sources.”</li>
+          </ul>
+        </section>
 
         <section className="mt-8">
           <h2 className="text-sm font-medium text-zinc-200">Registered tools</h2>
@@ -57,7 +72,7 @@ export default function WebMcpJudgePage() {
         </section>
 
         <section className="mt-8 space-y-3 text-sm leading-6 text-zinc-400">
-          <h2 className="text-sm font-medium text-zinc-200">How to run</h2>
+          <h2 className="text-sm font-medium text-zinc-200">Test locally</h2>
           <p>
             From the repo root: <code className="text-zinc-300">pnpm install</code>{" "}
             then <code className="text-zinc-300">pnpm --filter web dev</code>.
@@ -65,44 +80,28 @@ export default function WebMcpJudgePage() {
             page is <code className="text-zinc-300">/webmcp</code>.
           </p>
           <p>
-            Chrome 149+ (or ChatGPT in-app browser): enable{" "}
+            In ChatGPT’s in-app browser, or Chrome 149+ with{" "}
             <code className="text-zinc-300">
               chrome://flags/#enable-webmcp-testing
             </code>
-            . The canvas page calls{" "}
+            , the Canvas registers the tools above when{" "}
             <code className="text-zinc-300">document.modelContext.registerTool</code>{" "}
-            for each row above when the API is present.
+            is available. Ordinary browsers continue to run the Canvas without
+            WebMCP registration.
           </p>
-          <h2 className="mt-6 text-sm font-medium text-zinc-200">How to eval</h2>
+          <h2 className="mt-6 text-sm font-medium text-zinc-200">What to verify</h2>
           <p>
-            Programmatic eval (same session path as tools):{" "}
-            <code className="text-zinc-300">pnpm test</code>. Tests call{" "}
-            <code className="text-zinc-300">requestAuthFromVerifiedUser</code>{" "}
-            and invoke tools through{" "}
-            <code className="text-zinc-300">createBoundWebMcpRuntime</code>. An
-            unset request fails closed (
-            <code className="text-zinc-300">unauthenticated</code>
-            ). Tools share <code className="text-zinc-300">getDomainStore()</code>{" "}
-            with Canvas.
+            Create a Card outside a Frame, then ask the agent to move it inside:
+            membership updates automatically from geometry. Fullscreen a Frame:
+            it is a view only, so the stored Canvas layout does not change.
+            WatchBot changes use the same shared operations as the rest of the
+            Canvas.
           </p>
           <p>
-            <code className="text-zinc-300">create_card</code> is bounds-only
-            (extra <code className="text-zinc-300">frameId</code> is rejected).
-            After <code className="text-zinc-300">create_card</code>,{" "}
-            <code className="text-zinc-300">move_card</code>, and{" "}
-            <code className="text-zinc-300">resize_card</code>, invoke runs a
-            follow-up <code className="text-zinc-300">setCardFrame</code> from{" "}
-            <code className="text-zinc-300">selectSmallestContainingFrame</code>
-            via the same <code className="text-zinc-300">runBoundAction</code>.{" "}
-            <code className="text-zinc-300">fullscreen_frame</code> is view-only
-            and does not rewrite stored geometry.
-          </p>
-          <p>
-            Runtime persist is <code className="text-zinc-300">getDomainStore()</code>{" "}
-            → <code className="text-zinc-300">SupabaseDomainStore</code>. Auth is
-            hosted Supabase <code className="text-zinc-300">getUser()</code> /{" "}
-            <code className="text-zinc-300">auth.uid()</code>. Reload/login
-            restore is required for PASS. No SQL apply from this PR. No deploy.
+            Automated workflow and adversarial evaluations run with{" "}
+            <code className="text-zinc-300">pnpm test</code>. Tools require an
+            authenticated session; they cannot accept a user identity or direct
+            Frame membership from agent input.
           </p>
         </section>
 
