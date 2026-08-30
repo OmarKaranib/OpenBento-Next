@@ -128,6 +128,7 @@ Omar assigned. PR #2. Do not merge until owner validation.
 - [ ] X discovery
 - [ ] YouTube discovery
 - [ ] Adaptive cadence / production worker hosting
+- [x] Gate 3 hosting/Auth/runtime **prepared** (`docs/DEPLOY.md`, worker fail-closed). Do not deploy or enable the worker in this slice.
 
 ---
 
