@@ -76,14 +76,15 @@ RLS: every table is owner-scoped via `auth.uid()` (cards/frames join through can
 
 ## Env
 
-Public placeholders only (see `.env.example`):
+Public placeholders only (see `.env.example` and [`docs/DEPLOY.md`](./docs/DEPLOY.md)):
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or `NEXT_PUBLIC_SUPABASE_ANON_KEY`)
+- `NEXT_PUBLIC_SITE_URL` (public origin for Auth redirects; placeholder until the Railway URL exists)
 
-Worker uses `SUPABASE_SERVICE_ROLE_KEY` only via `createWorkerDomainStore()` (never `NEXT_PUBLIC_`, never committed, never printed, never on the web `getDomainStore()` path).
+Worker uses `SUPABASE_SERVICE_ROLE_KEY` only via `createWorkerDomainStore()` (never `NEXT_PUBLIC_`, never committed, never printed, never on the web `getDomainStore()` path). Hosted worker is fail-closed on `OPENBENTO_WORKER_ENABLED` (default off). Optional `OPENBENTO_WORKER_INTERVAL_MS` has a 300000 ms ceiling.
 
-## Planned infrastructure (not provisioned by this PR)
+## Planned infrastructure (config prepared; not provisioned by this PR)
 
 | Platform | Region | Role |
 | --- | --- | --- |

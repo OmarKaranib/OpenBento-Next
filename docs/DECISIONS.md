@@ -81,7 +81,7 @@ Platform must call `canSetCardFrame` / `assertSameCanvasMembership` before writi
 ## D-015 — Planned regions (not provisioned)
 
 - **Supabase:** North Virginia, **us-east-1** — database, auth, storage. Hosted **dev** project exists (org `openbento`). Platform applies reviewed migrations. Not production.
-- **Railway:** **US East / Virginia** — web runtime + WatchBot worker. No services yet.
+- **Railway:** **US East / Virginia** — web runtime + WatchBot worker. Config prepared (`railway.toml` + `railway.worker.toml` + [`docs/DEPLOY.md`](./DEPLOY.md)). Do not create a project or deploy without owner approval.
 
 ## D-016 — Observability (not wired)
 

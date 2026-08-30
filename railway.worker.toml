@@ -1,0 +1,19 @@
+# Worker service. In the Railway dashboard, set this service's Config File
+# to railway.worker.toml. No public domain. No healthcheck (web-only).
+# Root Directory must stay the repo root. See docs/DEPLOY.md.
+
+[build]
+builder = "RAILPACK"
+buildCommand = "pnpm install --frozen-lockfile"
+watchPatterns = [
+  "apps/worker/**",
+  "packages/**",
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "railway.worker.toml",
+]
+
+[deploy]
+startCommand = "pnpm --filter worker start:loop"
+restartPolicyType = "ON_FAILURE"

@@ -1,0 +1,21 @@
+# Web service (Railway Config as Code is one service per file).
+# Create a second service for the worker and set its Config File to railway.worker.toml.
+# Root Directory must stay the repo root (pnpm lockfile). See docs/DEPLOY.md.
+
+[build]
+builder = "RAILPACK"
+buildCommand = "pnpm install --frozen-lockfile && pnpm --filter web build"
+watchPatterns = [
+  "apps/web/**",
+  "packages/**",
+  "package.json",
+  "pnpm-lock.yaml",
+  "pnpm-workspace.yaml",
+  "railway.toml",
+]
+
+[deploy]
+startCommand = "pnpm --filter web start"
+healthcheckPath = "/health"
+healthcheckTimeout = 300
+restartPolicyType = "ON_FAILURE"

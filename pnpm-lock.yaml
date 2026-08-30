@@ -111,7 +111,6 @@ importers:
       '@openbento/watchbot':
         specifier: workspace:*
         version: link:../../packages/watchbot
-    devDependencies:
       tsx:
         specifier: ^4.20.5
         version: 4.23.12

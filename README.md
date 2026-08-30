@@ -30,6 +30,7 @@ Maintained under [`docs/`](./docs/). Copies also live at the repo root.
 | [ANALYTICS.md](./ANALYTICS.md) | Event taxonomy |
 | [HACKATHON.md](./HACKATHON.md) | WebMCP Challenge |
 | [AGENTS.md](./AGENTS.md) | Contributor rules |
+| [DEPLOY.md](./docs/DEPLOY.md) | Gate 3 Railway/Auth prepare (do not deploy) |
 
 ## Monorepo
 
@@ -53,11 +54,12 @@ pnpm lint
 pnpm typecheck
 pnpm test
 pnpm --filter web build
-pnpm --filter worker start          # durable createWorkerDomainStore (needs service role)
+pnpm --filter worker start          # durable createWorkerDomainStore (needs OPENBENTO_WORKER_ENABLED=true + service role)
+pnpm --filter worker start:loop     # hosted loop (fail-closed unless enabled)
 pnpm --filter worker start:fixture  # isolated InMemory only
 ```
 
-Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL` plus the publishable/anon key. Never commit secrets.
+Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL` plus the publishable/anon key. Hosted env **names** (no values) and Railway dashboard settings: [docs/DEPLOY.md](./docs/DEPLOY.md). Never commit secrets. The worker stays off unless `OPENBENTO_WORKER_ENABLED=true`.
 
 ```bash
 pnpm dev
