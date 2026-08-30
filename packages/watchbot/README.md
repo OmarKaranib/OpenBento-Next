@@ -17,8 +17,12 @@ An optional xAI/Grok adapter lives in `src/adapters/grok.ts` and is constructed
 only when `XAI_API_KEY` / `GROK_API_KEY` is set. `@openbento/domain` does not
 import Grok.
 
-First slice sources: **web and news only**. X and YouTube discovery are not
-implemented.
+The official X API v2 adapter is in `src/adapters/x.ts`. It is read-only and
+disabled by default. It requires both `X_PROVIDER_ENABLED=true` and the
+worker-only `X_BEARER_TOKEN`; it never posts, replies, likes, follows, sends
+DMs, or mutates X. It enforces code-level query, request, page, result, and
+timeout limits. X stays `sourceType: "x"` through normalization and Card
+creation. YouTube discovery is not implemented.
 
 ## Pipeline
 

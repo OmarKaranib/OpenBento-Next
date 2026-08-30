@@ -2,7 +2,7 @@ import type { SourceType } from "@openbento/domain";
 import type { DiscoveredItem } from "./provider";
 import { sanitizeUntrustedText } from "./untrusted";
 
-export const WATCHBOT_V0_SOURCE_TYPES = ["web", "news"] as const;
+export const WATCHBOT_V0_SOURCE_TYPES = ["web", "news", "x"] as const;
 export type WatchBotV0SourceType = (typeof WATCHBOT_V0_SOURCE_TYPES)[number];
 
 const TRACKING_PARAMS = new Set([
@@ -31,6 +31,8 @@ export interface NormalizedItem {
   sourceType: WatchBotV0SourceType;
   snippet: string;
   discoveredAt: string;
+  author?: string;
+  externalId?: string;
 }
 
 export function isWatchBotV0SourceType(
@@ -46,7 +48,9 @@ const BLOCKED_V0_HOSTS = [
   "twitter.com",
 ] as const;
 
-/** First slice: YouTube and X are out. Do not rewrite them to web. */
+const X_HOSTS = ["x.com", "twitter.com"] as const;
+
+/** YouTube remains out of this slice. X is valid only when explicitly typed. */
 export function isBlockedWatchBotV0Host(hostname: string): boolean {
   const host = hostname.toLowerCase();
   return BLOCKED_V0_HOSTS.some(
@@ -58,6 +62,18 @@ export function isBlockedWatchBotV0Url(raw: string): boolean {
   try {
     const url = new URL(raw);
     return isBlockedWatchBotV0Host(url.hostname);
+  } catch {
+    return false;
+  }
+}
+
+function isXUrl(raw: string): boolean {
+  try {
+    const url = new URL(raw);
+    const host = url.hostname.toLowerCase();
+    return X_HOSTS.some(
+      (xHost) => host === xHost || host.endsWith(`.${xHost}`),
+    );
   } catch {
     return false;
   }
@@ -113,8 +129,9 @@ export function parsePublishedAt(value: unknown): string {
 }
 
 /**
- * Normalize a discovered item. Returns null when the item is not a v0 web/news
- * source or has no usable URL. Source text is data only.
+ * Normalize a discovered item. X stays X: it must have an X URL and a source
+ * type of `x`; X URLs labelled web/news are rejected rather than coerced.
+ * Source text is data only.
  */
 export function normalizeDiscoveredItem(
   item: DiscoveredItem,
@@ -123,11 +140,19 @@ export function normalizeDiscoveredItem(
   if (!isWatchBotV0SourceType(item.sourceType)) {
     return null;
   }
-  if (isBlockedWatchBotV0Url(item.sourceUrl)) {
+  if (
+    (item.sourceType === "x" && !isXUrl(item.sourceUrl)) ||
+    (item.sourceType !== "x" && isXUrl(item.sourceUrl)) ||
+    (item.sourceType !== "x" && isBlockedWatchBotV0Url(item.sourceUrl))
+  ) {
     return null;
   }
   const canonicalUrl = canonicalizeUrl(item.sourceUrl);
-  if (!canonicalUrl || isBlockedWatchBotV0Url(canonicalUrl)) {
+  if (
+    !canonicalUrl ||
+    (item.sourceType === "x" && !isXUrl(canonicalUrl)) ||
+    (item.sourceType !== "x" && isBlockedWatchBotV0Url(canonicalUrl))
+  ) {
     return null;
   }
   const title = sanitizeUntrustedText(item.title, 300);
@@ -142,13 +167,25 @@ export function normalizeDiscoveredItem(
     sourceType: item.sourceType,
     snippet: sanitizeUntrustedText(item.rawExcerpt ?? "", 800),
     discoveredAt,
+    ...(item.author
+      ? { author: sanitizeUntrustedText(item.author, 200) }
+      : {}),
+    ...(item.externalId
+      ? { externalId: sanitizeUntrustedText(item.externalId, 200) }
+      : {}),
   };
 }
 
 export function sourceTypeToCardType(
   sourceType: WatchBotV0SourceType,
-): "web" | "news" {
-  return sourceType === "news" ? "news" : "web";
+): "web" | "news" | "x" {
+  if (sourceType === "news") {
+    return "news";
+  }
+  if (sourceType === "x") {
+    return "x";
+  }
+  return "web";
 }
 
 export function asSourceType(sourceType: WatchBotV0SourceType): SourceType {
