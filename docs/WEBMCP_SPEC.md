@@ -2,7 +2,9 @@
 
 Canonical: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./OPENBENTO_MASTER_CONTEXT.md) §13 and [Issue #1](https://github.com/OmarKaranib/OpenBento-Next/issues/1).
 
-Status: **Phase 2 (isolated PR)**. Tools are registered. No SQL apply. No deploy.
+Status: **implemented on `main`**. Tools are registered; hosted WebMCP-client
+verification remains a Gate 3 requirement. This document does not authorize a
+SQL apply or deployment.
 
 WebMCP tool names are **snake_case**. Domain actions are **camelCase**. This is the **only** tool map. Tools not listed here are out of scope. No demo-only tools. No second camelCase tool list.
 
@@ -57,4 +59,5 @@ Tests use `requestAuthFromVerifiedUser` and invoke tools through `createBoundWeb
 
 `ob.webmcp.tool` analytics: `toolName` (snake_case) + `success`/`fail` only. No input bodies. Not wired to PostHog in this phase.
 
-Deadline: **3 September 2026, 1:00pm PDT**. No live deploy from this PR.
+Deadline: **3 September 2026, 1:00pm PDT**. A live deployment still requires
+owner approval.

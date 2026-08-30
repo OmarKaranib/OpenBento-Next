@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ACTION_CATALOG, ACTION_NAMES } from "./actions";
+import { DomainError } from "./errors";
 import { createActionExecutor } from "./executor";
 import { InMemoryDomainStore } from "./store";
 import { createWebMcpRuntime } from "./webmcp-runtime";
@@ -91,6 +92,37 @@ describe("WebMCP wrapper rejects poisoned and unknown tools", () => {
       runtime.invoke("echo" as never, { message: "hi" }),
     ).rejects.toMatchObject({ code: "invalid_input" });
     expect(dispatched).toEqual([]);
+  });
+
+  it("returns stable safe errors instead of storage implementation details", async () => {
+    const runtime = createWebMcpRuntime({
+      execute: async () => {
+        throw new Error("PostgREST: SUPABASE_SERVICE_ROLE_KEY=not-for-agents");
+      },
+    });
+
+    await expect(
+      runtime.invoke("create_canvas", { name: "Safe failure" }),
+    ).rejects.toEqual(
+      new DomainError(
+        "conflict",
+        "OpenBento could not complete the requested tool action.",
+      ),
+    );
+  });
+
+  it("keeps expected domain error codes while removing implementation messages", async () => {
+    const runtime = createWebMcpRuntime({
+      execute: async () => {
+        throw new DomainError("invalid_input", "database relation details");
+      },
+    });
+
+    await expect(
+      runtime.invoke("create_canvas", { name: "Safe domain failure" }),
+    ).rejects.toEqual(
+      new DomainError("invalid_input", "The tool input is invalid."),
+    );
   });
 });
 

@@ -5,6 +5,7 @@ import {
   PAYLOAD_SCHEMAS,
   isValidCardPayload,
   isValidNotePayload,
+  isSafeSourceUrl,
   matchesJsonSchema,
 } from "./payloads";
 import { CARD_TYPES } from "./types";
@@ -98,6 +99,18 @@ describe("PAYLOAD_SCHEMAS", () => {
 
     expect(isValidCardPayload("chart", { kind: "line" })).toBe(true);
     expect(isValidCardPayload("chart", {})).toBe(false);
+  });
+
+  it("accepts only safe http(s) source URLs in source payloads", () => {
+    expect(isSafeSourceUrl("https://example.com/story")).toBe(true);
+    expect(isSafeSourceUrl("javascript:alert(1)")).toBe(false);
+    expect(isSafeSourceUrl("data:text/html,hello")).toBe(false);
+    expect(isSafeSourceUrl("https://user:pass@example.com/story")).toBe(false);
+    expect(
+      isValidCardPayload("article", {
+        provenance: { ...sourceProvenance, sourceUrl: "javascript:alert(1)" },
+      }),
+    ).toBe(false);
   });
 
   it("shares schema matching between PAYLOAD_SCHEMAS and isValidCardPayload", () => {

@@ -52,6 +52,38 @@ const GEOMETRY_TOOLS = new Set<WebMcpToolName>([
   "resize_card",
 ]);
 
+/**
+ * WebMCP is an agent-facing boundary. Preserve stable, actionable error codes
+ * but never forward storage/provider implementation messages to the browser.
+ */
+function safeWebMcpError(error: unknown): DomainError {
+  if (error instanceof DomainError) {
+    switch (error.code) {
+      case "unauthenticated":
+        return new DomainError(
+          "unauthenticated",
+          "Authentication is required to use OpenBento tools.",
+        );
+      case "not_found":
+        return new DomainError(
+          "not_found",
+          "The requested OpenBento resource was not found.",
+        );
+      case "invalid_input":
+        return new DomainError("invalid_input", "The tool input is invalid.");
+      case "conflict":
+        return new DomainError(
+          "conflict",
+          "The requested change conflicts with the current workspace state.",
+        );
+    }
+  }
+  return new DomainError(
+    "conflict",
+    "OpenBento could not complete the requested tool action.",
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -165,7 +197,7 @@ export function createWebMcpRuntime(deps: {
         toolName,
         success: false,
       });
-      throw error;
+      throw safeWebMcpError(error);
     }
   }
 

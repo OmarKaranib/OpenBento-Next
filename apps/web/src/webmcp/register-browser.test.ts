@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { WEBMCP_TOOL_NAMES, createWebMcpRuntime } from "@openbento/domain";
 import { registerOpenBentoWebMcpTools } from "./register-browser";
-import type { ModelContext } from "./model-context";
+import { getModelContext, type ModelContext } from "./model-context";
 
 describe("WebMCP browser registerTool", () => {
   it("registers only the Issue #1 snake_case tools", async () => {
@@ -60,5 +60,72 @@ describe("WebMCP browser registerTool", () => {
       modelContext: null,
     });
     expect(registered).toEqual([]);
+  });
+
+  it("feature-detects an ordinary browser without modelContext", () => {
+    expect(getModelContext({})).toBeNull();
+  });
+
+  it("deduplicates concurrent and repeated lifecycle registrations", async () => {
+    const names: string[] = [];
+    const modelContext: ModelContext = {
+      registerTool: async (tool) => {
+        names.push(tool.name);
+      },
+    };
+    const runtime = createWebMcpRuntime({
+      execute: async () => {
+        throw new Error("browser host must not call executor directly");
+      },
+    });
+    const input = {
+      tools: runtime.tools,
+      invoke: vi.fn(async () => ({ ok: true })),
+    };
+
+    const [first, second] = await Promise.all([
+      registerOpenBentoWebMcpTools(input, { modelContext }),
+      registerOpenBentoWebMcpTools(input, { modelContext }),
+    ]);
+    const third = await registerOpenBentoWebMcpTools(input, { modelContext });
+
+    expect(first).toEqual([...WEBMCP_TOOL_NAMES]);
+    expect(second).toEqual([...WEBMCP_TOOL_NAMES]);
+    expect(third).toEqual([]);
+    expect(names).toEqual([...WEBMCP_TOOL_NAMES]);
+  });
+
+  it("can retry after a registration failure without duplicating successful tools", async () => {
+    const names: string[] = [];
+    let shouldFail = true;
+    const modelContext: ModelContext = {
+      registerTool: async (tool) => {
+        if (tool.name === "create_card" && shouldFail) {
+          throw new Error("host registration unavailable");
+        }
+        names.push(tool.name);
+      },
+    };
+    const runtime = createWebMcpRuntime({
+      execute: async () => {
+        throw new Error("browser host must not call executor directly");
+      },
+    });
+    const input = {
+      tools: runtime.tools,
+      invoke: vi.fn(async () => ({ ok: true })),
+    };
+
+    await expect(
+      registerOpenBentoWebMcpTools(input, { modelContext }),
+    ).rejects.toThrow("host registration unavailable");
+    shouldFail = false;
+
+    const retried = await registerOpenBentoWebMcpTools(input, { modelContext });
+    expect(retried).toEqual([
+      "create_card",
+      ...WEBMCP_TOOL_NAMES.slice(WEBMCP_TOOL_NAMES.indexOf("create_card") + 1),
+    ]);
+    expect(names).toEqual([...WEBMCP_TOOL_NAMES]);
   });
 });
