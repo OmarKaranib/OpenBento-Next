@@ -1,10 +1,15 @@
 import type { DiscoveredItem, SourceProvider } from "../provider";
 import {
   isBlockedWatchBotV0Url,
-  isWatchBotV0SourceType,
-  type WatchBotV0SourceType,
 } from "../normalize";
 import { sanitizeUntrustedText } from "../untrusted";
+
+const GROK_SOURCE_TYPES = ["web", "news"] as const;
+type GrokSourceType = (typeof GROK_SOURCE_TYPES)[number];
+
+function isGrokSourceType(value: string): value is GrokSourceType {
+  return (GROK_SOURCE_TYPES as readonly string[]).includes(value);
+}
 
 /**
  * Optional xAI / Grok adapter. Domain must never import this module.
@@ -62,7 +67,7 @@ class GrokSourceProvider implements SourceProvider {
     instruction: string;
     sourceTypes: readonly string[];
   }): Promise<DiscoveredItem[]> {
-    const allowed = input.sourceTypes.filter(isWatchBotV0SourceType);
+    const allowed = input.sourceTypes.filter(isGrokSourceType);
     if (allowed.length === 0) {
       return [];
     }
@@ -96,7 +101,7 @@ class GrokSourceProvider implements SourceProvider {
     const body: unknown = await response.json();
     return extractDiscoveredItems(body).filter(
       (item): item is DiscoveredItem =>
-        isWatchBotV0SourceType(item.sourceType) &&
+        isGrokSourceType(item.sourceType) &&
         allowed.includes(item.sourceType),
     );
   }
@@ -226,11 +231,11 @@ function itemFromRecord(record: Record<string, unknown>): DiscoveredItem | null 
 /**
  * Keep web/news. Drop youtube/x and unknown types. Never coerce them to web.
  */
-function resolveV0SourceType(raw: string | undefined): WatchBotV0SourceType | null {
+function resolveV0SourceType(raw: string | undefined): GrokSourceType | null {
   if (raw === undefined || raw === "") {
     return "web";
   }
-  if (isWatchBotV0SourceType(raw)) {
+  if (isGrokSourceType(raw)) {
     return raw;
   }
   if (raw === "article") {

@@ -585,7 +585,7 @@ describe("WatchBot pipeline with fake provider", () => {
     expect(state.cards).toHaveLength(1);
   });
 
-  it("drops YouTube/X items in the first slice", async () => {
+  it("drops unrequested and unsupported source types", async () => {
     const { store, executor, watchBot, provider } = await seed([
       {
         sourceUrl: "https://youtube.com/watch?v=abc",

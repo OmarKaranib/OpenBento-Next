@@ -35,6 +35,14 @@ export {
   type GrokSourceProviderOptions,
 } from "./adapters/grok";
 export {
+  createXSourceProvider,
+  xBearerToken,
+  X_SOURCE_PROVIDER_LIMITS,
+  XSourceProviderError,
+  type XSourceProviderErrorCode,
+  type XSourceProviderOptions,
+} from "./adapters/x";
+export {
   noopWatchBotTelemetry,
   type EmitWatchBotTelemetry,
   type WatchBotCostTelemetry,

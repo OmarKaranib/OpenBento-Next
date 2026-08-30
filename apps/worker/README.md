@@ -22,6 +22,8 @@ pnpm --filter worker start:fixture  # isolated InMemory fixture (tests only)
 durable store and require `SUPABASE_SERVICE_ROLE_KEY` (never `NEXT_PUBLIC_`).
 `--fixture` / `start:fixture` seed an in-memory store for isolated tests only.
 That is not a production/runtime fallback. Optional `--provider=grok` uses the
-env-gated adapter when `XAI_API_KEY` is set.
+env-gated adapter when `XAI_API_KEY` is set. Optional `--provider=x` uses the
+read-only official X API v2 adapter only when `X_PROVIDER_ENABLED=true` and
+`X_BEARER_TOKEN` is set; it never makes X mutations.
 
 Do not apply Supabase migrations from this app.

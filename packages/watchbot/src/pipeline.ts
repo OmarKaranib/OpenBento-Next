@@ -33,6 +33,7 @@ const SOURCE_CARD_SIZE = {
 };
 
 const MAX_CARDS_PER_CYCLE = 5;
+const DEFAULT_SOURCE_TYPES = ["web", "news"] as const;
 
 export interface PipelineItemResult {
   kind: WatchBotEventKind;
@@ -81,6 +82,8 @@ function buildProvenance(
     sourceType: asSourceType(item.sourceType),
     discoveredAt: item.discoveredAt,
     watchBotId,
+    ...(item.author ? { author: item.author } : {}),
+    ...(item.externalId ? { externalId: item.externalId } : {}),
   };
 }
 
@@ -110,6 +113,10 @@ export async function runWatchBotPipeline(
   const id = input.id ?? (() => crypto.randomUUID());
   const emit = input.emitTelemetry ?? noopWatchBotTelemetry;
   const { watchBot, executor, store, provider } = input;
+  const sourceTypes =
+    watchBot.sourceTypes.length > 0
+      ? watchBot.sourceTypes
+      : [...DEFAULT_SOURCE_TYPES];
 
   if (watchBot.status === "paused") {
     return {
@@ -136,12 +143,17 @@ export async function runWatchBotPipeline(
   let cardsCreated = 0;
 
   try {
-    const discovered = await provider.discover({
+    const providerResults = await provider.discover({
       canvasId: watchBot.canvasId,
       watchBotId: watchBot.id,
       instruction: watchBot.instruction,
-      sourceTypes: ["web", "news"],
+      sourceTypes: [...sourceTypes],
     });
+    // An adapter must honor sourceTypes, but keep the pipeline boundary
+    // authoritative if an adapter returns an unrequested source by mistake.
+    const discovered = providerResults.filter((item) =>
+      sourceTypes.includes(item.sourceType),
+    );
 
     await persistStageEvent(store, {
       id: id(),

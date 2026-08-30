@@ -15,6 +15,8 @@ function clearPersistEnv(): void {
   delete process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
   delete process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  delete process.env.X_PROVIDER_ENABLED;
+  delete process.env.X_BEARER_TOKEN;
 }
 
 beforeEach(clearPersistEnv);
@@ -40,5 +42,13 @@ describe("worker persist factory", () => {
     await expect(main(["--once"])).rejects.toThrow(
       /No in-memory runtime fallback|SUPABASE_SERVICE_ROLE_KEY|Supabase env is required/i,
     );
+  });
+
+  it("fails closed before a worker cycle when X is explicitly selected without a token", async () => {
+    process.env.X_PROVIDER_ENABLED = "true";
+
+    await expect(main(["--once", "--fixture", "--provider=x"])).rejects.toMatchObject({
+      code: "credential_missing",
+    });
   });
 });
