@@ -28,7 +28,7 @@ export function SidePanels() {
               {railPanel === "canvases"
                 ? "Canvases"
                 : railPanel === "watchbots"
-                  ? "WatchBots \u00b7 This Canvas"
+                  ? "WatchBots · This Canvas"
                   : "Settings"}
             </h2>
             <button
@@ -66,12 +66,12 @@ export function SidePanels() {
           </div>
           <p className="mt-3 text-sm leading-6 text-zinc-500">
             Interactive Agent panel arrives in a later phase. This control stays
-            in the top-right \u2014 not the left rail or Canvas toolbar.
+            in the top-right — not the left rail or Canvas toolbar.
           </p>
           <p className="mt-3 text-sm leading-6 text-zinc-500">
             WebMCP tools on this page are the Issue #1 snake_case catalog
             wrappers. They dispatch through{" "}
-            <code className="text-zinc-400">runDomainAction</code> +{" "}
+            <code className="text-zinc-400">runBoundAction</code> +{" "}
             <code className="text-zinc-400">requireOwnerIdFromRequest</code>.{" "}
             <Link className="text-zinc-300 underline" href="/webmcp">
               Judge notes
