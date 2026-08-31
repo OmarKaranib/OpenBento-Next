@@ -10,6 +10,15 @@ import { useWorkspaceUi } from "@/components/workspace/workspace-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import {
+  GUEST_EXIT_BUTTON_LABEL,
+  GUEST_EXIT_CONFIRM_LABEL,
+  GUEST_EXIT_CONFIRM_MESSAGE,
+  GUEST_EXIT_KEEP_LABEL,
+  GUEST_WORKSPACE_BODY,
+  GUEST_WORKSPACE_TITLE,
+  GUEST_WORKSPACE_UPGRADE_NOTE,
+} from "@/lib/auth/guest";
 import { signOut } from "@/server/actions";
 import { createBrowserSupabaseClient } from "@/server/supabase-browser";
 
@@ -96,34 +105,84 @@ function PlaceholderCopy({ title, body }: { title: string; body: string }) {
 function SettingsPanel() {
   const router = useRouter();
   const { isGuest } = useWorkspace();
+  const [confirmGuestExit, setConfirmGuestExit] = useState(false);
+  const [exitPending, setExitPending] = useState(false);
+
+  async function performSignOut() {
+    const supabase = createBrowserSupabaseClient();
+    await supabase.auth.signOut();
+    await signOut();
+    router.replace("/");
+  }
+
   return (
     <div className="flex flex-col gap-3">
       {isGuest ? (
-        <PlaceholderCopy
-          title="Guest workspace"
-          body="This workspace is tied to this browser. Sign in or create an account to keep access across devices."
-        />
+        <div>
+          <p className="text-xs font-medium text-zinc-300">{GUEST_WORKSPACE_TITLE}</p>
+          <p className="mt-2 text-xs leading-5 text-zinc-500">{GUEST_WORKSPACE_BODY}</p>
+          <p className="mt-2 text-xs leading-5 text-zinc-600">
+            {GUEST_WORKSPACE_UPGRADE_NOTE}
+          </p>
+        </div>
       ) : (
         <PlaceholderCopy
           title="Settings"
           body="Canvas writes go through server runDomainAction. ownerId comes from Supabase Auth getUser() / auth.uid(), never from action JSON or the unsigned ob_local_session cookie."
         />
       )}
-      <Button
-        type="button"
-        size="sm"
-        variant="outline"
-        onClick={() => {
-          void (async () => {
-            const supabase = createBrowserSupabaseClient();
-            await supabase.auth.signOut();
-            await signOut();
-            router.replace("/");
-          })();
-        }}
-      >
-        Sign out
-      </Button>
+      {isGuest ? (
+        confirmGuestExit ? (
+          <div className="flex flex-col gap-2 rounded-md border border-zinc-800 bg-zinc-950/40 p-2">
+            <p className="text-xs leading-5 text-zinc-400">
+              {GUEST_EXIT_CONFIRM_MESSAGE}
+            </p>
+            <div className="flex gap-1">
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={exitPending}
+                onClick={() => setConfirmGuestExit(false)}
+              >
+                {GUEST_EXIT_KEEP_LABEL}
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={exitPending}
+                onClick={() => {
+                  setExitPending(true);
+                  void performSignOut().finally(() => setExitPending(false));
+                }}
+              >
+                {exitPending ? "Exiting…" : GUEST_EXIT_CONFIRM_LABEL}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => setConfirmGuestExit(true)}
+          >
+            {GUEST_EXIT_BUTTON_LABEL}
+          </Button>
+        )
+      ) : (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => {
+            void performSignOut();
+          }}
+        >
+          Sign out
+        </Button>
+      )}
     </div>
   );
 }

@@ -11,8 +11,10 @@ import {
   ANONYMOUS_SIGNIN_DISABLED_MESSAGE,
   GUEST_ENTRY_SUPPORT_COPY,
   GUEST_FALSE_PERMANENCE_PHRASES,
+  GUEST_FALSE_RETENTION_PHRASES,
   GUEST_WORKSPACE_BODY,
   GUEST_WORKSPACE_TITLE,
+  GUEST_WORKSPACE_UPGRADE_NOTE,
   guestSignInErrorMessage,
   isAnonymousUser,
   tryOpenBentoAnonymously,
@@ -114,14 +116,101 @@ describe("guest entry UI source contracts", () => {
     expect(provider).not.toMatch(/ob_local_session/);
   });
 
-  it("guest Settings copy is honest about browser-tied persistence", () => {
+  it("guest entry copy makes no account-retention promise", () => {
+    const entry = readSrc("components/auth/EntryScreen.tsx");
+    expect(GUEST_ENTRY_SUPPORT_COPY).toMatch(/temporary workspace/i);
+    expect(GUEST_ENTRY_SUPPORT_COPY).toMatch(/lost|inaccessible/i);
+    for (const phrase of GUEST_FALSE_RETENTION_PHRASES) {
+      expect(GUEST_ENTRY_SUPPORT_COPY).not.toContain(phrase);
+      expect(entry).not.toContain(phrase);
+    }
+  });
+
+  it("guest settings copy warns about potential workspace loss", () => {
     const panels = readSrc("components/shell/SidePanels.tsx");
-    expect(panels).toContain(GUEST_WORKSPACE_TITLE);
-    expect(panels).toContain(GUEST_WORKSPACE_BODY);
-    expect(panels).toContain("isGuest");
+    expect(panels).toContain("GUEST_WORKSPACE_TITLE");
+    expect(panels).toContain("GUEST_WORKSPACE_BODY");
+    expect(panels).toContain("GUEST_WORKSPACE_UPGRADE_NOTE");
+    expect(GUEST_WORKSPACE_TITLE).toBe("Temporary guest workspace");
+    expect(GUEST_WORKSPACE_BODY).toMatch(/inaccessible|lost/i);
+    expect(GUEST_WORKSPACE_UPGRADE_NOTE).toMatch(/not available yet/i);
     for (const phrase of GUEST_FALSE_PERMANENCE_PHRASES) {
       expect(panels).not.toContain(phrase);
+      expect(GUEST_WORKSPACE_BODY).not.toContain(phrase);
     }
+  });
+
+  it("guest does not get immediate one-click sign-out", () => {
+    const panels = readSrc("components/shell/SidePanels.tsx");
+    const settingsPanel = panels.slice(
+      panels.indexOf("function SettingsPanel"),
+      panels.indexOf("function CanvasesPanel"),
+    );
+    expect(settingsPanel).toContain("confirmGuestExit");
+    expect(settingsPanel).toMatch(
+      /onClick=\{\(\)\s*=>\s*setConfirmGuestExit\(true\)\}[\s\S]*GUEST_EXIT_BUTTON_LABEL/,
+    );
+    expect(settingsPanel).toContain("onClick={() => setConfirmGuestExit(true)}");
+  });
+
+  it("guest exit requires explicit confirmation before sign-out", () => {
+    const panels = readSrc("components/shell/SidePanels.tsx");
+    const settingsPanel = panels.slice(
+      panels.indexOf("function SettingsPanel"),
+      panels.indexOf("function CanvasesPanel"),
+    );
+    expect(settingsPanel).toContain("GUEST_EXIT_CONFIRM_MESSAGE");
+    expect(settingsPanel).toContain("GUEST_EXIT_KEEP_LABEL");
+    expect(settingsPanel).toContain("GUEST_EXIT_CONFIRM_LABEL");
+    expect(settingsPanel).toMatch(/confirmGuestExit\s*\?[\s\S]*performSignOut/);
+  });
+
+  it("permanent user still gets normal one-click Sign out", () => {
+    const panels = readSrc("components/shell/SidePanels.tsx");
+    const settingsPanel = panels.slice(
+      panels.indexOf("function SettingsPanel"),
+      panels.indexOf("function CanvasesPanel"),
+    );
+    expect(settingsPanel).toMatch(
+      /onClick=\{\(\)\s*=>\s*\{[\s\S]*void performSignOut\(\);[\s\S]*\}\}[\s\S]*Sign out/,
+    );
+  });
+
+  it("guest exit cancellation performs no sign-out", () => {
+    const panels = readSrc("components/shell/SidePanels.tsx");
+    const settingsPanel = panels.slice(
+      panels.indexOf("function SettingsPanel"),
+      panels.indexOf("function CanvasesPanel"),
+    );
+    expect(settingsPanel).toMatch(
+      /onClick=\{\(\)\s*=>\s*setConfirmGuestExit\(false\)\}[\s\S]*GUEST_EXIT_KEEP_LABEL/,
+    );
+  });
+
+  it("confirmed guest exit uses the existing sign-out path", () => {
+    const panels = readSrc("components/shell/SidePanels.tsx");
+    const settingsPanel = panels.slice(
+      panels.indexOf("function SettingsPanel"),
+      panels.indexOf("function CanvasesPanel"),
+    );
+    expect(settingsPanel).toMatch(/async function performSignOut\(\)/);
+    expect(settingsPanel).toContain("supabase.auth.signOut()");
+    expect(settingsPanel).toContain("await signOut()");
+    expect(settingsPanel).toContain('router.replace("/")');
+    expect(settingsPanel).toMatch(
+      /GUEST_EXIT_CONFIRM_LABEL[\s\S]*void performSignOut\(\)/,
+    );
+  });
+
+  it("does not introduce ownerId migration or account-upgrade workaround", () => {
+    const panels = readSrc("components/shell/SidePanels.tsx");
+    const entry = readSrc("components/auth/EntryScreen.tsx");
+    const provider = readSrc("components/workspace/WorkspaceProvider.tsx");
+    for (const src of [panels, entry, provider]) {
+      expect(src).not.toMatch(/linkIdentity|transferOwnership|migrateOwner/i);
+      expect(src).not.toMatch(/Upgrade account|Save workspace/i);
+    }
+    expect(readSrc("lib/auth/guest.ts")).toMatch(/TODO\(guest-upgrade\)/);
   });
 
   it("does not introduce a direct database guest bypass", () => {
