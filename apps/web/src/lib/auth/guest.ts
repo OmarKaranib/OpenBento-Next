@@ -10,21 +10,45 @@ export type AuthUserLike = {
 };
 
 export const GUEST_ENTRY_SUPPORT_COPY =
-  "Start with a temporary workspace. Create an account later to keep access across devices.";
+  "Start with a temporary workspace in this browser. Guest workspaces can be lost if you sign out, clear site data, or switch devices.";
 
-export const GUEST_WORKSPACE_TITLE = "Guest workspace";
+export const GUEST_WORKSPACE_TITLE = "Temporary guest workspace";
 
 export const GUEST_WORKSPACE_BODY =
-  "This workspace is tied to this browser. Sign in or create an account to keep access across devices.";
+  "Signing out, clearing site data, or switching devices may make this workspace inaccessible.";
+
+export const GUEST_WORKSPACE_UPGRADE_NOTE =
+  "Account upgrade is not available yet.";
+
+export const GUEST_EXIT_BUTTON_LABEL = "Exit guest workspace";
+
+export const GUEST_EXIT_CONFIRM_MESSAGE =
+  "Leaving this guest session may permanently remove access to this workspace.";
+
+export const GUEST_EXIT_KEEP_LABEL = "Keep workspace";
+
+export const GUEST_EXIT_CONFIRM_LABEL = "Exit anyway";
 
 export const ANONYMOUS_SIGNIN_DISABLED_MESSAGE =
   "Guest access is not available yet. Sign in with an existing account, or try again after anonymous sign-in is enabled.";
+
+/** Copy that must not appear — implies guest data survives account signup/sign-in. */
+export const GUEST_FALSE_RETENTION_PHRASES = [
+  "Create an account later to keep access across devices",
+  "Sign in or create an account to keep access across devices",
+  "keep access across devices",
+] as const;
 
 /** Phrases that must not appear for guests (false permanence). */
 export const GUEST_FALSE_PERMANENCE_PHRASES = [
   "synced permanently across all devices",
   "your guest account is permanent",
+  ...GUEST_FALSE_RETENTION_PHRASES,
 ] as const;
+
+// TODO(guest-upgrade): anonymous → permanent must preserve the same Supabase user
+// identity (linkIdentity / updateUser) or explicitly migrate ownership — not a new
+// signInWithPassword session with a different auth.uid().
 
 export function isAnonymousUser(user: AuthUserLike | null | undefined): boolean {
   if (!user) {
