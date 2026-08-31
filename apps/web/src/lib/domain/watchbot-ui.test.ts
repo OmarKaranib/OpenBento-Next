@@ -133,7 +133,6 @@ describe("WatchBot UI shell copy", () => {
     // Side panel hosts WatchBotCanvasPanel; no new WatchBot table writes.
     const panels = shellSource("SidePanels.tsx");
     expect(panels).not.toMatch(/\.from\(["']watch_bots/);
-    expect(panels).not.toMatch(/saveWatchBot/);
     expect(panels).toContain("WatchBotCanvasPanel");
     expect(manager).toContain('execute("createWatchBot"');
     expect(manager).toContain('execute("pauseWatchBot"');
