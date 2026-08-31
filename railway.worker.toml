@@ -1,6 +1,10 @@
 # Worker service. In the Railway dashboard, set this service's Config File
 # to railway.worker.toml. No public domain. No healthcheck (web-only).
 # Root Directory must stay the repo root. See docs/DEPLOY.md.
+#
+# Start selects the official X adapter via --provider=x. That only chooses the
+# adapter path — X_PROVIDER_ENABLED and OPENBENTO_WORKER_ENABLED remain fail-
+# closed defaults (false). Worker deployment is not authorized by this file.
 
 [build]
 builder = "RAILPACK"
@@ -15,5 +19,5 @@ watchPatterns = [
 ]
 
 [deploy]
-startCommand = "pnpm --filter worker start:loop"
+startCommand = "pnpm --filter worker start:loop -- --provider=x"
 restartPolicyType = "ON_FAILURE"

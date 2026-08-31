@@ -2,7 +2,16 @@
 
 Application + config so Omar can later authorize a **Railway US East** deploy of web + worker against the **existing** `openbento-next` Supabase **dev** project (us-east-1, ref `rullqomazkamlncuotqu`). Persistence already lives there.
 
-This PR does **not** deploy Railway, create a Railway project, apply production SQL, create another Supabase project, or turn the worker on. Public deploy, hosted Auth dashboard edits, live providers, and worker activation are **CR3**.
+**Status (truthful):**
+
+| Surface | Status |
+| --- | --- |
+| Web service | Hosted on Railway (`web-production-4d6c9e`) |
+| WatchBot worker **implementation** | Ready in-repo (`apps/worker`, X adapter, fail-closed gates) |
+| WatchBot worker **deployment** | **Not yet authorized** — do not create/start the Railway worker service from this doc alone |
+| Live X verification | **Not yet verified** — no production/dev X cycle has been authorized |
+
+This document does **not** deploy Railway, create a Railway worker service, apply production SQL, create another Supabase project, enable `OPENBENTO_WORKER_ENABLED`, enable `X_PROVIDER_ENABLED`, or call the X API. Public worker deploy and live providers remain **CR3**.
 
 ## Two Railway services (same repo)
 
@@ -24,18 +33,34 @@ Set the worker service **Config File** path to `railway.worker.toml`. If left at
 - Start: `pnpm --filter web start` (`next start` binds `0.0.0.0` and `$PORT`)
 - Healthcheck path: `/health`
 
-### Worker (dashboard or `railway.worker.toml`)
+### Worker (dashboard or `railway.worker.toml`) — expected shape when authorized
+
+| Field | Value |
+| --- | --- |
+| Project | `OpenBento-Next` |
+| New service name | `worker` |
+| Source | `OmarKaranib/OpenBento-Next`, branch `main` |
+| Root directory | repo root |
+| Config file | `railway.worker.toml` |
+| Public domain | **NONE** |
+| Healthcheck | **NONE** |
+| Restart | `ON_FAILURE` |
+| Initial gates | `OPENBENTO_WORKER_ENABLED=false`, `X_PROVIDER_ENABLED=false` |
+| Networking | No public networking |
 
 - Install: `pnpm install --frozen-lockfile`
 - Build: none (do not run the Next build)
-- Start: `pnpm --filter worker start:loop` (`createWorkerDomainStore`, not the fixture)
+- Start: `pnpm --filter worker start:loop -- --provider=x`
+  - Selects the official X adapter path via `--provider=x` (pnpm forwards that flag into `process.argv`).
+  - Does **not** enable X or the worker. Defaults stay fail-closed.
+  - Without `--provider=x`, the process would fall through to `FakeSourceProvider([])` even if env later enabled X.
 - No public domain
 
 Watch paths are optional and already listed in the CaC files.
 
 ## Environment variable names (values never in git)
 
-Names only. Set real values in the Railway dashboard (and never commit them).
+Names only. Set real values in the Railway dashboard (and never commit them). Do **not** retrieve or print secret values in agent sessions.
 
 ### Web
 
@@ -43,39 +68,55 @@ Names only. Set real values in the Railway dashboard (and never commit them).
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` | Existing **dev** project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable / anon key. Alias: `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
-| `NEXT_PUBLIC_SITE_URL` | Public origin for Auth redirects. Placeholder until the Railway web URL exists |
+| `NEXT_PUBLIC_SITE_URL` | Public origin for Auth redirects (hosted web origin) |
 
-Do **not** set `SUPABASE_SERVICE_ROLE_KEY` on the web service.
+Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web service.
 
-### Worker only (never `NEXT_PUBLIC`, never on the web runtime)
+### Worker only (exact names for a future X-only service)
 
-| Name | Notes |
+| Name | Initial / notes |
 | --- | --- |
-| `SUPABASE_SERVICE_ROLE_KEY` | Service role. Required only when the worker is enabled |
-| `NEXT_PUBLIC_SUPABASE_URL` | Same **dev** project as web (store factory still needs the public URL) |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Same as web (or `NEXT_PUBLIC_SUPABASE_ANON_KEY`) |
-| `OPENBENTO_WORKER_ENABLED` | Global fail-closed gate. Absent / `false` / anything other than `true` or `1` → clean exit, no provider/store construction, no cycles |
-| `OPENBENTO_WORKER_INTERVAL_MS` | Optional. Default `60000`. Hard ceiling `300000` (5 minutes) |
+| `NEXT_PUBLIC_SUPABASE_URL` | Same **dev** project as web. Historical/shared factory input — on the worker this is used **only** to construct the Supabase client, not to expose a browser runtime |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Same as web (or `NEXT_PUBLIC_SUPABASE_ANON_KEY`). Same factory-input note as above |
+| `SUPABASE_SERVICE_ROLE_KEY` | **Worker-only.** Never on web. Required only when the worker gate is enabled |
+| `OPENBENTO_WORKER_ENABLED` | **`false`** initially. Global fail-closed gate. Absent / `false` / anything other than `true` or `1` → clean exit (`openbento_worker_disabled`), **before** store/provider construction, service-role access, X credentials, or cycles |
+| `OPENBENTO_WORKER_INTERVAL_MS` | Optional loop interval. Default `60000`. Hard ceiling `300000` (5 minutes) |
+| `X_PROVIDER_ENABLED` | **`false`** initially. Independent X-lane gate. Defaults off even when the global worker is enabled |
+| `X_BEARER_TOKEN` | **Worker-only.** Never on web. Never `NEXT_PUBLIC_`. Required only when X lane is enabled |
+| `X_MAX_RESULTS_PER_REQUEST` | `10` (bounded; values above code caps are clamped) |
+| `X_MAX_RESULTS_PER_CYCLE` | `10` |
+| `X_MAX_PAGES_PER_CYCLE` | `1` |
+| `X_MAX_REQUESTS_PER_CYCLE` | `1` |
+| `X_PROVIDER_TIMEOUT_MS` | `10000` |
 
-### Optional providers (names only; fail closed if missing)
+**Secret separation:** `SUPABASE_SERVICE_ROLE_KEY` and `X_BEARER_TOKEN` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path.
 
-| Name | Notes |
-| --- | --- |
-| `XAI_API_KEY` | Optional Grok adapter. Do not activate for Gate 3 |
-| `X_PROVIDER_ENABLED` | Independent X-lane gate. Defaults off even when the global worker is enabled |
-| `X_BEARER_TOKEN` | Implemented X adapter's worker-only credential. No live DEV credential is activated or verified yet |
-| `X_MAX_RESULTS_PER_REQUEST` | Bounded X results requested per call |
-| `X_MAX_RESULTS_PER_CYCLE` | Bounded total X results emitted per cycle |
-| `X_MAX_PAGES_PER_CYCLE` | Bounded X pagination per cycle |
-| `X_MAX_REQUESTS_PER_CYCLE` | Bounded X requests per cycle |
-| `X_PROVIDER_TIMEOUT_MS` | Bounded X request timeout |
+**Gate order (do not weaken):**
 
-Leave `OPENBENTO_WORKER_ENABLED` unset or `false` until CR3. That global gate
-takes precedence over every provider gate. Live X DEV verification remains a
-separate CR3 step; do not set `X_PROVIDER_ENABLED=true` or a bearer token for
-this source-only preparation.
+1. `OPENBENTO_WORKER_ENABLED=false` + `X_PROVIDER_ENABLED=true` → still exits before constructing provider/store (no credential use, no cycle).
+2. `OPENBENTO_WORKER_ENABLED=true` + `X_PROVIDER_ENABLED=false` + `--provider=x` → may construct the X adapter object, but discover produces **zero** X API calls.
+3. Both true + missing `X_BEARER_TOKEN` → fail closed (`credential_missing`) before a successful cycle.
 
-## Hosted Auth (document only — do not edit the live dashboard in this PR)
+Optional Grok (`XAI_API_KEY`) remains a separate, unused lane for this X-only readiness slice. Do not activate xAI/Grok here.
+
+## Future single-cycle live X test (DO NOT EXECUTE YET)
+
+Controlled sequence for a later CR3 authorization. Prefer **one** `--once` cycle — do **not** start the continuous loop for the first live test.
+
+1. Create the Railway `worker` service with gates initially **OFF** (`OPENBENTO_WORKER_ENABLED=false`, `X_PROVIDER_ENABLED=false`).
+2. Add required worker-only Supabase credentials (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
+3. Add `X_BEARER_TOKEN` (worker-only).
+4. Keep bounded X limits at: requests/cycle = 1, pages/cycle = 1, results/cycle = 10, results/request = 10, timeout = 10000.
+5. Create/use **one** WatchBot whose `sourceTypes` include `"x"`.
+6. Run **exactly one** worker cycle with `OPENBENTO_WORKER_ENABLED=true`, `X_PROVIDER_ENABLED=true`, and:
+   `pnpm --filter worker start -- --provider=x`
+   (script already includes `--once`; ensure `--provider=x` is present).
+7. Inspect: X API result, cards created, provenance, dedup, Railway logs, X credit usage.
+8. Disable worker/X immediately after the test (`OPENBENTO_WORKER_ENABLED=false`, `X_PROVIDER_ENABLED=false`).
+
+Do **not** execute this plan from this documentation-only readiness change.
+
+## Hosted Auth (document only)
 
 After the Railway **web** public URL is known, set `NEXT_PUBLIC_SITE_URL` to that origin (no trailing slash), then in the existing **openbento-next** Supabase project:
 
@@ -85,7 +126,7 @@ After the Railway **web** public URL is known, set `NEXT_PUBLIC_SITE_URL` to tha
    - `{NEXT_PUBLIC_SITE_URL}/**`
    - `{NEXT_PUBLIC_SITE_URL}/auth/callback`
 
-`/auth/callback` is the existing `@supabase/ssr` PKCE code-exchange route (email confirm / recovery). It is not a second auth system. Do not change the dashboard until that public URL exists.
+`/auth/callback` is the existing `@supabase/ssr` PKCE code-exchange route (email confirm / recovery). It is not a second auth system.
 
 Local Site URL may remain `http://localhost:3000` until the hosted origin is ready.
 
@@ -101,7 +142,8 @@ Redeploy each Railway service's previous successful deploy from that service's d
 ## Public security review
 
 - No service-role key on the web service or in any `NEXT_PUBLIC_` variable. `readWebSupabaseEnv` / `getDomainStore` must not read `SUPABASE_SERVICE_ROLE_KEY`.
-- Worker default off (`OPENBENTO_WORKER_ENABLED` fail closed).
+- No `X_BEARER_TOKEN` on the web service or in any `NEXT_PUBLIC_` path.
+- Worker default off (`OPENBENTO_WORKER_ENABLED` fail closed). X lane default off (`X_PROVIDER_ENABLED` fail closed).
 - No secrets in git (`.env.example` and this file list **names** only).
 - `/health` is public and must stay empty of secrets, env, and user data.
 - Auth Site URL / Redirect URLs are set only after the public Railway URL is known.

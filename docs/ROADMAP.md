@@ -34,7 +34,7 @@ Shared domain catalog in `@openbento/domain` (20 actions — **not** a 5-action 
 ## Planned infra (not provisioned)
 
 - **Supabase** — North Virginia, us-east-1 — database, auth, storage. No project yet.
-- **Railway** — US East / Virginia — web + WatchBot worker. No services yet.
+- **Railway** — US East / Virginia — web hosted; WatchBot worker implementation ready, **worker deployment not yet authorized**, live X not yet verified.
 
 ## Observability (docs only, not wired)
 
