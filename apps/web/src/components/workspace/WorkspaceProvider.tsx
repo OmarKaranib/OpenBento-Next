@@ -108,7 +108,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   if (auth === "loading") {
     return (
       <div className="flex h-full items-center justify-center text-sm text-zinc-500">
-        Restoring session\u2026
+        Restoring session…
       </div>
     );
   }
