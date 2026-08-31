@@ -60,7 +60,7 @@ describe("guest auth helpers", () => {
     expect(isAnonymousUser(result.user)).toBe(true);
   });
 
-  it("fails closed when anonymous auth errors \u2014 no fabricated ownerId", async () => {
+  it("fails closed when anonymous auth errors — no fabricated ownerId", async () => {
     await expect(
       tryOpenBentoAnonymously({
         auth: {
