@@ -68,6 +68,7 @@ export function LeftRail() {
             <button
               type="button"
               aria-label="Profile"
+              onClick={() => toggleRailPanel("settings")}
               className="flex h-9 w-9 items-center justify-center rounded-full border border-zinc-700 bg-zinc-800 text-zinc-300 hover:border-zinc-500 hover:text-zinc-50"
             >
               <User className="h-4 w-4" strokeWidth={1.75} />
