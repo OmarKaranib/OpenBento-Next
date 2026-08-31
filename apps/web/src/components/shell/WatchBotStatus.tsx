@@ -10,7 +10,6 @@ export function WatchBotStatus() {
   const { snapshot } = useWorkspace();
   const { setRailPanel } = useWorkspaceUi();
   const summary = watchBotCountSummary(snapshot.watchBots);
-  const hasRunning = snapshot.watchBots.some((bot) => bot.status === "running");
 
   return (
     <Popover>
@@ -19,12 +18,9 @@ export function WatchBotStatus() {
           type="button"
           className="flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-800/80 hover:text-zinc-200"
         >
+          {/* Neutral: domain "running" is configured state, not live worker activity. */}
           <span
-            className={
-              hasRunning
-                ? "h-1.5 w-1.5 rounded-full bg-emerald-600"
-                : "h-1.5 w-1.5 rounded-full bg-zinc-600"
-            }
+            className="h-1.5 w-1.5 rounded-full bg-zinc-600"
             aria-hidden
           />
           <span>{summary}</span>

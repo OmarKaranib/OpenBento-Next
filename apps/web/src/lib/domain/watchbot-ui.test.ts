@@ -105,6 +105,10 @@ describe("WatchBot UI shell copy", () => {
     const combined = `${status}\n${manager}\n${panels}`;
 
     expect(manager).toContain("+ New WatchBot");
+    // Top-level activity dot stays neutral — domain "running" ≠ live worker.
+    expect(status).toContain("bg-zinc-600");
+    expect(status).not.toContain("bg-emerald-600");
+    expect(status).not.toContain("hasRunning");
     // Must not be the old permanently-disabled control.
     expect(manager).not.toMatch(
       /type="button"\s+disabled\s+className=[\s\S]{0,160}\+ New WatchBot/,
