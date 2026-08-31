@@ -4,6 +4,7 @@ import { X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { WatchBotCanvasPanel } from "@/components/shell/WatchBotManager";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { useWorkspaceUi } from "@/components/workspace/workspace-ui";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,7 @@ export function SidePanels() {
               {railPanel === "canvases"
                 ? "Canvases"
                 : railPanel === "watchbots"
-                  ? "WatchBots"
+                  ? "WatchBots · This Canvas"
                   : "Settings"}
             </h2>
             <button
@@ -41,12 +42,7 @@ export function SidePanels() {
           </div>
           <div className="px-3 pb-4">
             {railPanel === "canvases" ? <CanvasesPanel /> : null}
-            {railPanel === "watchbots" ? (
-              <PlaceholderCopy
-                title="Account-wide WatchBots"
-                body="Global WatchBot management is out of scope for Phase 1. The top-left status is for the current Canvas only."
-              />
-            ) : null}
+            {railPanel === "watchbots" ? <WatchBotCanvasPanel /> : null}
             {railPanel === "settings" ? <SettingsPanel /> : null}
           </div>
         </section>
