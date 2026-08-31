@@ -28,7 +28,7 @@ export function SidePanels() {
               {railPanel === "canvases"
                 ? "Canvases"
                 : railPanel === "watchbots"
-                  ? "WatchBots · This Canvas"
+                  ? "WatchBots \u00b7 This Canvas"
                   : "Settings"}
             </h2>
             <button
@@ -66,12 +66,12 @@ export function SidePanels() {
           </div>
           <p className="mt-3 text-sm leading-6 text-zinc-500">
             Interactive Agent panel arrives in a later phase. This control stays
-            in the top-right — not the left rail or Canvas toolbar.
+            in the top-right \u2014 not the left rail or Canvas toolbar.
           </p>
           <p className="mt-3 text-sm leading-6 text-zinc-500">
             WebMCP tools on this page are the Issue #1 snake_case catalog
             wrappers. They dispatch through{" "}
-            <code className="text-zinc-400">runBoundAction</code> +{" "}
+            <code className="text-zinc-400">runDomainAction</code> +{" "}
             <code className="text-zinc-400">requireOwnerIdFromRequest</code>.{" "}
             <Link className="text-zinc-300 underline" href="/webmcp">
               Judge notes
@@ -95,12 +95,20 @@ function PlaceholderCopy({ title, body }: { title: string; body: string }) {
 
 function SettingsPanel() {
   const router = useRouter();
+  const { isGuest } = useWorkspace();
   return (
     <div className="flex flex-col gap-3">
-      <PlaceholderCopy
-        title="Settings"
-        body="Canvas writes go through server runDomainAction. ownerId comes from Supabase Auth getUser() / auth.uid(), never from action JSON or the unsigned ob_local_session cookie."
-      />
+      {isGuest ? (
+        <PlaceholderCopy
+          title="Guest workspace"
+          body="This workspace is tied to this browser. Sign in or create an account to keep access across devices."
+        />
+      ) : (
+        <PlaceholderCopy
+          title="Settings"
+          body="Canvas writes go through server runDomainAction. ownerId comes from Supabase Auth getUser() / auth.uid(), never from action JSON or the unsigned ob_local_session cookie."
+        />
+      )}
       <Button
         type="button"
         size="sm"
@@ -110,7 +118,7 @@ function SettingsPanel() {
             const supabase = createBrowserSupabaseClient();
             await supabase.auth.signOut();
             await signOut();
-            router.replace("/login");
+            router.replace("/");
           })();
         }}
       >

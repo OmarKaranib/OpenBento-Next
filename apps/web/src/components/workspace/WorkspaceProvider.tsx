@@ -23,11 +23,14 @@ import {
   runDomainAction,
 } from "@/server/actions";
 import { createBrowserSupabaseClient } from "@/server/supabase-browser";
-import { LoginForm } from "@/components/auth/LoginForm";
+import { EntryScreen } from "@/components/auth/EntryScreen";
+import { isAnonymousUser } from "@/lib/auth/guest";
 
 type WorkspaceContextValue = {
   session: WorkspaceSession;
   snapshot: SessionSnapshot;
+  /** True when the Supabase session is an anonymous (guest) user. */
+  isGuest: boolean;
   execute: <N extends ActionName>(
     name: N,
     input: ActionInputByName[N],
@@ -59,15 +62,18 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<"loading" | "signed-out" | "signed-in">(
     "loading",
   );
+  const [isGuest, setIsGuest] = useState(false);
   const session = useMemo(() => getBrowserWorkspaceSession(), []);
 
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
     void supabase.auth.getUser().then(({ data }) => {
       setAuth(data.user ? "signed-in" : "signed-out");
+      setIsGuest(isAnonymousUser(data.user ?? null));
     });
     const { data } = supabase.auth.onAuthStateChange((_event, next) => {
       setAuth(next?.user ? "signed-in" : "signed-out");
+      setIsGuest(isAnonymousUser(next?.user ?? null));
     });
     return () => {
       data.subscription.unsubscribe();
@@ -90,26 +96,27 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     () => ({
       session,
       snapshot,
+      isGuest,
       execute: (name, input, options) => session.execute(name, input, options),
       commit: (calls, options) => session.commit(calls, options),
       undo: () => session.undo(),
       redo: () => session.redo(),
     }),
-    [session, snapshot],
+    [session, snapshot, isGuest],
   );
 
   if (auth === "loading") {
     return (
       <div className="flex h-full items-center justify-center text-sm text-zinc-500">
-        Restoring session…
+        Restoring session\u2026
       </div>
     );
   }
 
   if (auth === "signed-out") {
     return (
-      <div className="flex h-full items-center justify-center">
-        <LoginForm
+      <div className="flex h-full items-center justify-center bg-[#0b0d10] px-4">
+        <EntryScreen
           onSignedIn={() => {
             setAuth("signed-in");
           }}
