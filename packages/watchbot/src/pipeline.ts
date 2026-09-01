@@ -23,6 +23,11 @@ import { isNovelEnough, scoreNovelty } from "./novelty";
 import type { DiscoveredItem, SourceProvider } from "./provider";
 import { isRelevantEnough, scoreRelevance } from "./relevance";
 import {
+  MAX_SELECTED_PER_CYCLE,
+  selectCandidates,
+  type RankableCandidate,
+} from "./select-candidates";
+import {
   noopWatchBotTelemetry,
   type EmitWatchBotTelemetry,
 } from "./telemetry";
@@ -33,7 +38,6 @@ const SOURCE_CARD_SIZE = {
   height: Math.max(DEFAULT_CARD_SIZE.height, 180),
 };
 
-const MAX_CARDS_PER_CYCLE = 5;
 const DEFAULT_SOURCE_TYPES = ["web", "news"] as const;
 
 export interface PipelineItemResult {
@@ -44,6 +48,10 @@ export interface PipelineItemResult {
   detail?: string;
   /** Set when the item cleared the novelty threshold in this cycle. */
   passedNovelty?: boolean;
+  /** Passed normalize/dedup/novelty/relevance and entered the selection pool. */
+  candidateEligible?: boolean;
+  /** Chosen by selectCandidates for Card creation in this cycle. */
+  selected?: boolean;
 }
 
 export interface PipelineCycleStats {
@@ -54,6 +62,8 @@ export interface PipelineCycleStats {
   rejectedRelevance: number;
   errors: number;
   cardsCreated: number;
+  candidatesEligible: number;
+  selected: number;
 }
 
 export interface PipelineCycleResult {
@@ -170,6 +180,10 @@ export function computePipelineCycleStats(
   ).length;
   const normalized = Math.max(0, discoveredCount - normalizeErrors);
   const novel = items.filter((item) => item.passedNovelty === true).length;
+  const candidatesEligible = items.filter(
+    (item) => item.candidateEligible === true,
+  ).length;
+  const selected = items.filter((item) => item.selected === true).length;
 
   return {
     discovered: discoveredCount,
@@ -179,6 +193,8 @@ export function computePipelineCycleStats(
     rejectedRelevance,
     errors,
     cardsCreated,
+    candidatesEligible,
+    selected,
   };
 }
 
@@ -308,13 +324,101 @@ export async function runWatchBotPipeline(
       detail: String(discovered.length),
     });
 
-    for (const raw of discovered) {
-      if (cardsCreated >= MAX_CARDS_PER_CYCLE) {
-        break;
-      }
+    const evaluations: ItemEvaluation[] = [];
+    const seenEligibleKeys = new Set<string>();
+
+    for (const [arrivalIndex, raw] of discovered.entries()) {
       try {
-        const itemResult = await processItem({
-          raw,
+        evaluations.push(
+          await evaluateItem({
+            raw,
+            arrivalIndex,
+            watchBot,
+            executor,
+            store,
+            now,
+            id,
+            seenEligibleKeys,
+          }),
+        );
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "item_failed";
+        await persistStageEvent(store, {
+          id: id(),
+          watchBotId: watchBot.id,
+          canvasId: watchBot.canvasId,
+          kind: "error",
+          sourceUrl: `watchbot://${watchBot.id}/item`,
+          dedupKey: `error-item:${watchBot.id}:${now()}:${id()}`,
+          discoveredAt: now(),
+          detail: message.slice(0, 200),
+        });
+        evaluations.push({
+          arrivalIndex,
+          status: "rejected",
+          result: {
+            kind: "error",
+            dedupKey: `error-item:${watchBot.id}`,
+            detail: message,
+          },
+        });
+      }
+    }
+
+    const eligible = evaluations.flatMap((evaluation) =>
+      evaluation.status === "eligible" ? [evaluation.candidate] : [],
+    );
+    const selected = selectCandidates(eligible, MAX_SELECTED_PER_CYCLE);
+    const selectedKeys = new Set(selected.map((item) => item.dedupKey));
+
+    await persistStageEvent(store, {
+      id: id(),
+      watchBotId: watchBot.id,
+      canvasId: watchBot.canvasId,
+      kind: "normalized",
+      sourceUrl: `watchbot://${watchBot.id}/cycle-select`,
+      dedupKey: `cycle-select:${watchBot.id}:${now()}:${id()}`,
+      discoveredAt: now(),
+      detail: `candidates_eligible=${eligible.length} selected=${selected.length}`,
+    });
+
+    for (const evaluation of evaluations) {
+      if (evaluation.status === "rejected") {
+        results.push(evaluation.result);
+        continue;
+      }
+
+      const { candidate } = evaluation;
+      if (!selectedKeys.has(candidate.dedupKey)) {
+        await persistStageEvent(store, {
+          id: id(),
+          watchBotId: watchBot.id,
+          canvasId: watchBot.canvasId,
+          kind: "normalized",
+          sourceUrl: candidate.normalized.canonicalUrl,
+          dedupKey: stageDedupKey(candidate.dedupKey, "not_selected", id()),
+          noveltyScore: candidate.noveltyScore,
+          discoveredAt: now(),
+          title: candidate.normalized.title,
+          publishedAt: candidate.normalized.publishedAt,
+          sourceType: asSourceType(candidate.normalized.sourceType),
+          detail: "not_selected",
+        });
+        results.push({
+          kind: "normalized",
+          dedupKey: candidate.dedupKey,
+          noveltyScore: candidate.noveltyScore,
+          detail: "not_selected",
+          passedNovelty: true,
+          candidateEligible: true,
+        });
+        continue;
+      }
+
+      try {
+        const itemResult = await createCardFromCandidate({
+          candidate,
           watchBot,
           executor,
           store,
@@ -340,8 +444,12 @@ export async function runWatchBotPipeline(
         });
         results.push({
           kind: "error",
-          dedupKey: `error-item:${watchBot.id}`,
+          dedupKey: candidate.dedupKey,
+          noveltyScore: candidate.noveltyScore,
           detail: message,
+          passedNovelty: true,
+          candidateEligible: true,
+          selected: true,
         });
       }
     }
@@ -394,25 +502,43 @@ function emptyPipelineStats(): PipelineCycleStats {
     rejectedRelevance: 0,
     errors: 0,
     cardsCreated: 0,
+    candidatesEligible: 0,
+    selected: 0,
   };
 }
 
-async function processItem(input: {
+interface EligibleCandidate extends RankableCandidate {
+  dedupKey: string;
+  normalized: NormalizedItem;
+}
+
+type ItemEvaluation =
+  | { arrivalIndex: number; status: "rejected"; result: PipelineItemResult }
+  | { arrivalIndex: number; status: "eligible"; candidate: EligibleCandidate };
+
+async function evaluateItem(input: {
   raw: DiscoveredItem;
+  arrivalIndex: number;
   watchBot: WatchBot;
   executor: ActionExecutor;
   store: DomainStore;
   now: () => string;
   id: () => string;
-}): Promise<PipelineItemResult> {
-  const { raw, watchBot, executor, store, now, id } = input;
+  seenEligibleKeys: Set<string>;
+}): Promise<ItemEvaluation> {
+  const { raw, arrivalIndex, watchBot, executor, store, now, id, seenEligibleKeys } =
+    input;
   const discoveredAt = now();
   const normalized = normalizeDiscoveredItem(raw, discoveredAt);
   if (!normalized) {
     return {
-      kind: "error",
-      dedupKey: `invalid:${sanitizeKeyPart(raw.sourceUrl)}`,
-      detail: "not_v0_source_or_unusable",
+      arrivalIndex,
+      status: "rejected",
+      result: {
+        kind: "error",
+        dedupKey: `invalid:${sanitizeKeyPart(raw.sourceUrl)}`,
+        detail: "not_v0_source_or_unusable",
+      },
     };
   }
 
@@ -443,7 +569,10 @@ async function processItem(input: {
   });
 
   const prior = await store.listWatchBotEventsByWatchBot(watchBot.id);
-  if (prior.some((event) => event.dedupKey === dedupKey)) {
+  if (
+    prior.some((event) => event.dedupKey === dedupKey) ||
+    seenEligibleKeys.has(dedupKey)
+  ) {
     await persistStageEvent(store, {
       id: id(),
       watchBotId: watchBot.id,
@@ -457,7 +586,11 @@ async function processItem(input: {
       sourceType: asSourceType(normalized.sourceType),
       detail: "unique (watchBotId, dedupKey) already claimed",
     });
-    return { kind: "duplicate", dedupKey };
+    return {
+      arrivalIndex,
+      status: "rejected",
+      result: { kind: "duplicate", dedupKey },
+    };
   }
 
   const noveltyScore = scoreNovelty(normalized, prior);
@@ -474,7 +607,16 @@ async function processItem(input: {
       title: normalized.title,
       detail: "low_novelty",
     });
-    return { kind: "normalized", dedupKey, noveltyScore, detail: "low_novelty" };
+    return {
+      arrivalIndex,
+      status: "rejected",
+      result: {
+        kind: "normalized",
+        dedupKey,
+        noveltyScore,
+        detail: "low_novelty",
+      },
+    };
   }
 
   await persistStageEvent(store, {
@@ -509,11 +651,15 @@ async function processItem(input: {
       detail: "rejected_relevance",
     });
     return {
-      kind: "rejected_relevance",
-      dedupKey,
-      noveltyScore,
-      detail: "rejected_relevance",
-      passedNovelty: true,
+      arrivalIndex,
+      status: "rejected",
+      result: {
+        kind: "rejected_relevance",
+        dedupKey,
+        noveltyScore,
+        detail: "rejected_relevance",
+        passedNovelty: true,
+      },
     };
   }
 
@@ -531,13 +677,44 @@ async function processItem(input: {
       detail: "source_payload_invalid",
     });
     return {
-      kind: "error",
-      dedupKey,
-      detail: "source_payload_invalid",
-      passedNovelty: true,
+      arrivalIndex,
+      status: "rejected",
+      result: {
+        kind: "error",
+        dedupKey,
+        detail: "source_payload_invalid",
+        passedNovelty: true,
+      },
     };
   }
 
+  seenEligibleKeys.add(dedupKey);
+  return {
+    arrivalIndex,
+    status: "eligible",
+    candidate: {
+      arrivalIndex,
+      relevanceScore: relevance,
+      noveltyScore,
+      dedupKey,
+      normalized,
+    },
+  };
+}
+
+async function createCardFromCandidate(input: {
+  candidate: EligibleCandidate;
+  watchBot: WatchBot;
+  executor: ActionExecutor;
+  store: DomainStore;
+  now: () => string;
+  id: () => string;
+}): Promise<PipelineItemResult> {
+  const { candidate, watchBot, executor, store, now, id } = input;
+  const { normalized, dedupKey, noveltyScore } = candidate;
+  const canvas = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+  const cardType = sourceTypeToCardType(normalized.sourceType);
+  const payload = buildSourcePayload(normalized, watchBot.id);
   const position = nextCardPosition(canvas.cards.length);
 
   try {
@@ -585,6 +762,8 @@ async function processItem(input: {
       cardId: card.id,
       noveltyScore,
       passedNovelty: true,
+      candidateEligible: true,
+      selected: true,
     };
   } catch (error) {
     if (isDomainError(error) && error.code === "conflict") {
@@ -618,6 +797,8 @@ async function processItem(input: {
       dedupKey,
       detail: message,
       passedNovelty: true,
+      candidateEligible: true,
+      selected: true,
     };
   }
 }

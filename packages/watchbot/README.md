@@ -1,7 +1,9 @@
 # `@openbento/watchbot`
 
 WatchBot **v0 first slice**: provider-agnostic discovery port plus the
-`discover → normalize → dedup → novelty → relevance → provenance → Card` pipeline.
+`discover → normalize → dedup → novelty → relevance → select → provenance → Card`
+pipeline. Selection ranks eligible candidates (passed normalize/dedup/novelty/
+relevance) before any Card is created.
 
 A WatchBot is a persistent monitoring agent bound to a Canvas. Status is
 `running` | `paused` | `error` only.
