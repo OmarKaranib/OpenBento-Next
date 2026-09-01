@@ -137,6 +137,33 @@ describe("scoreRelevance for provider-filtered X", () => {
     const score = scoreRelevance(item("x", title), X_QUERY, canvas);
     expect(isRelevantEnough(score)).toBe(true);
   });
+
+  it("rejects when short positive terms strip out to an empty intent", () => {
+    const query = "(AI OR ML) -is:retweet";
+    expect(deriveXPositiveSearchTerms(query)).toBe("AI ML");
+    expect(tokenizeForScoring("AI ML")).toEqual([]);
+    const score = scoreRelevance(
+      item("x", "Please retweet this AI and ML announcement"),
+      query,
+      canvas,
+    );
+    expect(score).toBe(0);
+    expect(isRelevantEnough(score)).toBe(false);
+  });
+
+  it("rejects an operator-only X query with no positive terms", () => {
+    const queries = ["-is:retweet", "OR AND NOT", "( OR ) -is:retweet -is:reply"];
+    for (const query of queries) {
+      expect(tokenizeForScoring(deriveXPositiveSearchTerms(query))).toEqual([]);
+      const score = scoreRelevance(
+        item("x", "I always retweet OpenAI and WebMCP news"),
+        query,
+        canvas,
+      );
+      expect(score).toBe(0);
+      expect(isRelevantEnough(score)).toBe(false);
+    }
+  });
 });
 
 describe("ordinary natural-language relevance is unchanged", () => {

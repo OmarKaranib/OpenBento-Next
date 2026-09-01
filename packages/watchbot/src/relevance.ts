@@ -26,7 +26,7 @@ export function scoreRelevance(
 ): number {
   const sourceType = context?.sourceType ?? item.sourceType;
   if (relevanceLaneForSourceType(sourceType) === "provider_filtered") {
-    return scoreProviderFilteredRelevance(item, instruction, canvas, sourceType);
+    return scoreProviderFilteredRelevance(item, instruction, sourceType);
   }
   return scoreNaturalLanguageRelevance(item, instruction, canvas);
 }
@@ -67,17 +67,19 @@ function scoreNaturalLanguageRelevance(
  * positive intent terms only — never operator/exclusion tokens — and use
  * query-term recall so long posts are not killed by thin Jaccard overlap.
  * Items that share no positive intent term are rejected.
+ * Empty derived intent (operator-only or short tokens stripped below
+ * the scorer's length floor) is reject, not a raw-instruction fallback —
+ * that fallback would treat `retweet` and other operators as positives.
  */
 function scoreProviderFilteredRelevance(
   item: NormalizedItem,
   instruction: string,
-  canvas: CanvasState,
   sourceType: string,
 ): number {
   const derived = deriveRelevanceIntent(instruction, sourceType);
   const intentTokens = uniqueTokens(tokenizeForScoring(derived.intentText));
   if (intentTokens.length === 0) {
-    return scoreNaturalLanguageRelevance(item, instruction, canvas);
+    return 0;
   }
   const itemTokens = uniqueTokens(tokenizeItemForProviderRelevance(item.title));
   if (itemTokens.length === 0) {

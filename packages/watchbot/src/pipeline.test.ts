@@ -777,7 +777,10 @@ function xPost(id: string, title: string): DiscoveredItem {
   };
 }
 
-async function seedXWatchBot(items: DiscoveredItem[]) {
+async function seedXWatchBot(
+  items: DiscoveredItem[],
+  instruction = X_BOOLEAN_QUERY,
+) {
   const store = new InMemoryDomainStore();
   const executor = createActionExecutor({ store, ownerId: OWNER });
   const canvas = await executor.createCanvas({ name: "AI Watch" });
@@ -788,7 +791,7 @@ async function seedXWatchBot(items: DiscoveredItem[]) {
   });
   const watchBot = await executor.createWatchBot({
     canvasId: canvas.id,
-    instruction: X_BOOLEAN_QUERY,
+    instruction,
     sourceTypes: ["x"],
   });
   const provider = new FakeSourceProvider(items);
@@ -928,5 +931,35 @@ describe("provider-aware X relevance pipeline", () => {
     expect(third.items[0]?.detail).toBe("low_novelty");
     const after = await executor.getCanvasState({ canvasId: watchBot.canvasId });
     expect(after.cards).toHaveLength(1);
+  });
+
+  it("rejects when short positive terms strip out to an empty intent", async () => {
+    const { store, executor, watchBot, provider } = await seedXWatchBot(
+      [xPost("51", "Please retweet this AI and ML announcement")],
+      "(AI OR ML) -is:retweet",
+    );
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.cardsCreated).toBe(0);
+    expect(result.items[0]?.kind).toBe("rejected_relevance");
+  });
+
+  it("rejects an operator-only X query instead of scoring operator tokens", async () => {
+    const { store, executor, watchBot, provider } = await seedXWatchBot(
+      [xPost("52", "I always retweet OpenAI and WebMCP news")],
+      "-is:retweet",
+    );
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.cardsCreated).toBe(0);
+    expect(result.items[0]?.kind).toBe("rejected_relevance");
   });
 });
