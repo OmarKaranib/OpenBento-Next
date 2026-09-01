@@ -95,9 +95,6 @@ export async function runWorkerCycle(
 
   for (const bot of bots) {
     const sourceTypes = resolveSourceTypes(bot);
-    if (isWatchBotProviderEligible(input.provider, sourceTypes)) {
-      result.providerEligibleWatchBots += 1;
-    }
 
     if (bot.status === "paused") {
       result.skippedPaused += 1;
@@ -106,6 +103,10 @@ export async function runWorkerCycle(
     if (bot.status !== "running") {
       result.skippedOther += 1;
       continue;
+    }
+
+    if (isWatchBotProviderEligible(input.provider, sourceTypes)) {
+      result.providerEligibleWatchBots += 1;
     }
 
     const executor = createActionExecutor({
@@ -131,11 +132,6 @@ export async function runWorkerCycle(
       result.cardsCreated += cycle.cardsCreated;
       aggregateCycleStats(result, cycle);
       if (!cycle.skipped) {
-        await stampLastActivity(input.store, bot, now());
-      } else if (
-        cycle.skipReason === "provider_not_eligible" ||
-        cycle.skipReason === "x_budget_exhausted"
-      ) {
         await stampLastActivity(input.store, bot, now());
       }
     } catch (error) {
