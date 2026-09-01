@@ -23,7 +23,19 @@ export {
 } from "./normalize";
 export { buildDedupKey } from "./dedup";
 export { NOVELTY_THRESHOLD, isNovelEnough, scoreNovelty } from "./novelty";
-export { RELEVANCE_THRESHOLD, isRelevantEnough, scoreRelevance } from "./relevance";
+export {
+  RELEVANCE_THRESHOLD,
+  isRelevantEnough,
+  scoreRelevance,
+  type RelevanceContext,
+} from "./relevance";
+export {
+  deriveRelevanceIntent,
+  deriveXPositiveSearchTerms,
+  relevanceLaneForSourceType,
+  type DerivedRelevanceIntent,
+  type RelevanceLane,
+} from "./relevance-intent";
 export {
   assertSourceCardPayload,
   computePipelineCycleStats,

@@ -762,3 +762,204 @@ describe("normalize", () => {
     expect(invalid?.discoveredAt).toBe(discoveredAt);
   });
 });
+
+const X_BOOLEAN_QUERY = "(OpenAI OR WebMCP) -is:retweet";
+
+function xPost(id: string, title: string): DiscoveredItem {
+  return {
+    sourceUrl: `https://x.com/someone/status/${id}`,
+    title,
+    publishedAt: "2026-08-29T12:00:00.000Z",
+    sourceType: "x",
+    rawExcerpt: title,
+    author: "someone",
+    externalId: id,
+  };
+}
+
+async function seedXWatchBot(
+  items: DiscoveredItem[],
+  instruction = X_BOOLEAN_QUERY,
+) {
+  const store = new InMemoryDomainStore();
+  const executor = createActionExecutor({ store, ownerId: OWNER });
+  const canvas = await executor.createCanvas({ name: "AI Watch" });
+  await executor.createFrame({
+    canvasId: canvas.id,
+    name: "Main Story",
+    bounds: { x: 0, y: 0, width: 1600, height: 1000 },
+  });
+  const watchBot = await executor.createWatchBot({
+    canvasId: canvas.id,
+    instruction,
+    sourceTypes: ["x"],
+  });
+  const provider = new FakeSourceProvider(items);
+  return { store, executor, canvas, watchBot, provider };
+}
+
+describe("provider-aware X relevance pipeline", () => {
+  it("accepts OpenAI and WebMCP X posts for the structured boolean query", async () => {
+    const { store, executor, watchBot, provider } = await seedXWatchBot([
+      xPost("11", "OpenAI shipped a new API"),
+      xPost("12", "WebMCP makes tool calling easier"),
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.cardsCreated).toBe(2);
+    expect(result.items.map((item) => item.kind)).toEqual([
+      "card_created",
+      "card_created",
+    ]);
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(2);
+    expect(state.cards.every((card) => card.type === "x")).toBe(true);
+  });
+
+  it("rejects a genuinely irrelevant X post and operator-only overlap", async () => {
+    const { store, executor, watchBot, provider } = await seedXWatchBot([
+      xPost("21", "Local team wins on Saturday"),
+      xPost("22", "I always retweet AND OR NOT is:retweet spam"),
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.cardsCreated).toBe(0);
+    expect(result.items.every((item) => item.kind === "rejected_relevance")).toBe(
+      true,
+    );
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(0);
+  });
+
+  it("does not auto-reject a multilingual relevant X title", async () => {
+    const { store, executor, watchBot, provider } = await seedXWatchBot([
+      xPost("31", "OpenAIが新しいモデルを発表し、開発者コミュニティで議論になっている"),
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.cardsCreated).toBe(1);
+    expect(result.items[0]?.kind).toBe("card_created");
+  });
+
+  it("keeps ordinary natural-language WatchBots on existing relevance behavior", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      newsItem,
+      {
+        sourceUrl: "https://sports.example.com/scores",
+        title: "Local team wins on Saturday",
+        publishedAt: "2026-08-28T16:00:00.000Z",
+        sourceType: "news",
+        rawExcerpt: "Final score and highlights from an unrelated game.",
+      },
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(watchBot.instruction).toBe(INSTRUCTION);
+    expect(watchBot.sourceTypes).toEqual(["web", "news"]);
+    expect(result.items.map((item) => item.kind)).toEqual([
+      "card_created",
+      "rejected_relevance",
+    ]);
+    expect(result.cardsCreated).toBe(1);
+  });
+
+  it("preserves dedup, novelty, and X provenance", async () => {
+    const firstPost = xPost("41", "OpenAI shipped a new API");
+    const { store, executor, watchBot, provider } = await seedXWatchBot([
+      firstPost,
+    ]);
+    const first = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(first.cardsCreated).toBe(1);
+    expect(first.items[0]?.kind).toBe("card_created");
+
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(1);
+    const card = state.cards[0];
+    expect(card?.type).toBe("x");
+    if (card && "provenance" in card.payload) {
+      expect(card.payload.provenance).toMatchObject({
+        sourceType: "x",
+        sourceUrl: "https://x.com/someone/status/41",
+        title: "OpenAI shipped a new API",
+        watchBotId: watchBot.id,
+        author: "someone",
+        externalId: "41",
+      });
+    }
+
+    const second = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(second.cardsCreated).toBe(0);
+    expect(second.items.every((item) => item.kind === "duplicate")).toBe(true);
+
+    provider.setItems([
+      xPost("42", "OpenAI shipped a new API"),
+    ]);
+    const third = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(third.cardsCreated).toBe(0);
+    expect(third.items[0]?.kind).toBe("normalized");
+    expect(third.items[0]?.detail).toBe("low_novelty");
+    const after = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(after.cards).toHaveLength(1);
+  });
+
+  it("rejects when short positive terms strip out to an empty intent", async () => {
+    const { store, executor, watchBot, provider } = await seedXWatchBot(
+      [xPost("51", "Please retweet this AI and ML announcement")],
+      "(AI OR ML) -is:retweet",
+    );
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.cardsCreated).toBe(0);
+    expect(result.items[0]?.kind).toBe("rejected_relevance");
+  });
+
+  it("rejects an operator-only X query instead of scoring operator tokens", async () => {
+    const { store, executor, watchBot, provider } = await seedXWatchBot(
+      [xPost("52", "I always retweet OpenAI and WebMCP news")],
+      "-is:retweet",
+    );
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.cardsCreated).toBe(0);
+    expect(result.items[0]?.kind).toBe("rejected_relevance");
+  });
+});

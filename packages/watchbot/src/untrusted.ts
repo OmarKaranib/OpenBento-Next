@@ -43,6 +43,28 @@ export function tokenizeForScoring(value: string): string[] {
     .filter((token) => token.length >= 3);
 }
 
+/**
+ * Item-side tokens for provider-filtered relevance.
+ * ASCII output matches `tokenizeForScoring` after NFKC (English unchanged).
+ * Extra Unicode letter runs stop empty-token auto-reject on multilingual titles.
+ * Never executed, never parsed as JSON/code.
+ */
+export function tokenizeItemForProviderRelevance(value: string): string[] {
+  const normalized = sanitizeUntrustedText(value, 2_000).normalize("NFKC");
+  const ascii = tokenizeForScoring(normalized);
+  const seen = new Set(ascii);
+  const extras: string[] = [];
+  const runs = normalized.toLowerCase().match(/\p{L}{3,}/gu) ?? [];
+  for (const run of runs) {
+    if (/^[\x00-\x7F]+$/.test(run) || seen.has(run)) {
+      continue;
+    }
+    seen.add(run);
+    extras.push(run);
+  }
+  return extras.length === 0 ? ascii : [...ascii, ...extras];
+}
+
 export function jaccardSimilarity(left: string[], right: string[]): number {
   if (left.length === 0 && right.length === 0) {
     return 0;

@@ -492,7 +492,9 @@ async function processItem(input: {
   });
 
   const canvas = await executor.getCanvasState({ canvasId: watchBot.canvasId });
-  const relevance = scoreRelevance(normalized, watchBot.instruction, canvas);
+  const relevance = scoreRelevance(normalized, watchBot.instruction, canvas, {
+    sourceType: normalized.sourceType,
+  });
   if (!isRelevantEnough(relevance)) {
     await persistStageEvent(store, {
       id: id(),
