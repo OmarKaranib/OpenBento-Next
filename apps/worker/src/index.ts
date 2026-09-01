@@ -22,77 +22,166 @@ export type WorkerMainOptions = {
   env?: NodeJS.ProcessEnv;
 };
 
-export function isWorkerEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+/**
+ * Fail closed. Absent / false / any value other than true or 1 means
+ * the worker does not construct stores/providers or run cycles.
+ */
+export function isWorkerEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
   const raw = env.OPENBENTO_WORKER_ENABLED?.trim().toLowerCase();
   return raw === "true" || raw === "1";
 }
 
-export function isWorkerRunOnce(env: NodeJS.ProcessEnv = process.env): boolean {
+/**
+ * Env-gated one-shot. When true with worker enabled, runs exactly one tick
+ * and exits even if argv includes --loop. Does not bypass worker/X gates.
+ */
+export function isWorkerRunOnce(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
   const raw = env.OPENBENTO_WORKER_RUN_ONCE?.trim().toLowerCase();
   return raw === "true" || raw === "1";
 }
 
-export function resolveRunOnce(argv: readonly string[], env: NodeJS.ProcessEnv = process.env): boolean {
-  return isWorkerRunOnce(env) || argv.includes("--once") || !argv.includes("--loop");
+export function resolveRunOnce(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return (
+    isWorkerRunOnce(env) ||
+    argv.includes("--once") ||
+    !argv.includes("--loop")
+  );
 }
 
-export function workerIntervalMs(env: NodeJS.ProcessEnv = process.env): number {
+export function workerIntervalMs(
+  env: NodeJS.ProcessEnv = process.env,
+): number {
   const parsed = Number(env.OPENBENTO_WORKER_INTERVAL_MS);
-  if (!Number.isFinite(parsed) || parsed <= 0) return WORKER_INTERVAL_MS_DEFAULT;
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    return WORKER_INTERVAL_MS_DEFAULT;
+  }
   return Math.min(Math.floor(parsed), WORKER_INTERVAL_MS_CEILING);
 }
 
 function delay(ms: number, isStopped: () => boolean): Promise<void> {
   return new Promise((resolve) => {
-    const finish = () => { clearTimeout(timer); clearInterval(check); resolve(); };
+    const finish = () => {
+      clearTimeout(timer);
+      clearInterval(check);
+      resolve();
+    };
     const timer = setTimeout(finish, ms);
-    const check = setInterval(() => { if (isStopped()) finish(); }, 20);
+    const check = setInterval(() => {
+      if (isStopped()) {
+        finish();
+      }
+    }, 20);
   });
 }
 
-export async function main(argv = process.argv.slice(2), options: WorkerMainOptions = {}): Promise<void> {
+/**
+ * WatchBot worker entry. Runtime persist is `createWorkerDomainStore()`
+ * (explicit service-role factory). It must not use web `getDomainStore()`,
+ * which is user-JWT only. `--fixture` is isolated-test only.
+ *
+ * The global worker gate is evaluated before any provider or store. Provider
+ * gates (including X_PROVIDER_ENABLED) are independent, narrower controls.
+ */
+export async function main(
+  argv = process.argv.slice(2),
+  options: WorkerMainOptions = {},
+): Promise<void> {
   const env = options.env ?? process.env;
   const runOnce = resolveRunOnce(argv, env);
   const useGrok = argv.includes("--provider=grok");
   const useX = argv.includes("--provider=x");
   const useFixture = argv.includes("--fixture");
   const runMode: WorkerRunMode = runOnce ? "once" : "loop";
+
   let stopped = options.abortSignal?.aborted ?? false;
-  const stop = () => { stopped = true; };
-  if (!isWorkerEnabled(env)) { process.stdout.write("openbento_worker_disabled\n"); return; }
-  if (stopped) return;
-  if (useGrok && useX) throw new Error("Select only one WatchBot provider per worker process");
-  if (isWorkerRunOnce(env)) process.stdout.write("openbento_worker_run_once\n");
+  const stop = () => {
+    stopped = true;
+  };
+
+  if (!isWorkerEnabled(env)) {
+    process.stdout.write("openbento_worker_disabled\n");
+    return;
+  }
+  if (stopped) {
+    return;
+  }
+  if (useGrok && useX) {
+    throw new Error("Select only one WatchBot provider per worker process");
+  }
+
+  if (isWorkerRunOnce(env)) {
+    process.stdout.write("openbento_worker_run_once\n");
+  }
+
   if (!runOnce) {
     process.once("SIGTERM", stop);
     process.once("SIGINT", stop);
     options.abortSignal?.addEventListener("abort", stop, { once: true });
   }
+
   try {
-    if (stopped) return;
+    if (stopped) {
+      return;
+    }
+
     const grok = useGrok ? createGrokSourceProvider(undefined, env) : null;
-    if (useGrok && !grok) throw new Error("Grok adapter requested but XAI_API_KEY is unset");
+    if (useGrok && !grok) {
+      throw new Error("Grok adapter requested but XAI_API_KEY is unset");
+    }
     const provider = useX ? createXSourceProvider(undefined, env) : grok ?? null;
     const seeded = useFixture ? await seedFixtureStore() : null;
-    if (stopped) return;
+    if (stopped) {
+      return;
+    }
+
     const createStore = options.createStore ?? createWorkerDomainStore;
     const store = seeded?.store ?? createStore();
-    const selectedProvider = provider ?? seeded?.provider ?? new FakeSourceProvider([]);
+    const selectedProvider =
+      provider ?? seeded?.provider ?? new FakeSourceProvider([]);
     const runCycle = options.runCycle ?? runWorkerCycle;
+
     const tick = async (): Promise<WorkerCycleResult> => {
-      const result = await runCycle({ store, provider: selectedProvider, env });
-      const telemetry = buildWorkerTickTelemetry({ provider: selectedProvider.id, result, runMode, includeWatchBots: true });
+      const result = await runCycle({
+        store,
+        provider: selectedProvider,
+        env,
+      });
+      const telemetry = buildWorkerTickTelemetry({
+        provider: selectedProvider.id,
+        result,
+        runMode,
+        includeWatchBots: true,
+      });
       process.stdout.write(`${formatWorkerTickTelemetry(telemetry)}\n`);
       return result;
     };
-    if (stopped) return;
+
+    if (stopped) {
+      return;
+    }
     await tick();
-    if (runOnce) return;
+    if (runOnce) {
+      return;
+    }
+
     const intervalMs = workerIntervalMs(env);
     while (!stopped && isWorkerEnabled(env)) {
       await delay(intervalMs, () => stopped);
-      if (stopped || !isWorkerEnabled(env)) break;
-      try { await tick(); } catch { process.stderr.write("watchbot_tick_error\n"); }
+      if (stopped || !isWorkerEnabled(env)) {
+        break;
+      }
+      try {
+        await tick();
+      } catch {
+        process.stderr.write("watchbot_tick_error\n");
+      }
     }
   } finally {
     if (!runOnce) {
