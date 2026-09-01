@@ -42,6 +42,8 @@ export interface PipelineItemResult {
   cardId?: string;
   noveltyScore?: number;
   detail?: string;
+  /** Set when the item cleared the novelty threshold in this cycle. */
+  passedNovelty?: boolean;
 }
 
 export interface PipelineCycleStats {
@@ -167,7 +169,7 @@ export function computePipelineCycleStats(
       item.kind === "error" && item.detail === "not_v0_source_or_unusable",
   ).length;
   const normalized = Math.max(0, discoveredCount - normalizeErrors);
-  const novel = rejectedRelevance + cardsCreated;
+  const novel = items.filter((item) => item.passedNovelty === true).length;
 
   return {
     discovered: discoveredCount,
@@ -509,6 +511,7 @@ async function processItem(input: {
       dedupKey,
       noveltyScore,
       detail: "rejected_relevance",
+      passedNovelty: true,
     };
   }
 
@@ -529,6 +532,7 @@ async function processItem(input: {
       kind: "error",
       dedupKey,
       detail: "source_payload_invalid",
+      passedNovelty: true,
     };
   }
 
@@ -578,6 +582,7 @@ async function processItem(input: {
       dedupKey,
       cardId: card.id,
       noveltyScore,
+      passedNovelty: true,
     };
   } catch (error) {
     if (isDomainError(error) && error.code === "conflict") {
@@ -594,7 +599,14 @@ async function processItem(input: {
       });
       return { kind: "duplicate", dedupKey };
     }
-    throw error;
+    const message =
+      error instanceof Error ? error.message.slice(0, 200) : "item_failed";
+    return {
+      kind: "error",
+      dedupKey,
+      detail: message,
+      passedNovelty: true,
+    };
   }
 }
 
