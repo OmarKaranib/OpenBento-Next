@@ -13,7 +13,9 @@ import {
 } from "./index";
 
 const dir = dirname(fileURLToPath(import.meta.url));
+const repoRoot = join(dir, "../../..");
 const source = readFileSync(join(dir, "index.ts"), "utf8");
+const railwayWorker = readFileSync(join(repoRoot, "railway.worker.toml"), "utf8");
 const pkg = JSON.parse(
   readFileSync(join(dir, "../package.json"), "utf8"),
 ) as { scripts: Record<string, string> };
@@ -40,6 +42,25 @@ function clearPersistEnv(): void {
 
 beforeEach(clearPersistEnv);
 afterEach(clearPersistEnv);
+
+describe("Railway worker X start command", () => {
+  it("selects --provider=x on the hosted loop start command", () => {
+    const startLine = railwayWorker
+      .split("\n")
+      .find((line) => line.trimStart().startsWith("startCommand"));
+    expect(startLine).toBe(
+      'startCommand = "pnpm --filter worker start:loop -- --provider=x"',
+    );
+  });
+
+  it("forwards --provider=x into argv the same way main selects the X adapter", () => {
+    // Mirrors pnpm: `tsx src/index.ts --loop -- --provider=x`
+    const forwarded = ["--loop", "--", "--provider=x"];
+    expect(forwarded.includes("--provider=x")).toBe(true);
+    expect(forwarded.includes("--loop")).toBe(true);
+    expect(source).toMatch(/argv\.includes\("--provider=x"\)/);
+  });
+});
 
 describe("worker persist factory", () => {
   it("uses createWorkerDomainStore and not web getDomainStore", () => {
@@ -133,27 +154,43 @@ describe("OPENBENTO_WORKER_ENABLED fail closed", () => {
     expect(runCycle).not.toHaveBeenCalled();
   });
 
-  it("global disable precedes X credential and provider construction", async () => {
+  it("global disable exits before X/provider/store even when X env is present", async () => {
     process.env.X_PROVIDER_ENABLED = "true";
+    process.env.X_BEARER_TOKEN = "must-not-be-read-while-worker-disabled";
+    process.env.SUPABASE_SERVICE_ROLE_KEY =
+      "must-not-be-read-while-worker-disabled";
     const createStore = vi.fn(() => {
       throw new Error("service-role client must not be constructed");
     });
+    const runCycle = vi.fn(async () => EMPTY_CYCLE);
 
     await expect(
       main(["--loop", "--provider=x"], {
         createStore: createStore as unknown as () => DomainStore,
+        runCycle,
       }),
     ).resolves.toBeUndefined();
     expect(createStore).not.toHaveBeenCalled();
+    expect(runCycle).not.toHaveBeenCalled();
+    // Gate is evaluated before createXSourceProvider / createStore invocation.
+    const gateIdx = source.indexOf("if (!isWorkerEnabled())");
+    const xIdx = source.indexOf("createXSourceProvider()");
+    const storeIdx = source.indexOf("options.createStore ?? createWorkerDomainStore");
+    expect(gateIdx).toBeGreaterThan(-1);
+    expect(xIdx).toBeGreaterThan(gateIdx);
+    expect(storeIdx).toBeGreaterThan(gateIdx);
   });
 
-  it("enabled worker keeps the independently disabled X lane inert", async () => {
+  it("enabled worker with X lane disabled runs zero X network requests", async () => {
     process.env.OPENBENTO_WORKER_ENABLED = "true";
     process.env.X_PROVIDER_ENABLED = "false";
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
 
     await expect(
       main(["--once", "--fixture", "--provider=x"]),
     ).resolves.toBeUndefined();
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
   });
 
   it("enabled X lane fails closed before a cycle when its token is missing", async () => {
@@ -187,5 +224,13 @@ describe("OPENBENTO_WORKER_ENABLED fail closed", () => {
     expect(source).toMatch(/SIGTERM/);
     expect(source).toMatch(/SIGINT/);
     expect(source).toMatch(/isWorkerEnabled/);
+  });
+});
+
+describe("worker secret separation", () => {
+  it("does not place worker secrets on NEXT_PUBLIC code paths", () => {
+    expect(source).not.toMatch(/NEXT_PUBLIC_.*X_BEARER|X_BEARER_TOKEN.*NEXT_PUBLIC/);
+    expect(source).not.toMatch(/NEXT_PUBLIC_SUPABASE_SERVICE_ROLE/);
+    expect(source).toMatch(/createWorkerDomainStore/);
   });
 });

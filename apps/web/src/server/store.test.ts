@@ -42,16 +42,20 @@ describe("web getDomainStore", () => {
     expect(getDomainStore()).not.toBeInstanceOf(SupabaseDomainStore);
   });
 
-  it("does not import the worker service-role factory", () => {
+  it("does not import the worker service-role factory or worker-only secrets", () => {
     const runtimeFiles = walkTsFiles(webSrc).filter(isRuntimeSource);
     expect(runtimeFiles.length).toBeGreaterThan(0);
     expect(runtimeFiles).not.toContain(fileURLToPath(import.meta.url));
     for (const file of runtimeFiles) {
       const text = readFileSync(file, "utf8");
-      expect(text, file).not.toMatch(/createWorkerDomainStore/);
-      expect(text, file).not.toMatch(/readWorkerSupabaseEnv/);
-      expect(text, file).not.toMatch(/createWorkerAuthedClient/);
-      expect(text, file).not.toMatch(/createWorkerSupabaseJsAdapter/);
+      const code = text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
+      expect(code, file).not.toMatch(/createWorkerDomainStore/);
+      expect(code, file).not.toMatch(/readWorkerSupabaseEnv/);
+      expect(code, file).not.toMatch(/createWorkerAuthedClient/);
+      expect(code, file).not.toMatch(/createWorkerSupabaseJsAdapter/);
+      expect(code, file).not.toMatch(/process\.env\.SUPABASE_SERVICE_ROLE_KEY/);
+      expect(code, file).not.toMatch(/process\.env\.X_BEARER_TOKEN/);
+      expect(code, file).not.toMatch(/NEXT_PUBLIC_.*SERVICE_ROLE|NEXT_PUBLIC_.*X_BEARER/);
     }
   });
 });
