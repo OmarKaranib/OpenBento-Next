@@ -539,9 +539,33 @@ describe("WatchBot pipeline with fake provider", () => {
     expect(second.cardsCreated).toBe(0);
     expect(second.items[0]?.kind).toBe("normalized");
     expect(second.items[0]?.detail).toBe("low_novelty");
+    expect(second.stats.novel).toBe(0);
     expect(spies.createCard).not.toHaveBeenCalled();
     const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
     expect(state.cards).toHaveLength(1);
+  });
+
+  it("counts post-novelty payload validation failures as novel in cycle stats", async () => {
+    const { store, executor, watchBot, provider } = await seed([newsItem]);
+    const validate = vi.spyOn(
+      await import("@openbento/domain"),
+      "isValidCardPayload",
+    ).mockReturnValue(false);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.cardsCreated).toBe(0);
+    expect(result.items[0]).toMatchObject({
+      kind: "error",
+      detail: "source_payload_invalid",
+      passedNovelty: true,
+    });
+    expect(result.stats.novel).toBe(1);
+    expect(result.stats.errors).toBe(1);
+    validate.mockRestore();
   });
 
   it("lets a later honest Card use a URL that was only rejected earlier", async () => {
