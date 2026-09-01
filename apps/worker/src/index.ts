@@ -6,6 +6,11 @@ import {
 } from "@openbento/watchbot";
 import { runWorkerCycle, type WorkerCycleResult } from "./cycle";
 import { seedFixtureStore } from "./fixture";
+import {
+  buildWorkerTickTelemetry,
+  formatWorkerTickTelemetry,
+  type WorkerRunMode,
+} from "./telemetry";
 
 export const WORKER_INTERVAL_MS_DEFAULT = 60_000;
 export const WORKER_INTERVAL_MS_CEILING = 300_000;
@@ -14,6 +19,7 @@ export type WorkerMainOptions = {
   createStore?: () => DomainStore;
   runCycle?: typeof runWorkerCycle;
   abortSignal?: AbortSignal;
+  env?: NodeJS.ProcessEnv;
 };
 
 /**
@@ -25,6 +31,28 @@ export function isWorkerEnabled(
 ): boolean {
   const raw = env.OPENBENTO_WORKER_ENABLED?.trim().toLowerCase();
   return raw === "true" || raw === "1";
+}
+
+/**
+ * Env-gated one-shot. When true with worker enabled, runs exactly one tick
+ * and exits even if argv includes --loop. Does not bypass worker/X gates.
+ */
+export function isWorkerRunOnce(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  const raw = env.OPENBENTO_WORKER_RUN_ONCE?.trim().toLowerCase();
+  return raw === "true" || raw === "1";
+}
+
+export function resolveRunOnce(
+  argv: readonly string[],
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return (
+    isWorkerRunOnce(env) ||
+    argv.includes("--once") ||
+    !argv.includes("--loop")
+  );
 }
 
 export function workerIntervalMs(
@@ -65,17 +93,19 @@ export async function main(
   argv = process.argv.slice(2),
   options: WorkerMainOptions = {},
 ): Promise<void> {
-  const once = argv.includes("--once") || !argv.includes("--loop");
+  const env = options.env ?? process.env;
+  const runOnce = resolveRunOnce(argv, env);
   const useGrok = argv.includes("--provider=grok");
   const useX = argv.includes("--provider=x");
   const useFixture = argv.includes("--fixture");
+  const runMode: WorkerRunMode = runOnce ? "once" : "loop";
 
   let stopped = options.abortSignal?.aborted ?? false;
   const stop = () => {
     stopped = true;
   };
 
-  if (!isWorkerEnabled()) {
+  if (!isWorkerEnabled(env)) {
     process.stdout.write("openbento_worker_disabled\n");
     return;
   }
@@ -86,7 +116,11 @@ export async function main(
     throw new Error("Select only one WatchBot provider per worker process");
   }
 
-  if (!once) {
+  if (isWorkerRunOnce(env)) {
+    process.stdout.write("openbento_worker_run_once\n");
+  }
+
+  if (!runOnce) {
     process.once("SIGTERM", stop);
     process.once("SIGINT", stop);
     options.abortSignal?.addEventListener("abort", stop, { once: true });
@@ -97,11 +131,11 @@ export async function main(
       return;
     }
 
-    const grok = useGrok ? createGrokSourceProvider() : null;
+    const grok = useGrok ? createGrokSourceProvider(undefined, env) : null;
     if (useGrok && !grok) {
       throw new Error("Grok adapter requested but XAI_API_KEY is unset");
     }
-    const provider = useX ? createXSourceProvider() : grok ?? null;
+    const provider = useX ? createXSourceProvider(undefined, env) : grok ?? null;
     const seeded = useFixture ? await seedFixtureStore() : null;
     if (stopped) {
       return;
@@ -114,17 +148,18 @@ export async function main(
     const runCycle = options.runCycle ?? runWorkerCycle;
 
     const tick = async (): Promise<WorkerCycleResult> => {
-      const result = await runCycle({ store, provider: selectedProvider });
-      const telemetry = {
+      const result = await runCycle({
+        store,
+        provider: selectedProvider,
+        env,
+      });
+      const telemetry = buildWorkerTickTelemetry({
         provider: selectedProvider.id,
-        units: result.cardsCreated,
-        watchBotIdCount: result.processed,
-        durationMs: result.cycles.reduce(
-          (sum, cycle) => sum + cycle.durationMs,
-          0,
-        ),
-      };
-      process.stdout.write(`${JSON.stringify(telemetry)}\n`);
+        result,
+        runMode,
+        includeWatchBots: true,
+      });
+      process.stdout.write(`${formatWorkerTickTelemetry(telemetry)}\n`);
       return result;
     };
 
@@ -132,14 +167,14 @@ export async function main(
       return;
     }
     await tick();
-    if (once) {
+    if (runOnce) {
       return;
     }
 
-    const intervalMs = workerIntervalMs();
-    while (!stopped && isWorkerEnabled()) {
+    const intervalMs = workerIntervalMs(env);
+    while (!stopped && isWorkerEnabled(env)) {
       await delay(intervalMs, () => stopped);
-      if (stopped || !isWorkerEnabled()) {
+      if (stopped || !isWorkerEnabled(env)) {
         break;
       }
       try {
@@ -149,7 +184,7 @@ export async function main(
       }
     }
   } finally {
-    if (!once) {
+    if (!runOnce) {
       process.off("SIGTERM", stop);
       process.off("SIGINT", stop);
       options.abortSignal?.removeEventListener("abort", stop);

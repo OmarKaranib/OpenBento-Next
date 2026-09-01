@@ -1,4 +1,8 @@
-export type { DiscoveredItem, SourceProvider } from "./provider";
+export type {
+  DiscoveredItem,
+  SourceProvider,
+  SourceProviderDiscoverInput,
+} from "./provider";
 export {
   WATCHBOT_PIPELINE_STAGES,
   type WatchBotPipelineStage,
@@ -22,11 +26,20 @@ export { NOVELTY_THRESHOLD, isNovelEnough, scoreNovelty } from "./novelty";
 export { RELEVANCE_THRESHOLD, isRelevantEnough, scoreRelevance } from "./relevance";
 export {
   assertSourceCardPayload,
+  computePipelineCycleStats,
+  isWatchBotProviderEligible,
   runWatchBotPipeline,
   type PipelineCycleResult,
+  type PipelineCycleStats,
   type PipelineItemResult,
   type RunWatchBotPipelineInput,
 } from "./pipeline";
+export {
+  XHttpBudget,
+  xMaxRequestsPerWorkerTick,
+  X_MAX_REQUESTS_PER_WORKER_TICK_CEILING,
+  X_MAX_REQUESTS_PER_WORKER_TICK_DEFAULT,
+} from "./x-http-budget";
 export { FakeSourceProvider } from "./fake-provider";
 export {
   createGrokSourceProvider,

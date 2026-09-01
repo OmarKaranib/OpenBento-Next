@@ -26,6 +26,7 @@ import {
   noopWatchBotTelemetry,
   type EmitWatchBotTelemetry,
 } from "./telemetry";
+import type { XHttpBudget } from "./x-http-budget";
 
 const SOURCE_CARD_SIZE = {
   width: Math.max(DEFAULT_CARD_SIZE.width, 280),
@@ -41,13 +42,31 @@ export interface PipelineItemResult {
   cardId?: string;
   noveltyScore?: number;
   detail?: string;
+  /** Set when the item cleared the novelty threshold in this cycle. */
+  passedNovelty?: boolean;
+}
+
+export interface PipelineCycleStats {
+  discovered: number;
+  normalized: number;
+  novel: number;
+  duplicates: number;
+  rejectedRelevance: number;
+  errors: number;
+  cardsCreated: number;
 }
 
 export interface PipelineCycleResult {
   watchBotId: string;
   skipped: boolean;
-  skipReason?: "paused" | "not_running";
+  skipReason?:
+    | "paused"
+    | "not_running"
+    | "provider_not_eligible"
+    | "x_budget_exhausted";
   items: PipelineItemResult[];
+  stats: PipelineCycleStats;
+  topOutcome?: string;
   cardsCreated: number;
   durationMs: number;
 }
@@ -60,6 +79,7 @@ export interface RunWatchBotPipelineInput {
   now?: () => string;
   id?: () => string;
   emitTelemetry?: EmitWatchBotTelemetry;
+  xHttpBudget?: XHttpBudget;
 }
 
 function isNoteLikePayload(payload: unknown): boolean {
@@ -105,6 +125,89 @@ function nextCardPosition(
   };
 }
 
+export function isWatchBotProviderEligible(
+  provider: SourceProvider,
+  sourceTypes: readonly string[],
+): boolean {
+  if (provider.vendor === "x-api") {
+    return sourceTypes.includes("x");
+  }
+  return true;
+}
+
+export function computePipelineCycleStats(
+  discoveredCount: number,
+  items: PipelineItemResult[],
+  cardsCreated: number,
+): PipelineCycleStats {
+  let duplicates = 0;
+  let rejectedRelevance = 0;
+  let errors = 0;
+
+  for (const item of items) {
+    switch (item.kind) {
+      case "duplicate":
+        duplicates += 1;
+        break;
+      case "rejected_relevance":
+        rejectedRelevance += 1;
+        break;
+      case "card_created":
+        break;
+      case "normalized":
+        break;
+      case "error":
+        errors += 1;
+        break;
+      default:
+        break;
+    }
+  }
+
+  const normalizeErrors = items.filter(
+    (item) =>
+      item.kind === "error" && item.detail === "not_v0_source_or_unusable",
+  ).length;
+  const normalized = Math.max(0, discoveredCount - normalizeErrors);
+  const novel = items.filter((item) => item.passedNovelty === true).length;
+
+  return {
+    discovered: discoveredCount,
+    normalized,
+    novel,
+    duplicates,
+    rejectedRelevance,
+    errors,
+    cardsCreated,
+  };
+}
+
+function deriveTopOutcome(input: {
+  skipped: boolean;
+  skipReason?: PipelineCycleResult["skipReason"];
+  stats: PipelineCycleStats;
+}): string {
+  if (input.skipped) {
+    return input.skipReason ?? "skipped";
+  }
+  if (input.stats.errors > 0) {
+    return "error";
+  }
+  if (input.stats.cardsCreated > 0) {
+    return "card_created";
+  }
+  if (input.stats.rejectedRelevance > 0) {
+    return "rejected_relevance";
+  }
+  if (input.stats.duplicates > 0) {
+    return "duplicate";
+  }
+  if (input.stats.discovered === 0) {
+    return "empty";
+  }
+  return "processed";
+}
+
 export async function runWatchBotPipeline(
   input: RunWatchBotPipelineInput,
 ): Promise<PipelineCycleResult> {
@@ -119,21 +222,59 @@ export async function runWatchBotPipeline(
       : [...DEFAULT_SOURCE_TYPES];
 
   if (watchBot.status === "paused") {
+    const stats = emptyPipelineStats();
     return {
       watchBotId: watchBot.id,
       skipped: true,
       skipReason: "paused",
       items: [],
+      stats,
+      topOutcome: "paused",
       cardsCreated: 0,
       durationMs: Date.now() - started,
     };
   }
   if (watchBot.status !== "running") {
+    const stats = emptyPipelineStats();
     return {
       watchBotId: watchBot.id,
       skipped: true,
       skipReason: "not_running",
       items: [],
+      stats,
+      topOutcome: "not_running",
+      cardsCreated: 0,
+      durationMs: Date.now() - started,
+    };
+  }
+
+  if (!isWatchBotProviderEligible(provider, sourceTypes)) {
+    const stats = emptyPipelineStats();
+    return {
+      watchBotId: watchBot.id,
+      skipped: true,
+      skipReason: "provider_not_eligible",
+      items: [],
+      stats,
+      topOutcome: "provider_not_eligible",
+      cardsCreated: 0,
+      durationMs: Date.now() - started,
+    };
+  }
+
+  if (
+    provider.vendor === "x-api" &&
+    sourceTypes.includes("x") &&
+    input.xHttpBudget?.isExhausted()
+  ) {
+    const stats = emptyPipelineStats();
+    return {
+      watchBotId: watchBot.id,
+      skipped: true,
+      skipReason: "x_budget_exhausted",
+      items: [],
+      stats,
+      topOutcome: "x_budget_exhausted",
       cardsCreated: 0,
       durationMs: Date.now() - started,
     };
@@ -141,6 +282,7 @@ export async function runWatchBotPipeline(
 
   const results: PipelineItemResult[] = [];
   let cardsCreated = 0;
+  let discoveredCount = 0;
 
   try {
     const providerResults = await provider.discover({
@@ -148,12 +290,12 @@ export async function runWatchBotPipeline(
       watchBotId: watchBot.id,
       instruction: watchBot.instruction,
       sourceTypes: [...sourceTypes],
+      xHttpBudget: input.xHttpBudget,
     });
-    // An adapter must honor sourceTypes, but keep the pipeline boundary
-    // authoritative if an adapter returns an unrequested source by mistake.
     const discovered = providerResults.filter((item) =>
       sourceTypes.includes(item.sourceType),
     );
+    discoveredCount = discovered.length;
 
     await persistStageEvent(store, {
       id: id(),
@@ -231,12 +373,27 @@ export async function runWatchBotPipeline(
     });
   }
 
+  const stats = computePipelineCycleStats(discoveredCount, results, cardsCreated);
   return {
     watchBotId: watchBot.id,
     skipped: false,
     items: results,
+    stats,
+    topOutcome: deriveTopOutcome({ skipped: false, stats }),
     cardsCreated,
     durationMs: Date.now() - started,
+  };
+}
+
+function emptyPipelineStats(): PipelineCycleStats {
+  return {
+    discovered: 0,
+    normalized: 0,
+    novel: 0,
+    duplicates: 0,
+    rejectedRelevance: 0,
+    errors: 0,
+    cardsCreated: 0,
   };
 }
 
@@ -354,6 +511,7 @@ async function processItem(input: {
       dedupKey,
       noveltyScore,
       detail: "rejected_relevance",
+      passedNovelty: true,
     };
   }
 
@@ -374,16 +532,12 @@ async function processItem(input: {
       kind: "error",
       dedupKey,
       detail: "source_payload_invalid",
+      passedNovelty: true,
     };
   }
 
   const position = nextCardPosition(canvas.cards.length);
 
-  /**
-   * createCard + setCardFrame + unique claim in one store transaction.
-   * Two-call membership stays (createCard has no frameId). A unique
-   * conflict rolls back the Card. A thrown create does not occupy the key.
-   */
   try {
     const card = await store.runInTransaction(async () => {
       const created = await executor.createCard({
@@ -428,6 +582,7 @@ async function processItem(input: {
       dedupKey,
       cardId: card.id,
       noveltyScore,
+      passedNovelty: true,
     };
   } catch (error) {
     if (isDomainError(error) && error.code === "conflict") {
@@ -444,7 +599,24 @@ async function processItem(input: {
       });
       return { kind: "duplicate", dedupKey };
     }
-    throw error;
+    const message =
+      error instanceof Error ? error.message.slice(0, 200) : "item_failed";
+    await persistStageEvent(store, {
+      id: id(),
+      watchBotId: watchBot.id,
+      canvasId: watchBot.canvasId,
+      kind: "error",
+      sourceUrl: `watchbot://${watchBot.id}/item`,
+      dedupKey: `error-item:${watchBot.id}:${now()}:${id()}`,
+      discoveredAt: now(),
+      detail: message,
+    });
+    return {
+      kind: "error",
+      dedupKey,
+      detail: message,
+      passedNovelty: true,
+    };
   }
 }
 

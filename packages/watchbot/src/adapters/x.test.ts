@@ -276,6 +276,24 @@ describe("official X API v2 SourceProvider", () => {
       });
     }
   });
+
+  it("respects the shared worker-tick HTTP budget before paging", async () => {
+    const { XHttpBudget } = await import("../x-http-budget");
+    const budget = new XHttpBudget(1);
+    const fetchImpl = vi
+      .fn()
+      .mockResolvedValueOnce(xSearchResponse([tweet("500")], "page2"))
+      .mockResolvedValueOnce(xSearchResponse([tweet("501")]));
+    const provider = enabledProvider(fetchImpl as typeof fetch, {
+      maxPagesPerCycle: 2,
+      maxRequestsPerCycle: 2,
+    });
+
+    await provider.discover({ ...discoverInput, xHttpBudget: budget });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(budget.httpRequests).toBe(1);
+  });
 });
 
 describe("X adapter error type", () => {
