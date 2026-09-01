@@ -930,4 +930,3 @@ describe("provider-aware X relevance pipeline", () => {
     expect(after.cards).toHaveLength(1);
   });
 });
-
