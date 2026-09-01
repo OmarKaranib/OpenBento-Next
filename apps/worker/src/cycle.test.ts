@@ -204,6 +204,144 @@ describe("WatchBot worker cycle", () => {
     expect(result.xHttpRequests).toBe(0);
     expect(result.processed).toBe(1);
   });
+
+  it("does not stamp lastActivityAt for provider_not_eligible skips", async () => {
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "activity-skip-user" });
+    const canvas = await executor.createCanvas({ name: "Web only" });
+    const watchBot = await executor.createWatchBot({
+      canvasId: canvas.id,
+      instruction: "Monitor web coverage",
+      sourceTypes: ["web", "news"],
+    });
+    const stampedAt = "2026-08-28T10:00:00.000Z";
+    await store.saveWatchBot({
+      ...(await store.getWatchBot(watchBot.id))!,
+      lastActivityAt: stampedAt,
+    });
+
+    const provider = createXSourceProvider({
+      enabled: true,
+      bearerToken: "test-bearer-token",
+      fetchImpl: vi.fn(async () => new Response("{}", { status: 200 })) as typeof fetch,
+    });
+
+    await runWorkerCycle({ store, provider });
+
+    const after = await store.getWatchBot(watchBot.id);
+    expect(after?.lastActivityAt).toBe(stampedAt);
+  });
+
+  it("does not stamp lastActivityAt for x_budget_exhausted skips", async () => {
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "budget-skip-user" });
+    const canvas = await executor.createCanvas({ name: "X lane" });
+    const first = await executor.createWatchBot({
+      canvasId: canvas.id,
+      instruction: "Monitor Lake Ontario developments",
+      sourceTypes: ["x"],
+      name: "X bot A",
+    });
+    const second = await executor.createWatchBot({
+      canvasId: canvas.id,
+      instruction: "Monitor Lake Ontario developments",
+      sourceTypes: ["x"],
+      name: "X bot B",
+    });
+    const stampedAt = "2026-08-28T10:00:00.000Z";
+    await store.saveWatchBot({
+      ...(await store.getWatchBot(second.id))!,
+      lastActivityAt: stampedAt,
+    });
+
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: "9001",
+              text: "Lake Ontario developments",
+              author_id: "42",
+              created_at: "2026-08-29T12:00:00.000Z",
+            },
+          ],
+          includes: { users: [{ id: "42", username: "openbento" }] },
+          meta: {},
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const provider = createXSourceProvider({
+      enabled: true,
+      bearerToken: "test-bearer-token",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    await runWorkerCycle({
+      store,
+      provider,
+      env: { X_MAX_REQUESTS_PER_WORKER_TICK: "1" },
+    });
+
+    expect(await store.getWatchBot(first.id)).toMatchObject({
+      lastActivityAt: expect.any(String),
+    });
+    const afterSecond = await store.getWatchBot(second.id);
+    expect(afterSecond?.lastActivityAt).toBe(stampedAt);
+  });
+
+  it("counts only running WatchBots as provider-eligible", async () => {
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "eligible-count-user" });
+    const canvas = await executor.createCanvas({ name: "Mixed statuses" });
+    const runningX = await executor.createWatchBot({
+      canvasId: canvas.id,
+      instruction: "Monitor Lake Ontario developments",
+      sourceTypes: ["x"],
+      name: "Running X",
+    });
+    const pausedX = await executor.createWatchBot({
+      canvasId: canvas.id,
+      instruction: "Monitor Lake Ontario developments",
+      sourceTypes: ["x"],
+      name: "Paused X",
+    });
+    await executor.pauseWatchBot({ watchBotId: pausedX.id });
+
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: "9001",
+              text: "Lake Ontario developments",
+              author_id: "42",
+              created_at: "2026-08-29T12:00:00.000Z",
+            },
+          ],
+          includes: { users: [{ id: "42", username: "openbento" }] },
+          meta: {},
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const provider = createXSourceProvider({
+      enabled: true,
+      bearerToken: "test-bearer-token",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    const result = await runWorkerCycle({
+      store,
+      provider,
+      env: { X_MAX_REQUESTS_PER_WORKER_TICK: "1" },
+    });
+
+    expect(result.providerEligibleWatchBots).toBe(1);
+    expect(result.skippedPaused).toBe(1);
+    expect(result.processed).toBe(1);
+    expect(runningX.id).not.toBe(pausedX.id);
+  });
 });
 
 describe("X adapter worker-tick budget", () => {
