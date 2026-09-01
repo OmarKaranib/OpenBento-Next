@@ -15,8 +15,12 @@ import {
   buildPauseWatchBotInput,
   buildResumeWatchBotInput,
   buildUpdateWatchBotInput,
+  configuredStatusDotClass,
   configuredStatusLabel,
+  dominantConfiguredStatus,
+  formatWatchBotLastActivity,
   watchBotCountSummary,
+  watchBotErrorDisplay,
 } from "./watchbot-ui";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -105,10 +109,14 @@ describe("WatchBot UI shell copy", () => {
     const combined = `${status}\n${manager}\n${panels}`;
 
     expect(manager).toContain("+ New WatchBot");
-    // Top-level activity dot stays neutral — domain "running" ≠ live worker.
-    expect(status).toContain("bg-zinc-600");
-    expect(status).not.toContain("bg-emerald-600");
+    // Header dot is configured-status color (error > running > paused), not live worker.
+    expect(status).toContain("configuredStatusDotClass");
+    expect(status).toContain("dominantConfiguredStatus");
     expect(status).not.toContain("hasRunning");
+    expect(manager).toContain("formatWatchBotLastActivity");
+    expect(manager).toContain("watchBotErrorDisplay");
+    expect(manager).toContain('role="status"');
+    expect(manager).not.toContain("dangerouslySetInnerHTML");
     // Must not be the old permanently-disabled control.
     expect(manager).not.toMatch(
       /type="button"\s+disabled\s+className=[\s\S]{0,160}\+ New WatchBot/,
@@ -258,5 +266,91 @@ describe("WatchBot UI → workspace execute", () => {
       }),
     );
     expect(execute).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("WatchBot last-activity and error display", () => {
+  it("formats parseable lastActivityAt as a short UTC label and rejects invalid", () => {
+    expect(formatWatchBotLastActivity(undefined)).toBeNull();
+    expect(formatWatchBotLastActivity("")).toBeNull();
+    expect(formatWatchBotLastActivity("   ")).toBeNull();
+    expect(formatWatchBotLastActivity("not-a-date")).toBeNull();
+    expect(formatWatchBotLastActivity("2026")).toBeNull();
+    expect(formatWatchBotLastActivity("2026-02-31")).toBeNull();
+    expect(formatWatchBotLastActivity("2026-13-01")).toBeNull();
+    expect(formatWatchBotLastActivity("now")).toBeNull();
+    expect(formatWatchBotLastActivity("2026-08-30")).toBe("2026-08-30");
+    expect(formatWatchBotLastActivity("2026-08-30T14:22:09.000Z")).toBe(
+      "2026-08-30 14:22",
+    );
+    expect(formatWatchBotLastActivity("  2026-09-01T00:05:00.000Z  ")).toBe(
+      "2026-09-01 00:05",
+    );
+    expect(formatWatchBotLastActivity("2026-08-30T23:59:00.000Z")).toBe(
+      "2026-08-30 23:59",
+    );
+    expect(formatWatchBotLastActivity("2026-08-30T14:22:09.000Z")).not.toMatch(
+      /now/i,
+    );
+  });
+
+  it("does not invent a current timestamp for missing lastActivityAt", () => {
+    const ui = readFileSync(join(here, "watchbot-ui.ts"), "utf8");
+    expect(ui).not.toMatch(/new Date\(\s*\)/);
+    expect(ui).not.toMatch(/Date\.now\(/);
+    expect(formatWatchBotLastActivity()).toBeNull();
+  });
+
+  it("sanitizes lastError as untrusted plain text", () => {
+    expect(watchBotErrorDisplay(undefined)).toBeNull();
+    expect(watchBotErrorDisplay("")).toBeNull();
+    expect(watchBotErrorDisplay("   ")).toBeNull();
+    expect(watchBotErrorDisplay("provider_unavailable")).toBe(
+      "provider_unavailable",
+    );
+    expect(
+      watchBotErrorDisplay(
+        `<img src=x onerror="alert(1)"><script>alert("xss")</script>`,
+      ),
+    ).toBe('alert("xss")');
+    expect(
+      watchBotErrorDisplay(
+        `<img src=x onerror="alert(1)"><script>alert("xss")</script>`,
+      ),
+    ).not.toContain("<script");
+    expect(
+      watchBotErrorDisplay(
+        `<img src=x onerror="alert(1)"><script>alert("xss")</script>`,
+      ),
+    ).not.toContain("<img");
+    expect(watchBotErrorDisplay("<script></script>")).toBeNull();
+  });
+
+  it("picks dominant configured status error > running > paused", () => {
+    expect(dominantConfiguredStatus([])).toBeNull();
+    expect(dominantConfiguredStatus([{ status: "paused" }])).toBe("paused");
+    expect(
+      dominantConfiguredStatus([{ status: "paused" }, { status: "running" }]),
+    ).toBe("running");
+    expect(
+      dominantConfiguredStatus([
+        { status: "running" },
+        { status: "error" },
+        { status: "paused" },
+      ]),
+    ).toBe("error");
+    expect(configuredStatusDotClass(null)).toBe("bg-zinc-600");
+    expect(configuredStatusDotClass("running")).toBe("bg-emerald-500");
+    expect(configuredStatusDotClass("paused")).toBe("bg-amber-500");
+    expect(configuredStatusDotClass("error")).toBe("bg-red-500");
+  });
+
+  it("includes error count in the header summary when present", () => {
+    expect(
+      watchBotCountSummary([{ status: "error" }, { status: "running" }]),
+    ).toBe("2 WatchBots · 1 configured running · 1 error");
+    expect(watchBotCountSummary([{ status: "error" }])).toBe(
+      "1 WatchBot · 1 error",
+    );
   });
 });
