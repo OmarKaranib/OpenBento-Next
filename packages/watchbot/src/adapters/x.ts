@@ -1,4 +1,4 @@
-import type { DiscoveredItem, SourceProvider } from "../provider";
+import type { DiscoveredItem, SourceProvider, SourceProviderDiscoverInput } from "../provider";
 import { sanitizeUntrustedText } from "../untrusted";
 
 const X_API_BASE_URL = "https://api.x.com/2";
@@ -182,12 +182,7 @@ class XSourceProvider implements SourceProvider {
 
   constructor(private readonly options: ResolvedXSourceProviderOptions) {}
 
-  async discover(input: {
-    canvasId: string;
-    watchBotId: string;
-    instruction: string;
-    sourceTypes: readonly string[];
-  }): Promise<DiscoveredItem[]> {
+  async discover(input: SourceProviderDiscoverInput): Promise<DiscoveredItem[]> {
     if (!this.options.enabled || !input.sourceTypes.includes("x")) {
       return [];
     }
@@ -217,12 +212,13 @@ class XSourceProvider implements SourceProvider {
       if (remaining <= 0) {
         break;
       }
+      if (input.xHttpBudget && !input.xHttpBudget.tryConsume()) {
+        break;
+      }
       const response = await this.fetchPage({
         query,
         token,
         pageToken,
-        // Recent Search requires 10–100. We may request its minimum while
-        // still emitting no more than maxResultsPerCycle below.
         maxResults: Math.max(
           10,
           Math.min(this.options.maxResultsPerRequest, remaining),
