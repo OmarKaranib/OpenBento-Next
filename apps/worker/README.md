@@ -27,11 +27,52 @@ or `1`. Absent or `false` logs `openbento_worker_disabled` and does not
 construct a service-role client, provider, or run cycles; `--loop` exits
 cleanly. Optional `OPENBENTO_WORKER_INTERVAL_MS` is capped at 300000.
 
+### One-shot env gate (`OPENBENTO_WORKER_RUN_ONCE`)
+
+When `OPENBENTO_WORKER_ENABLED=true` and `OPENBENTO_WORKER_RUN_ONCE=true`
+(or `1`), the worker runs **exactly one** tick and exits — even if argv
+includes `--loop` (including the canonical Railway start command). Logs
+`openbento_worker_run_once`. This gate does **not** bypass worker or X
+fail-closed gates.
+
+Use this for controlled live tests instead of overriding the Railway start
+command in the dashboard.
+
+### Global X request budget (`X_MAX_REQUESTS_PER_WORKER_TICK`)
+
+Default `1`, hard ceiling `10`. Shared across all X-eligible WatchBots in
+one worker tick. Once exhausted, later X WatchBots are skipped cleanly
+(`x_budget_exhausted`) — not marked as errors. Per-WatchBot caps
+(`X_MAX_REQUESTS_PER_CYCLE`, etc.) remain in force.
+
+Effective safety: global worker-tick budget **and** per-WatchBot adapter caps.
+
+### Tick telemetry
+
+Each tick emits JSON with aggregate pipeline counters, for example:
+`watchBotsLoaded`, `watchBotsProcessed`, `providerEligibleWatchBots`,
+`discovered`, `normalized`, `novel`, `duplicates`, `rejectedRelevance`,
+`cardsCreated`, `errors`, `xHttpRequests`, `durationMs`, `runMode`
+(`once` | `loop`), and optional per-WatchBot summaries. Never logs bearer
+tokens, service-role keys, owner IDs, instructions, or full tweet bodies.
+
 `railway.worker.toml` starts:
 `pnpm --filter worker start:loop -- --provider=x`
 so `process.argv` includes `--provider=x` (X adapter selected). That does **not**
 enable X: `X_PROVIDER_ENABLED` defaults to `false`, and the global worker gate
 defaults to `false`.
+
+### Safe future live-test sequence
+
+1. `OPENBENTO_WORKER_ENABLED=false`
+2. `X_PROVIDER_ENABLED=false`
+3. `OPENBENTO_WORKER_RUN_ONCE=true`
+4. `X_MAX_REQUESTS_PER_WORKER_TICK=1`
+5. Enable worker + X
+6. Deploy/redeploy (loop start command unchanged)
+7. Observe exactly one tick
+8. Return worker=false / X=false
+9. `OPENBENTO_WORKER_RUN_ONCE=false`
 
 `start` and `start:loop` never pass `--fixture`. They use the service-role
 durable store and require `SUPABASE_SERVICE_ROLE_KEY` (never committed; never
