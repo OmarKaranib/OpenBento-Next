@@ -963,3 +963,260 @@ describe("provider-aware X relevance pipeline", () => {
     expect(result.items[0]?.kind).toBe("rejected_relevance");
   });
 });
+
+function newsAbout(id: string, title: string): DiscoveredItem {
+  return {
+    sourceUrl: `https://news.example.com/${id}`,
+    title,
+    publishedAt: "2026-08-28T12:00:00.000Z",
+    sourceType: "news",
+    rawExcerpt: title,
+  };
+}
+
+describe("WatchBot intelligence Slice A collect-then-select", () => {
+  it("lets a later stronger candidate outrank an earlier weaker one before Cards", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      newsAbout("early-weak", "Ontario lake news brief"),
+      newsAbout(
+        "late-strong",
+        "Officials debate renaming Lake Ontario to Lake America",
+      ),
+      newsAbout("mid-1", "Officials debate renaming Lake Ontario"),
+      newsAbout("mid-2", "Officials debate renaming Lake Ontario again"),
+      newsAbout("mid-3", "Officials debate renaming Lake Ontario today"),
+      newsAbout("mid-4", "Officials debate renaming Lake Ontario update"),
+    ]);
+    const spies = spyExecutor(executor);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+
+    expect(result.stats.candidatesEligible).toBe(6);
+    expect(result.stats.selected).toBe(5);
+    expect(result.cardsCreated).toBe(5);
+    expect(spies.createCard).toHaveBeenCalledTimes(5);
+
+    const createdUrls = spies.createCard.mock.calls.map((call) => {
+      const input = call[0] as CreateCardInput;
+      return "provenance" in input.payload
+        ? input.payload.provenance.sourceUrl
+        : "";
+    });
+    expect(createdUrls).toContain(
+      "https://news.example.com/late-strong",
+    );
+    expect(createdUrls).not.toContain(
+      "https://news.example.com/early-weak",
+    );
+
+    const skipped = result.items.find(
+      (item) => item.detail === "not_selected",
+    );
+    expect(skipped).toMatchObject({
+      kind: "normalized",
+      detail: "not_selected",
+      candidateEligible: true,
+    });
+    expect(skipped?.selected).not.toBe(true);
+
+    const events = await store.listWatchBotEventsByWatchBot(watchBot.id);
+    expect(
+      events.some(
+        (event) =>
+          event.sourceUrl === `watchbot://${watchBot.id}/cycle-select` &&
+          event.detail === "candidates_eligible=6 selected=5",
+      ),
+    ).toBe(true);
+  });
+
+  it("keeps bounded selection deterministic when eligible scores tie", async () => {
+    const tied = [
+      newsAbout("tie-0", "Officials debate renaming Lake Ontario"),
+      newsAbout("tie-1", "Officials debate renaming Lake Ontario"),
+      newsAbout("tie-2", "Officials debate renaming Lake Ontario"),
+      newsAbout("tie-3", "Officials debate renaming Lake Ontario"),
+      newsAbout("tie-4", "Officials debate renaming Lake Ontario"),
+      newsAbout("tie-5", "Officials debate renaming Lake Ontario"),
+    ];
+    const { store, executor, watchBot, provider } = await seed(tied);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.stats.candidatesEligible).toBe(6);
+    expect(result.stats.selected).toBe(5);
+    expect(result.cardsCreated).toBe(5);
+
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    const urls = state.cards.map((card) =>
+      "provenance" in card.payload ? card.payload.provenance.sourceUrl : "",
+    );
+    expect(urls).toEqual([
+      "https://news.example.com/tie-0",
+      "https://news.example.com/tie-1",
+      "https://news.example.com/tie-2",
+      "https://news.example.com/tie-3",
+      "https://news.example.com/tie-4",
+    ]);
+    expect(result.items[5]).toMatchObject({
+      kind: "normalized",
+      detail: "not_selected",
+    });
+  });
+
+  it("never puts duplicate or irrelevant items in the selection pool", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      newsItem,
+      {
+        sourceUrl: newsItem.sourceUrl,
+        title: "Officials debate renaming Lake Ontario copy",
+        publishedAt: "2026-08-28T17:00:00.000Z",
+        sourceType: "news",
+        rawExcerpt: "Same canonical URL as the first item.",
+      },
+      {
+        sourceUrl: "https://sports.example.com/scores-again",
+        title: "Local team wins on Saturday",
+        publishedAt: "2026-08-28T16:00:00.000Z",
+        sourceType: "news",
+        rawExcerpt: "Final score and highlights from an unrelated game.",
+      },
+      newsAbout(
+        "honest",
+        "Canadian reaction to the Lake Ontario proposal",
+      ),
+    ]);
+
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.items.map((item) => item.kind)).toEqual([
+      "card_created",
+      "duplicate",
+      "rejected_relevance",
+      "card_created",
+    ]);
+    expect(
+      result.items.every((item) => {
+        if (item.kind === "duplicate" || item.kind === "rejected_relevance") {
+          return item.candidateEligible !== true;
+        }
+        return item.candidateEligible === true && item.selected === true;
+      }),
+    ).toBe(true);
+    expect(result.stats.candidatesEligible).toBe(2);
+    expect(result.stats.selected).toBe(2);
+    expect(result.stats.duplicates).toBe(1);
+    expect(result.stats.rejectedRelevance).toBe(1);
+    expect(result.cardsCreated).toBe(2);
+  });
+
+  it("does not penalize a multilingual candidate relative to weaker ASCII", async () => {
+    const { store, executor, watchBot, provider } = await seedXWatchBot([
+      xPost("60", "OpenAI note"),
+      xPost("61", "OpenAI ping"),
+      xPost("62", "WebMCP ping"),
+      xPost("63", "OpenAI ping two"),
+      xPost("64", "WebMCP ping two"),
+      xPost("65", "OpenAIとWebMCPの公式発表"),
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.stats.candidatesEligible).toBe(6);
+    expect(result.stats.selected).toBe(5);
+    expect(result.cardsCreated).toBe(5);
+
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    const titles = state.cards.map((card) =>
+      "provenance" in card.payload ? card.payload.provenance.title : "",
+    );
+    expect(titles).toContain("OpenAIとWebMCPの公式発表");
+    expect(titles).not.toContain("WebMCP ping two");
+  });
+
+  it("keeps selected Card provenance identical to the source item", async () => {
+    const item: DiscoveredItem = {
+      sourceUrl: "https://news.example.com/provenance-slice-a?utm_source=rss",
+      title: "Officials debate renaming Lake Ontario to Lake America",
+      publishedAt: "2026-08-28T12:00:00.000Z",
+      sourceType: "news",
+      rawExcerpt: "A proposal to rename Lake Ontario prompted official statements.",
+      author: "desk",
+      externalId: "prov-1",
+    };
+    const { store, executor, watchBot, provider } = await seed([item]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.cardsCreated).toBe(1);
+    expect(result.items[0]).toMatchObject({
+      kind: "card_created",
+      candidateEligible: true,
+      selected: true,
+    });
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    const card = state.cards[0];
+    expect(card?.type).toBe("news");
+    if (card && "provenance" in card.payload) {
+      expect(card.payload.provenance).toMatchObject({
+        sourceUrl: "https://news.example.com/provenance-slice-a",
+        title: item.title,
+        publishedAt: "2026-08-28T12:00:00.000Z",
+        sourceType: "news",
+        watchBotId: watchBot.id,
+        author: "desk",
+        externalId: "prov-1",
+      });
+    }
+  });
+
+  it("leaves ordinary web/news WatchBots on existing relevance behavior", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      newsItem,
+      webItem,
+      {
+        sourceUrl: "https://sports.example.com/scores-web",
+        title: "Local team wins on Saturday",
+        publishedAt: "2026-08-28T16:00:00.000Z",
+        sourceType: "news",
+        rawExcerpt: "Final score and highlights from an unrelated game.",
+      },
+    ]);
+    expect(watchBot.sourceTypes).toEqual(["web", "news"]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.items.map((item) => item.kind)).toEqual([
+      "card_created",
+      "card_created",
+      "rejected_relevance",
+    ]);
+    expect(result.stats.candidatesEligible).toBe(2);
+    expect(result.stats.selected).toBe(2);
+    expect(result.cardsCreated).toBe(2);
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(2);
+    expect(
+      state.cards.every((card) => card.type === "news" || card.type === "web"),
+    ).toBe(true);
+  });
+});

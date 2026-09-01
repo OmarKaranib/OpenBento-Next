@@ -47,6 +47,12 @@ export {
   type RunWatchBotPipelineInput,
 } from "./pipeline";
 export {
+  MAX_SELECTED_PER_CYCLE,
+  compareCandidates,
+  selectCandidates,
+  type RankableCandidate,
+} from "./select-candidates";
+export {
   XHttpBudget,
   xMaxRequestsPerWorkerTick,
   X_MAX_REQUESTS_PER_WORKER_TICK_CEILING,

@@ -17,6 +17,8 @@ export interface WorkerTickTelemetry {
   xHttpRequests: number;
   durationMs: number;
   runMode: WorkerRunMode;
+  candidatesEligible: number;
+  selected: number;
   watchBots?: WorkerWatchBotTelemetry[];
 }
 
@@ -25,6 +27,8 @@ export interface WorkerWatchBotTelemetry {
   discovered: number;
   cardsCreated: number;
   topOutcome: string;
+  candidatesEligible: number;
+  selected: number;
 }
 
 const FORBIDDEN_TELEMETRY_SUBSTRINGS = [
@@ -63,6 +67,8 @@ export function buildWorkerTickTelemetry(input: {
     xHttpRequests: input.result.xHttpRequests,
     durationMs,
     runMode: input.runMode,
+    candidatesEligible: input.result.candidatesEligible,
+    selected: input.result.selected,
   };
 
   if (input.includeWatchBots) {
@@ -71,6 +77,8 @@ export function buildWorkerTickTelemetry(input: {
       discovered: cycle.stats.discovered,
       cardsCreated: cycle.stats.cardsCreated,
       topOutcome: cycle.topOutcome ?? (cycle.skipped ? cycle.skipReason ?? "skipped" : "none"),
+      candidatesEligible: cycle.stats.candidatesEligible,
+      selected: cycle.stats.selected,
     }));
   }
 

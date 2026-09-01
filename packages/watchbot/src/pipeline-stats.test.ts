@@ -74,5 +74,39 @@ describe("computePipelineCycleStats novel counting", () => {
     const stats = computePipelineCycleStats(1, items, 0);
     expect(stats.novel).toBe(0);
     expect(stats.normalized).toBe(0);
+    expect(stats.candidatesEligible).toBe(0);
+    expect(stats.selected).toBe(0);
+  });
+
+  it("counts eligible vs selected without treating rejects as candidates", () => {
+    const items: PipelineItemResult[] = [
+      {
+        kind: "card_created",
+        dedupKey: "kept",
+        cardId: "card-1",
+        passedNovelty: true,
+        candidateEligible: true,
+        selected: true,
+      },
+      {
+        kind: "normalized",
+        dedupKey: "skipped",
+        detail: "not_selected",
+        passedNovelty: true,
+        candidateEligible: true,
+      },
+      { kind: "duplicate", dedupKey: "dup" },
+      {
+        kind: "rejected_relevance",
+        dedupKey: "noise",
+        passedNovelty: true,
+      },
+    ];
+    const stats = computePipelineCycleStats(4, items, 1);
+    expect(stats.candidatesEligible).toBe(2);
+    expect(stats.selected).toBe(1);
+    expect(stats.cardsCreated).toBe(1);
+    expect(stats.duplicates).toBe(1);
+    expect(stats.rejectedRelevance).toBe(1);
   });
 });

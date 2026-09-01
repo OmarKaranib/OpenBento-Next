@@ -42,6 +42,8 @@ const EMPTY_CYCLE: WorkerCycleResult = {
   rejectedRelevance: 0,
   errors: 0,
   xHttpRequests: 0,
+  candidatesEligible: 0,
+  selected: 0,
   cycles: [],
 };
 
@@ -353,6 +355,8 @@ describe("worker tick telemetry", () => {
         novel: 10,
         rejectedRelevance: 10,
         xHttpRequests: 1,
+        candidatesEligible: 0,
+        selected: 0,
         cycles: [
           {
             watchBotId: "566ba9b6-22bf-4c15-8abe-9f20b5496583",
@@ -366,6 +370,8 @@ describe("worker tick telemetry", () => {
               rejectedRelevance: 10,
               errors: 0,
               cardsCreated: 0,
+              candidatesEligible: 0,
+              selected: 0,
             },
             topOutcome: "rejected_relevance",
             cardsCreated: 0,

@@ -17,6 +17,7 @@ export const WATCHBOT_PIPELINE_STAGES = [
   "dedup",
   "novelty",
   "relevance",
+  "select",
   "provenance",
   "card",
 ] as const;
