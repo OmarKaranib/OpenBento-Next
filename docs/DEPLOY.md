@@ -80,6 +80,7 @@ Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web servic
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Same as web (or `NEXT_PUBLIC_SUPABASE_ANON_KEY`). Same factory-input note as above |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Worker-only.** Never on web. Required only when the worker gate is enabled |
 | `OPENBENTO_WORKER_ENABLED` | **`false`** initially. Global fail-closed gate. Absent / `false` / anything other than `true` or `1` → clean exit (`openbento_worker_disabled`), **before** store/provider construction, service-role access, X credentials, or cycles |
+| `OPENBENTO_WORKER_RUN_ONCE` | **`false`** initially. When `true`/`1` with worker enabled, runs **exactly one** tick and exits — even when `railway.worker.toml` starts `--loop`. Logs `openbento_worker_run_once`. Does **not** bypass worker or X gates |
 | `OPENBENTO_WORKER_INTERVAL_MS` | Optional loop interval. Default `60000`. Hard ceiling `300000` (5 minutes) |
 | `X_PROVIDER_ENABLED` | **`false`** initially. Independent X-lane gate. Defaults off even when the global worker is enabled |
 | `X_BEARER_TOKEN` | **Worker-only.** Never on web. Never `NEXT_PUBLIC_`. Required only when X lane is enabled |
@@ -87,6 +88,7 @@ Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web servic
 | `X_MAX_RESULTS_PER_CYCLE` | `10` |
 | `X_MAX_PAGES_PER_CYCLE` | `1` |
 | `X_MAX_REQUESTS_PER_CYCLE` | `1` |
+| `X_MAX_REQUESTS_PER_WORKER_TICK` | `1` (shared across all WatchBots in one tick; hard ceiling `10`) |
 | `X_PROVIDER_TIMEOUT_MS` | `10000` |
 
 **Secret separation:** `SUPABASE_SERVICE_ROLE_KEY` and `X_BEARER_TOKEN` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path.
@@ -101,18 +103,30 @@ Optional Grok (`XAI_API_KEY`) remains a separate, unused lane for this X-only re
 
 ## Future single-cycle live X test (DO NOT EXECUTE YET)
 
-Controlled sequence for a later CR3 authorization. Prefer **one** `--once` cycle — do **not** start the continuous loop for the first live test.
+Controlled sequence for a later CR3 authorization. Use env-gated one-shot — **do not** rely on Railway dashboard start-command overrides. Keep `railway.worker.toml` on the canonical loop command:
 
-1. Create the Railway `worker` service with gates initially **OFF** (`OPENBENTO_WORKER_ENABLED=false`, `X_PROVIDER_ENABLED=false`).
-2. Add required worker-only Supabase credentials (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY`).
-3. Add `X_BEARER_TOKEN` (worker-only).
-4. Keep bounded X limits at: requests/cycle = 1, pages/cycle = 1, results/cycle = 10, results/request = 10, timeout = 10000.
-5. Create/use **one** WatchBot whose `sourceTypes` include `"x"`.
-6. Run **exactly one** worker cycle with `OPENBENTO_WORKER_ENABLED=true`, `X_PROVIDER_ENABLED=true`, and:
-   `pnpm --filter worker start -- --provider=x`
-   (script already includes `--once`; ensure `--provider=x` is present).
-7. Inspect: X API result, cards created, provenance, dedup, Railway logs, X credit usage.
-8. Disable worker/X immediately after the test (`OPENBENTO_WORKER_ENABLED=false`, `X_PROVIDER_ENABLED=false`).
+`pnpm --filter worker start:loop -- --provider=x`
+
+Safe live-test sequence:
+
+1. `OPENBENTO_WORKER_ENABLED=false`
+2. `X_PROVIDER_ENABLED=false`
+3. `OPENBENTO_WORKER_RUN_ONCE=true`
+4. `X_MAX_REQUESTS_PER_WORKER_TICK=1` (plus existing per-cycle caps)
+5. Enable worker + X (`OPENBENTO_WORKER_ENABLED=true`, `X_PROVIDER_ENABLED=true`)
+6. Deploy/redeploy the worker service (loop start command unchanged)
+7. Observe **exactly one** tick in logs (`openbento_worker_run_once`, aggregate telemetry with `runMode: "once"`, `xHttpRequests` ≤ budget)
+8. Return gates off: `OPENBENTO_WORKER_ENABLED=false`, `X_PROVIDER_ENABLED=false`
+9. Return `OPENBENTO_WORKER_RUN_ONCE=false`
+
+Prerequisites before step 5:
+
+- Create the Railway `worker` service with gates initially **OFF**
+- Add worker-only Supabase credentials and `X_BEARER_TOKEN`
+- Keep bounded X limits at: requests/cycle = 1, pages/cycle = 1, results/cycle = 10, results/request = 10, timeout = 10000
+- Create/use **one** WatchBot whose `sourceTypes` include `"x"`
+
+Inspect: aggregate telemetry (discovered, normalized, novel, rejectedRelevance, cardsCreated, xHttpRequests), cards/provenance, dedup, Railway logs, X credit usage.
 
 Do **not** execute this plan from this documentation-only readiness change.
 
