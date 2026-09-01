@@ -3,7 +3,8 @@
 import { StickyNote } from "lucide-react";
 import { useCanvasCommands } from "@/components/canvas/use-canvas-commands";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
-import { buildCreateNoteCardInput } from "@/lib/domain/note-card";
+import { NOTE_DEFAULT_SIZE, buildCreateNoteCardInput } from "@/lib/domain/note-card";
+import { findFreeCardPosition } from "@/lib/find-free-card-position";
 import { AddSourceCards } from "./AddSourceCard";
 import { CanvasSwitcher } from "./CanvasSwitcher";
 import { WatchBotStatus } from "./WatchBotStatus";
@@ -29,10 +30,7 @@ export function TopBar() {
               buildCreateNoteCardInput({
                 canvasId,
                 text: "",
-                position: {
-                  x: 80 + snapshot.cards.length * 24,
-                  y: 80 + snapshot.cards.length * 16,
-                },
+                position: findFreeCardPosition(snapshot.cards, NOTE_DEFAULT_SIZE),
               }),
             );
           }}
