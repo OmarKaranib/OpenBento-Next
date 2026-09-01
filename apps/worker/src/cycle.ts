@@ -4,17 +4,29 @@ import {
   type WatchBot,
 } from "@openbento/domain";
 import {
+  isWatchBotProviderEligible,
   runWatchBotPipeline,
+  XHttpBudget,
+  xMaxRequestsPerWorkerTick,
   type PipelineCycleResult,
   type SourceProvider,
 } from "@openbento/watchbot";
 
 export interface WorkerCycleResult {
+  watchBotsLoaded: number;
+  watchBotsProcessed: number;
+  providerEligibleWatchBots: number;
   processed: number;
   skippedPaused: number;
   skippedOther: number;
   cardsCreated: number;
+  discovered: number;
+  normalized: number;
+  novel: number;
+  duplicates: number;
+  rejectedRelevance: number;
   errors: number;
+  xHttpRequests: number;
   cycles: PipelineCycleResult[];
 }
 
@@ -23,6 +35,25 @@ export interface RunWorkerCycleInput {
   provider: SourceProvider;
   now?: () => string;
   id?: () => string;
+  env?: NodeJS.ProcessEnv;
+}
+
+const DEFAULT_SOURCE_TYPES = ["web", "news"] as const;
+
+function resolveSourceTypes(bot: WatchBot): readonly string[] {
+  return bot.sourceTypes.length > 0 ? bot.sourceTypes : DEFAULT_SOURCE_TYPES;
+}
+
+function aggregateCycleStats(
+  result: WorkerCycleResult,
+  cycle: PipelineCycleResult,
+): void {
+  result.discovered += cycle.stats.discovered;
+  result.normalized += cycle.stats.normalized;
+  result.novel += cycle.stats.novel;
+  result.duplicates += cycle.stats.duplicates;
+  result.rejectedRelevance += cycle.stats.rejectedRelevance;
+  result.errors += cycle.stats.errors;
 }
 
 /**
@@ -37,17 +68,37 @@ export async function runWorkerCycle(
   input: RunWorkerCycleInput,
 ): Promise<WorkerCycleResult> {
   const now = input.now ?? (() => new Date().toISOString());
+  const env = input.env ?? process.env;
   const bots = await input.store.listWatchBots();
+  const xHttpBudget =
+    input.provider.vendor === "x-api"
+      ? new XHttpBudget(xMaxRequestsPerWorkerTick(env))
+      : undefined;
+
   const result: WorkerCycleResult = {
+    watchBotsLoaded: bots.length,
+    watchBotsProcessed: 0,
+    providerEligibleWatchBots: 0,
     processed: 0,
     skippedPaused: 0,
     skippedOther: 0,
     cardsCreated: 0,
+    discovered: 0,
+    normalized: 0,
+    novel: 0,
+    duplicates: 0,
+    rejectedRelevance: 0,
     errors: 0,
+    xHttpRequests: 0,
     cycles: [],
   };
 
   for (const bot of bots) {
+    const sourceTypes = resolveSourceTypes(bot);
+    if (isWatchBotProviderEligible(input.provider, sourceTypes)) {
+      result.providerEligibleWatchBots += 1;
+    }
+
     if (bot.status === "paused") {
       result.skippedPaused += 1;
       continue;
@@ -72,11 +123,21 @@ export async function runWorkerCycle(
         provider: input.provider,
         now,
         id: input.id,
+        xHttpBudget,
       });
       result.cycles.push(cycle);
+      result.watchBotsProcessed += 1;
       result.processed += 1;
       result.cardsCreated += cycle.cardsCreated;
-      await stampLastActivity(input.store, bot, now());
+      aggregateCycleStats(result, cycle);
+      if (!cycle.skipped) {
+        await stampLastActivity(input.store, bot, now());
+      } else if (
+        cycle.skipReason === "provider_not_eligible" ||
+        cycle.skipReason === "x_budget_exhausted"
+      ) {
+        await stampLastActivity(input.store, bot, now());
+      }
     } catch (error) {
       result.errors += 1;
       const message =
@@ -85,6 +146,7 @@ export async function runWorkerCycle(
     }
   }
 
+  result.xHttpRequests = xHttpBudget?.httpRequests ?? 0;
   return result;
 }
 
