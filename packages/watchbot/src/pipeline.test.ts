@@ -568,6 +568,41 @@ describe("WatchBot pipeline with fake provider", () => {
     validate.mockRestore();
   });
 
+  it("persists one durable error event when createCard fails after novelty", async () => {
+    const { store, executor, watchBot, provider } = await seed([newsItem]);
+    const create = vi
+      .spyOn(executor, "createCard")
+      .mockRejectedValueOnce(new Error("create_failed"));
+
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+
+    expect(result.cardsCreated).toBe(0);
+    expect(result.items[0]).toMatchObject({
+      kind: "error",
+      passedNovelty: true,
+      detail: "create_failed",
+    });
+    expect(result.stats.novel).toBe(1);
+    expect(result.stats.errors).toBe(1);
+
+    const events = await store.listWatchBotEventsByWatchBot(watchBot.id);
+    const errorEvents = events.filter((event) => event.kind === "error");
+    expect(errorEvents).toHaveLength(1);
+    expect(errorEvents[0]).toMatchObject({
+      sourceUrl: `watchbot://${watchBot.id}/item`,
+      detail: "create_failed",
+    });
+
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(0);
+    create.mockRestore();
+  });
+
   it("lets a later honest Card use a URL that was only rejected earlier", async () => {
     const url = "https://news.example.com/late-ontario";
     const { store, executor, watchBot, provider } = await seed([
