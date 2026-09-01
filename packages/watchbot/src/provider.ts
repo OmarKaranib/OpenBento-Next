@@ -1,12 +1,17 @@
 import type { WatchBotSourceType } from "@openbento/domain";
 import type { XHttpBudget } from "./x-http-budget";
 
+/**
+ * Provider-agnostic discovery port. Provider implementations stay in this
+ * package and are never imported by `@openbento/domain`.
+ */
 export interface DiscoveredItem {
   sourceUrl: string;
   title: string;
   publishedAt: string;
   sourceType: WatchBotSourceType;
   rawExcerpt?: string;
+  /** Optional source-supplied identity fields. Never inferred by the pipeline. */
   author?: string;
   externalId?: string;
 }
@@ -16,6 +21,7 @@ export interface SourceProviderDiscoverInput {
   watchBotId: string;
   instruction: string;
   sourceTypes: WatchBotSourceType[];
+  /** Shared worker-tick budget for actual X HTTP requests. X adapter only. */
   xHttpBudget?: XHttpBudget;
 }
 

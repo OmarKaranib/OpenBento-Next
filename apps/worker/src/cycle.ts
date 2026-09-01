@@ -56,6 +56,14 @@ function aggregateCycleStats(
   result.errors += cycle.stats.errors;
 }
 
+/**
+ * One worker tick: load WatchBots, skip paused, run the shared pipeline.
+ *
+ * Pause / resume go through `pauseWatchBot` / `resumeWatchBot` (executor).
+ * Those actions already cover running ↔ paused. There is no catalog action
+ * for `error` + `lastError`, so only that failure path writes the WatchBot
+ * row directly.
+ */
 export async function runWorkerCycle(
   input: RunWorkerCycleInput,
 ): Promise<WorkerCycleResult> {
@@ -158,6 +166,10 @@ async function stampLastActivity(
   });
 }
 
+/**
+ * ACTION_CATALOG has pause/resume (running|paused) but no error action.
+ * lastError is not an updateWatchBot field. This is the only store status write.
+ */
 async function recordWatchBotError(
   store: DomainStore,
   bot: WatchBot,
