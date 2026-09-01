@@ -1,4 +1,5 @@
 import type { WatchBotSourceType } from "@openbento/domain";
+import type { XHttpBudget } from "./x-http-budget";
 
 /**
  * Provider-agnostic discovery port. Provider implementations stay in this
@@ -15,13 +16,17 @@ export interface DiscoveredItem {
   externalId?: string;
 }
 
+export interface SourceProviderDiscoverInput {
+  canvasId: string;
+  watchBotId: string;
+  instruction: string;
+  sourceTypes: WatchBotSourceType[];
+  /** Shared worker-tick budget for actual X HTTP requests. X adapter only. */
+  xHttpBudget?: XHttpBudget;
+}
+
 export interface SourceProvider {
   readonly id: string;
   readonly vendor: "xai-grok" | "x-api" | "unspecified";
-  discover(input: {
-    canvasId: string;
-    watchBotId: string;
-    instruction: string;
-    sourceTypes: WatchBotSourceType[];
-  }): Promise<DiscoveredItem[]>;
+  discover(input: SourceProviderDiscoverInput): Promise<DiscoveredItem[]>;
 }
