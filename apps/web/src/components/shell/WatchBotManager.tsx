@@ -12,7 +12,9 @@ import {
   buildUpdateWatchBotInput,
   configuredStatusLabel,
   DEFAULT_CREATE_SOURCE_TYPES,
+  formatWatchBotLastActivity,
   sourceTypesLabel,
+  watchBotErrorDisplay,
   WATCHBOT_EXECUTION_CAVEAT,
   WATCHBOT_SCOPE_LABEL,
   WATCHBOT_SOURCE_TYPE_OPTIONS,
@@ -234,69 +236,86 @@ export function WatchBotCanvasPanel({
         <p className="text-xs leading-5 text-zinc-500">{WATCHBOT_ZERO_STATE_COPY}</p>
       ) : (
         <ul className="space-y-2">
-          {watchBots.map((bot) => (
-            <li
-              key={bot.id}
-              className="rounded-md border border-zinc-800/80 bg-zinc-950/40 px-2 py-1.5"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="truncate text-xs font-medium text-zinc-200">
-                    {bot.name?.trim() || "WatchBot"}
-                  </p>
-                  <p className="mt-0.5 text-[11px] text-zinc-500">
-                    {configuredStatusLabel(bot.status)}
-                    {" · "}
-                    {sourceTypesLabel(bot.sourceTypes)}
-                  </p>
+          {watchBots.map((bot) => {
+            const lastActivity = formatWatchBotLastActivity(bot.lastActivityAt);
+            const errorDisplay = watchBotErrorDisplay(bot.lastError);
+            return (
+              <li
+                key={bot.id}
+                className="rounded-md border border-zinc-800/80 bg-zinc-950/40 px-2 py-1.5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate text-xs font-medium text-zinc-200">
+                      {bot.name?.trim() || "WatchBot"}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-zinc-500">
+                      {configuredStatusLabel(bot.status)}
+                      {" · "}
+                      {sourceTypesLabel(bot.sourceTypes)}
+                    </p>
+                    {lastActivity ? (
+                      <p className="mt-0.5 text-[10px] leading-4 text-zinc-500">
+                        Last activity {lastActivity}
+                      </p>
+                    ) : null}
+                    {errorDisplay ? (
+                      <p
+                        className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-red-400"
+                        role="status"
+                      >
+                        {errorDisplay}
+                      </p>
+                    ) : null}
+                  </div>
+                  <span
+                    className={cn(
+                      "shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
+                      bot.status === "running"
+                        ? "bg-emerald-950 text-emerald-400"
+                        : bot.status === "paused"
+                          ? "bg-amber-950 text-amber-400"
+                          : "bg-red-950 text-red-400",
+                    )}
+                  >
+                    {bot.status}
+                  </span>
                 </div>
-                <span
-                  className={cn(
-                    "shrink-0 rounded px-1.5 py-0.5 text-[10px] uppercase tracking-wide",
-                    bot.status === "running"
-                      ? "bg-emerald-950 text-emerald-400"
-                      : bot.status === "paused"
-                        ? "bg-amber-950 text-amber-400"
-                        : "bg-red-950 text-red-400",
+                <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-zinc-500">
+                  {bot.instruction}
+                </p>
+                <div className="mt-1.5 flex flex-wrap gap-1">
+                  {bot.status === "paused" ? (
+                    <button
+                      type="button"
+                      className="rounded px-1.5 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                      disabled={pending}
+                      onClick={() => void onResume(bot.id)}
+                    >
+                      Resume
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="rounded px-1.5 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                      disabled={pending}
+                      onClick={() => void onPause(bot.id)}
+                    >
+                      Pause
+                    </button>
                   )}
-                >
-                  {bot.status}
-                </span>
-              </div>
-              <p className="mt-1 line-clamp-2 text-[11px] leading-4 text-zinc-500">
-                {bot.instruction}
-              </p>
-              <div className="mt-1.5 flex flex-wrap gap-1">
-                {bot.status === "paused" ? (
                   <button
                     type="button"
                     className="rounded px-1.5 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
                     disabled={pending}
-                    onClick={() => void onResume(bot.id)}
+                    onClick={() => startEdit(bot)}
                   >
-                    Resume
+                    Edit
                   </button>
-                ) : (
-                  <button
-                    type="button"
-                    className="rounded px-1.5 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
-                    disabled={pending}
-                    onClick={() => void onPause(bot.id)}
-                  >
-                    Pause
-                  </button>
-                )}
-                <button
-                  type="button"
-                  className="rounded px-1.5 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
-                  disabled={pending}
-                  onClick={() => startEdit(bot)}
-                >
-                  Edit
-                </button>
-              </div>
-            </li>
-          ))}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
       <p className="text-[10px] leading-4 text-zinc-600">{WATCHBOT_EXECUTION_CAVEAT}</p>
