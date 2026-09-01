@@ -4,6 +4,7 @@ import { FileText, Globe, Youtube } from "lucide-react";
 import { useState } from "react";
 import type { CreatableSourceCardType } from "@/lib/domain/source-card";
 import { buildCreateSourceCardInput } from "@/lib/domain/source-card";
+import { findFreeCardPosition } from "@/lib/find-free-card-position";
 import { getCardType, listCreatableCardTypes } from "@/components/cards/registry";
 import { useCanvasCommands } from "@/components/canvas/use-canvas-commands";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
@@ -16,13 +17,6 @@ const ICONS: Record<CreatableSourceCardType, typeof Youtube> = {
   article: FileText,
   web: Globe,
 };
-
-function nextCardPosition(index: number): { x: number; y: number } {
-  return {
-    x: 80 + index * 24,
-    y: 80 + index * 16,
-  };
-}
 
 function AddSourceCardButton({ type }: { type: CreatableSourceCardType }) {
   const cardType = getCardType(type);
@@ -73,7 +67,7 @@ function AddSourceCardButton({ type }: { type: CreatableSourceCardType }) {
                 type,
                 sourceUrl,
                 title,
-                position: nextCardPosition(snapshot.cards.length),
+                position: findFreeCardPosition(snapshot.cards, cardType.defaultSize),
                 size: cardType.defaultSize,
               });
               void persistCreatedCard(input);
