@@ -1,9 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   createActionExecutor,
   InMemoryDomainStore,
+  type WatchBotSourceType,
 } from "@openbento/domain";
-import { FakeSourceProvider } from "@openbento/watchbot";
+import {
+  createXSourceProvider,
+  FakeSourceProvider,
+} from "@openbento/watchbot";
 import { runWorkerCycle } from "./cycle";
 import { seedFixtureStore } from "./fixture";
 
@@ -105,5 +109,141 @@ describe("WatchBot worker cycle", () => {
     expect(
       state.cards.every((card) => card.type === "web" || card.type === "news"),
     ).toBe(true);
+  });
+
+  it("does not invoke X discover for web/news-only WatchBots", async () => {
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "x-skip-user" });
+    const canvas = await executor.createCanvas({ name: "Mixed" });
+    await executor.createWatchBot({
+      canvasId: canvas.id,
+      instruction: "Monitor web coverage",
+      sourceTypes: ["web", "news"],
+    });
+
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 200 }));
+    const provider = createXSourceProvider({
+      enabled: true,
+      bearerToken: "test-bearer-token",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    const result = await runWorkerCycle({
+      store,
+      provider,
+      env: { X_MAX_REQUESTS_PER_WORKER_TICK: "1" },
+    });
+
+    expect(result.providerEligibleWatchBots).toBe(0);
+    expect(result.xHttpRequests).toBe(0);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.cycles[0]?.skipReason).toBe("provider_not_eligible");
+  });
+
+  it("shares the global X HTTP budget across eligible WatchBots", async () => {
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "x-budget-user" });
+    const canvas = await executor.createCanvas({ name: "X lane" });
+    await executor.createWatchBot({
+      canvasId: canvas.id,
+      instruction: "Monitor Lake Ontario developments",
+      sourceTypes: ["x"],
+      name: "X bot A",
+    });
+    await executor.createWatchBot({
+      canvasId: canvas.id,
+      instruction: "Monitor Lake Ontario developments",
+      sourceTypes: ["x"],
+      name: "X bot B",
+    });
+
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: "9001",
+              text: "Lake Ontario developments",
+              author_id: "42",
+              created_at: "2026-08-29T12:00:00.000Z",
+            },
+          ],
+          includes: { users: [{ id: "42", username: "openbento" }] },
+          meta: {},
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const provider = createXSourceProvider({
+      enabled: true,
+      bearerToken: "test-bearer-token",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    const result = await runWorkerCycle({
+      store,
+      provider,
+      env: { X_MAX_REQUESTS_PER_WORKER_TICK: "1" },
+    });
+
+    expect(result.providerEligibleWatchBots).toBe(2);
+    expect(result.xHttpRequests).toBe(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result.cycles[0]?.skipped).toBe(false);
+    expect(result.cycles[1]?.skipReason).toBe("x_budget_exhausted");
+    expect(result.errors).toBe(0);
+  });
+
+  it("non-X fake provider consumes zero X budget counters", async () => {
+    const { store, provider } = await seedFixtureStore();
+    const result = await runWorkerCycle({
+      store,
+      provider,
+      env: { X_MAX_REQUESTS_PER_WORKER_TICK: "1" },
+    });
+    expect(result.xHttpRequests).toBe(0);
+    expect(result.processed).toBe(1);
+  });
+});
+
+describe("X adapter worker-tick budget", () => {
+  const discoverInput = {
+    canvasId: "canvas-x",
+    watchBotId: "watchbot-x",
+    instruction: "Monitor meaningful Lake Ontario developments",
+    sourceTypes: ["x"] as WatchBotSourceType[],
+  };
+
+  it("counts actual HTTP calls through the shared budget object", async () => {
+    const { XHttpBudget } = await import("@openbento/watchbot");
+    const budget = new XHttpBudget(1);
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: "123",
+              text: "Lake Ontario update",
+              author_id: "42",
+              created_at: "2026-08-29T12:00:00.000Z",
+            },
+          ],
+          includes: { users: [{ id: "42", username: "openbento" }] },
+          meta: { next_token: "page2" },
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const provider = createXSourceProvider({
+      enabled: true,
+      bearerToken: "test-bearer-token",
+      fetchImpl: fetchImpl as typeof fetch,
+      maxPagesPerCycle: 2,
+      maxRequestsPerCycle: 2,
+    });
+
+    await provider.discover({ ...discoverInput, xHttpBudget: budget });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(budget.httpRequests).toBe(1);
   });
 });
