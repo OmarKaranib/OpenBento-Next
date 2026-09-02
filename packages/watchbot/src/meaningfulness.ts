@@ -32,16 +32,57 @@ import type { RankableCandidate } from "./select-candidates";
 /** Default importance when no classifier is configured. Not a quality score. */
 export const PASSTHROUGH_IMPORTANCE = 0;
 
+/**
+ * Machine-safe classifier outcome for durable stage-event `detail`.
+ *
+ * - `classified` — HTTP/parse succeeded (or passthrough/fixture; omit treated as this)
+ * - `budget_exhausted` — no HTTP attempt (`!budget.tryConsume()`); still fail-closed
+ * - `error` — timeout / HTTP / malformed after an attempt; still fail-closed
+ *
+ * Never put prompts, source bodies, raw model output, or secrets here.
+ */
+export const CLASSIFICATION_STATUSES = [
+  "classified",
+  "budget_exhausted",
+  "error",
+] as const;
+
+export type ClassificationStatus = (typeof CLASSIFICATION_STATUSES)[number];
+
+export function isClassificationStatus(
+  value: unknown,
+): value is ClassificationStatus {
+  return (
+    value === "classified" ||
+    value === "budget_exhausted" ||
+    value === "error"
+  );
+}
+
 export const PASSTHROUGH_MEANINGFULNESS_JUDGMENT: MeaningfulnessJudgment = {
   meaningful: true,
   importanceScore: PASSTHROUGH_IMPORTANCE,
+  classificationStatus: "classified",
 };
 
-/** Fail-closed judgment for malformed/timeout/budget/provider errors. */
+/** Fail-closed body for malformed/timeout/budget/provider errors. Adapters add status. */
 export const FAIL_CLOSED_MEANINGFULNESS_JUDGMENT: MeaningfulnessJudgment = {
   meaningful: false,
   importanceScore: 0,
 };
+
+/** Fail-closed judgment with a machine-safe reason (budget skip vs attempted error). */
+export function failClosedMeaningfulnessJudgment(
+  classificationStatus: Extract<
+    ClassificationStatus,
+    "budget_exhausted" | "error"
+  >,
+): MeaningfulnessJudgment {
+  return {
+    ...FAIL_CLOSED_MEANINGFULNESS_JUDGMENT,
+    classificationStatus,
+  };
+}
 
 export interface MeaningfulnessInput {
   /** Sanitized discovered title. Untrusted data. */
@@ -63,6 +104,12 @@ export interface MeaningfulnessJudgment {
   meaningful: boolean;
   /** Importance in [0, 1]. Higher outranks lower at selection. */
   importanceScore: number;
+  /**
+   * Optional machine-safe outcome. Omit is treated as `classified`.
+   * Adapters must set `budget_exhausted` on a skipped HTTP attempt and
+   * `error` after a failed attempt so pipeline `detail` can distinguish them.
+   */
+  classificationStatus?: ClassificationStatus;
 }
 
 /**
@@ -108,7 +155,46 @@ export function normalizeMeaningfulnessJudgment(
   return {
     meaningful: judgment.meaningful === true,
     importanceScore: normalizeImportanceScore(judgment.importanceScore),
+    ...(isClassificationStatus(judgment.classificationStatus)
+      ? { classificationStatus: judgment.classificationStatus }
+      : {}),
   };
+}
+
+/** Stable short form for durable `detail` (3 decimal places, clamped to [0, 1]). */
+export function formatImportanceForDetail(score: number): string {
+  return normalizeImportanceScore(score).toFixed(3);
+}
+
+/**
+ * Stage-event `detail` for classifier outcomes. Existing non-classifier
+ * tokens (`clustered`, `not_selected`, `rejected_relevance`, …) stay unchanged.
+ *
+ * | Outcome | detail |
+ * | --- | --- |
+ * | budget skip (no HTTP) | `not_meaningful:budget_exhausted` |
+ * | classified meaningful=false | `not_meaningful:classified:importance=<0..1>` |
+ * | classified meaningful=true | `meaningful:classified:importance=<0..1>` |
+ * | attempted error | `not_meaningful:error` |
+ */
+export function classifierStageDetail(
+  judgment: Pick<
+    MeaningfulnessJudgment,
+    "meaningful" | "importanceScore" | "classificationStatus"
+  >,
+): string {
+  const status = judgment.classificationStatus ?? "classified";
+  if (status === "budget_exhausted") {
+    return "not_meaningful:budget_exhausted";
+  }
+  if (status === "error") {
+    return "not_meaningful:error";
+  }
+  const importance = formatImportanceForDetail(judgment.importanceScore);
+  if (judgment.meaningful === true) {
+    return `meaningful:classified:importance=${importance}`;
+  }
+  return `not_meaningful:classified:importance=${importance}`;
 }
 
 export function toMeaningfulnessInput(
@@ -132,6 +218,7 @@ export function toMeaningfulnessInput(
 export type JudgedCandidate<T extends RankableCandidate> = T & {
   meaningful: boolean;
   importanceScore: number;
+  classificationStatus: ClassificationStatus;
 };
 
 /**
@@ -145,21 +232,21 @@ export async function judgeRepresentatives<T extends RankableCandidate>(
 ): Promise<JudgedCandidate<T>[]> {
   const judged: JudgedCandidate<T>[] = [];
   for (const representative of representatives) {
-    let judgment: MeaningfulnessJudgment = {
-      meaningful: false,
-      importanceScore: 0,
-    };
+    let judgment: MeaningfulnessJudgment = failClosedMeaningfulnessJudgment(
+      "error",
+    );
     try {
       judgment = normalizeMeaningfulnessJudgment(
         await classifier.classify(inputOf(representative)),
       );
     } catch {
-      judgment = { meaningful: false, importanceScore: 0 };
+      judgment = failClosedMeaningfulnessJudgment("error");
     }
     judged.push({
       ...representative,
       meaningful: judgment.meaningful,
       importanceScore: judgment.importanceScore,
+      classificationStatus: judgment.classificationStatus ?? "classified",
     });
   }
   return judged;
@@ -183,13 +270,17 @@ export function createFixtureMeaningfulnessClassifier(
     canonicalUrl?: string;
     meaningful: boolean;
     importanceScore: number;
+    classificationStatus?: ClassificationStatus;
   }>,
   unmatched: MeaningfulnessJudgment = PASSTHROUGH_MEANINGFULNESS_JUDGMENT,
 ): MeaningfulnessClassifier {
   const byTitle = new Map<string, MeaningfulnessJudgment>();
   const byUrl = new Map<string, MeaningfulnessJudgment>();
   for (const entry of table) {
-    const judgment = normalizeMeaningfulnessJudgment(entry);
+    const judgment: MeaningfulnessJudgment = {
+      ...normalizeMeaningfulnessJudgment(entry),
+      classificationStatus: entry.classificationStatus ?? "classified",
+    };
     if (entry.title !== undefined) {
       byTitle.set(entry.title, judgment);
     }

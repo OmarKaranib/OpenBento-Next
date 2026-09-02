@@ -25,7 +25,7 @@ import {
   classifierMaxCallsPerWorkerTick,
 } from "../classifier-budget";
 import {
-  FAIL_CLOSED_MEANINGFULNESS_JUDGMENT,
+  failClosedMeaningfulnessJudgment,
   type MeaningfulnessClassifier,
   type MeaningfulnessInput,
   type MeaningfulnessJudgment,
@@ -163,7 +163,7 @@ class OpenAIMeaningfulnessClassifier
   async classify(input: MeaningfulnessInput): Promise<MeaningfulnessJudgment> {
     if (!this.budget.tryConsume()) {
       this.telemetry.classifierBudgetExhausted += 1;
-      return FAIL_CLOSED_MEANINGFULNESS_JUDGMENT;
+      return failClosedMeaningfulnessJudgment("budget_exhausted");
     }
     try {
       const judgment = await this.invokeModel(input);
@@ -173,11 +173,11 @@ class OpenAIMeaningfulnessClassifier
       } else {
         this.telemetry.classifierNotMeaningful += 1;
       }
-      return judgment;
+      return { ...judgment, classificationStatus: "classified" };
     } catch {
       this.telemetry.classifierCalls += 1;
       this.telemetry.classifierErrors += 1;
-      return FAIL_CLOSED_MEANINGFULNESS_JUDGMENT;
+      return failClosedMeaningfulnessJudgment("error");
     }
   }
 

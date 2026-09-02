@@ -165,7 +165,7 @@ describe("computePipelineCycleStats novel counting", () => {
       {
         kind: "normalized",
         dedupKey: "chatter",
-        detail: "not_meaningful",
+        detail: "not_meaningful:classified:importance=0.100",
         passedNovelty: true,
         candidateEligible: true,
         notMeaningful: true,

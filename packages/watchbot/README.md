@@ -44,7 +44,20 @@ vendor). Credentials never choose the vendor.
 Output is strictly `{ meaningful: boolean, importanceScore: number }` with
 the score clamped to `[0, 1]`; malformed, timeout, provider error, or
 call-budget exhaustion fail-closes that representative (`meaningful: false`).
-Classification is capped per worker tick and per WatchBot cycle and runs on
+Adapters stamp optional `classificationStatus`: `classified` |
+`budget_exhausted` | `error` (passthrough/fixture are `classified`). Pipeline
+`watch_bot_events.detail` uses that status:
+
+| Outcome | `detail` |
+| --- | --- |
+| budget skip (no HTTP) | `not_meaningful:budget_exhausted` |
+| classified, not a development | `not_meaningful:classified:importance=<0..1>` |
+| classified, selected development | `meaningful:classified:importance=<0..1>` |
+| attempted error | `not_meaningful:error` |
+
+Non-classifier tokens (`clustered`, `not_selected`, `rejected_relevance`)
+stay unchanged. Importance is a number only (3 decimal places). Classification
+is capped per worker tick and per WatchBot cycle and runs on
 clustered representatives only. Telemetry may include
 `classifierProvider` / `classifierModel` plus `classifierCalls` /
 `classifierMeaningful` / `classifierNotMeaningful` / `classifierErrors` /
