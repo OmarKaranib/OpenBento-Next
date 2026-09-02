@@ -14,7 +14,7 @@ apps/web              Next.js 16 App Router. Railway-inspired workspace + login.
 apps/worker           WatchBot worker. createWorkerDomainStore(); --fixture is tests only.
 packages/domain       Catalog + handlers (`ActionExecutor`) + DomainStore port
                       + SupabaseDomainStore.
-packages/watchbot     SourceProvider + pipeline. Optional Grok adapter behind env.
+packages/watchbot     SourceProvider + pipeline. Optional Grok / OpenAI web adapters behind env.
 packages/ui           Shared visual tokens for the workspace chrome.
 supabase/migrations   Dev SQL + RLS matching schema.ts. Do not apply from this agent.
 docs/                 Maintained specs + OPENBENTO_MASTER_CONTEXT.md

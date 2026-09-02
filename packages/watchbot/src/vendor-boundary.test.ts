@@ -29,7 +29,7 @@ describe("vendor boundary", () => {
       );
       expect(text).not.toMatch(/MeaningfulnessClassifier|createFixtureMeaningfulnessClassifier/);
       expect(text).not.toMatch(
-        /createModelMeaningfulnessClassifier|createOpenAIMeaningfulnessClassifier|createConfiguredMeaningfulnessClassifier|WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED|WATCHBOT_MEANINGFULNESS_PROVIDER/,
+        /createModelMeaningfulnessClassifier|createOpenAIMeaningfulnessClassifier|createConfiguredMeaningfulnessClassifier|createOpenAIWebSourceProvider|WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED|WATCHBOT_MEANINGFULNESS_PROVIDER|WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED/,
       );
     }
   });

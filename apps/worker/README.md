@@ -110,9 +110,12 @@ durable store and require `SUPABASE_SERVICE_ROLE_KEY` (never committed; never
 on the web service) when enabled. `--fixture` / `start:fixture` seed an
 in-memory store for isolated tests only. That is not a production/runtime
 fallback. Optional `--provider=grok` uses the env-gated adapter when
-`XAI_API_KEY` is set. `--provider=x` uses the read-only official X API v2
-adapter only when the global worker is enabled, `X_PROVIDER_ENABLED=true`, and
-the worker-only `X_BEARER_TOKEN` is set. The X lane has separate
-query/request/page/result/timeout caps and never makes X mutations.
+`XAI_API_KEY` is set. `--provider=openai-web` uses the OpenAI Responses +
+`web_search` web/news adapter only when the global worker is enabled,
+`WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED=true`, and worker-only `OPENAI_API_KEY`
+is set. `--provider=x` uses the read-only official X API v2 adapter only when
+the global worker is enabled, `X_PROVIDER_ENABLED=true`, and the worker-only
+`X_BEARER_TOKEN` is set. Select only one `--provider` per process. The X lane
+is unchanged: separate query/request/page/result/timeout caps and no X mutations.
 
 Do not apply Supabase migrations from this app.

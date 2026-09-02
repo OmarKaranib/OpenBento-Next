@@ -8,6 +8,7 @@ import {
   ClassifierCallBudget,
   createModelMeaningfulnessClassifier,
   createOpenAIMeaningfulnessClassifier,
+  createOpenAIWebSourceProvider,
   createXSourceProvider,
   FakeSourceProvider,
 } from "@openbento/watchbot";
@@ -639,5 +640,84 @@ describe("X adapter worker-tick budget", () => {
     await provider.discover({ ...discoverInput, xHttpBudget: budget });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(budget.httpRequests).toBe(1);
+  });
+});
+
+describe("OpenAI web/news worker cycle", () => {
+  it("does not invoke OpenAI web discover for x-only WatchBots", async () => {
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "openai-skip-user" });
+    const canvas = await executor.createCanvas({ name: "X only" });
+    await executor.createWatchBot({
+      canvasId: canvas.id,
+      instruction: "Monitor X posts",
+      sourceTypes: ["x"],
+    });
+
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 200 }));
+    const provider = createOpenAIWebSourceProvider({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    expect(provider).not.toBeNull();
+
+    const result = await runWorkerCycle({
+      store,
+      provider: provider!,
+    });
+
+    expect(result.providerEligibleWatchBots).toBe(0);
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.cycles[0]?.skipReason).toBe("provider_not_eligible");
+  });
+
+  it("resets the OpenAI web tick budget at the start of each worker tick", async () => {
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "openai-tick-user" });
+    const canvas = await executor.createCanvas({ name: "Web" });
+    await executor.createWatchBot({
+      canvasId: canvas.id,
+      instruction: "Monitor Lake Ontario",
+      sourceTypes: ["web", "news"],
+    });
+
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            output: [
+              {
+                type: "message",
+                content: [
+                  {
+                    type: "output_text",
+                    text: JSON.stringify([
+                      {
+                        sourceUrl: "https://news.example.com/ontario",
+                        title: "Lake Ontario update",
+                        publishedAt: "2026-08-28T12:00:00.000Z",
+                        sourceType: "news",
+                        rawExcerpt: "Officials discussed the proposal.",
+                      },
+                    ]),
+                  },
+                ],
+              },
+            ],
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        ),
+    );
+    const provider = createOpenAIWebSourceProvider({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      maxRequestsPerTick: 1,
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+
+    await runWorkerCycle({ store, provider: provider! });
+    await runWorkerCycle({ store, provider: provider! });
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 });

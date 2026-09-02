@@ -108,6 +108,19 @@ export {
   type GrokSourceProviderOptions,
 } from "./adapters/grok";
 export {
+  OPENAI_WEB_MODEL_DEFAULT,
+  OPENAI_WEB_SOURCE_PROVIDER_LIMITS,
+  buildDiscoveryPrompt,
+  createOpenAIWebSourceProvider,
+  openaiWebMaxRequestsPerCycle,
+  openaiWebMaxRequestsPerTick,
+  openaiWebMaxResultsPerCycle,
+  openaiWebModel,
+  openaiWebTimeoutMs,
+  type OpenAIWebSourceProviderOptions,
+} from "./adapters/openai-web";
+export { isWebNewsSourceType } from "./adapters/web-news-items";
+export {
   CLASSIFIER_TIMEOUT_MS_CEILING,
   CLASSIFIER_TIMEOUT_MS_DEFAULT,
   MEANINGFULNESS_CLASSIFIER_INSTRUCTIONS,

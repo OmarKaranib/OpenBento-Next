@@ -98,14 +98,20 @@ Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web servic
 | `X_PROVIDER_TIMEOUT_MS` | `10000` |
 | `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED` | **`false`** initially. Independent meaning-classifier gate. Defaults off even when the global worker and X lane are enabled. Missing this gate → passthrough (no paid classifier calls) |
 | `WATCHBOT_MEANINGFULNESS_PROVIDER` | **`none`** initially. Explicit selector: `openai` \| `xai` \| `none`. Missing/empty/unknown → `none` (passthrough). Never auto-picks from which API key is present |
-| `OPENAI_API_KEY` | **Worker-only.** Required only when the classifier gate is on **and** `WATCHBOT_MEANINGFULNESS_PROVIDER=openai`. Never on web. Never `NEXT_PUBLIC_` |
+| `OPENAI_API_KEY` | **Worker-only.** Required when the classifier gate is on **and** `WATCHBOT_MEANINGFULNESS_PROVIDER=openai`, and/or when OpenAI web/news discovery is enabled. Never on web. Never `NEXT_PUBLIC_` |
+| `WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED` | **`false`** initially. Independent OpenAI web/news discovery gate. Worker selects the adapter with `--provider=openai-web`. Missing gate or key → fail closed (null / composition error) |
+| `OPENAI_WEB_MODEL` | `gpt-5.6-luna` |
+| `WATCHBOT_OPENAI_WEB_MAX_REQUESTS_PER_TICK` | `1` (shared across WatchBots in one tick; hard ceiling `5`) |
+| `WATCHBOT_OPENAI_WEB_MAX_REQUESTS_PER_CYCLE` | `1` (per WatchBot cycle; hard ceiling `2`) |
+| `WATCHBOT_OPENAI_WEB_MAX_RESULTS_PER_CYCLE` | `10` (hard ceiling `20`) |
+| `WATCHBOT_OPENAI_WEB_TIMEOUT_MS` | `15000` (ceiling `30000`) |
 | `OPENAI_MEANINGFULNESS_MODEL` | `gpt-5.6-luna` (override to compare Luna vs Terra without domain changes) |
 | `OPENAI_API_BASE_URL` | `https://api.openai.com/v1` |
 | `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_TICK` | `5` (shared across WatchBots in one tick; hard ceiling `20`) |
 | `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_CYCLE` | `5` (per WatchBot pipeline cycle; hard ceiling `10`) |
 | `WATCHBOT_MEANINGFULNESS_TIMEOUT_MS` | `8000` (ceiling `15000`) |
 
-**Secret separation:** `SUPABASE_SERVICE_ROLE_KEY` and `X_BEARER_TOKEN` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path. `XAI_API_KEY` and `OPENAI_API_KEY` are also worker-only when the classifier or Grok discovery adapter is used. Never log or commit either key.
+**Secret separation:** `SUPABASE_SERVICE_ROLE_KEY` and `X_BEARER_TOKEN` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path. `XAI_API_KEY` and `OPENAI_API_KEY` are also worker-only when the classifier, Grok discovery, or OpenAI web/news adapter is used. Never log or commit either key.
 
 Sentry is error monitoring only: no product analytics, replay, performance
 tracing, or default PII collection. Do not place `SENTRY_AUTH_TOKEN` on either
