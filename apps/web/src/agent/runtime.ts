@@ -113,7 +113,7 @@ export async function runInteractiveAgentTurn(
       toolCallCount: 0,
       model,
       error:
-        "Interactive Agent is not configured. Set server-only OPENAI_API_KEY on the web service (never NEXT_PUBLIC_).",
+        "Interactive Agent is not configured. Set server-only OPENAI_AGENT_API_KEY on the web service (never NEXT_PUBLIC_; never reuse worker OPENAI_API_KEY).",
     };
   }
 
