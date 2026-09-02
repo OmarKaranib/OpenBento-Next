@@ -84,7 +84,7 @@ export function openaiMeaningfulnessModel(
  *
  * Paid calls require `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true`
  * (or `options.enabled === true` in tests) **and** OPENAI_API_KEY.
- * The factory never invents credentials and never reads XAI_API_KEY.
+ * The factory never invents credentials and never reads another vendor's key.
  */
 export function createOpenAIMeaningfulnessClassifier(
   options?: Partial<OpenAIMeaningfulnessClassifierOptions>,

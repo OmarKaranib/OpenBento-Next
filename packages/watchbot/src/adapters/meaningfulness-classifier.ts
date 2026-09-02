@@ -80,7 +80,7 @@ export interface ModelMeaningfulnessClassifierOptions {
  *
  * Paid calls require the env gate `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true`
  * (or `options.enabled === true` in tests) **and** an xAI/Grok API key.
- * The factory never invents credentials and never reads OPENAI_API_KEY.
+ * The factory never invents credentials and never reads another vendor's key.
  */
 export function createModelMeaningfulnessClassifier(
   options?: Partial<ModelMeaningfulnessClassifierOptions>,
