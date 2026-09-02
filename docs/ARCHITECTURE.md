@@ -14,7 +14,7 @@ apps/web              Next.js 16 App Router. Railway-inspired workspace + login.
 apps/worker           WatchBot worker. createWorkerDomainStore(); --fixture is tests only.
 packages/domain       Catalog + handlers (`ActionExecutor`) + DomainStore port
                       + SupabaseDomainStore.
-packages/watchbot     SourceProvider + pipeline. Optional Grok adapter behind env.
+packages/watchbot     SourceProvider + pipeline. Optional Grok / OpenAI web adapters behind env.
 packages/ui           Shared visual tokens for the workspace chrome.
 supabase/migrations   Dev SQL + RLS matching schema.ts. Do not apply from this agent.
 docs/                 Maintained specs + OPENBENTO_MASTER_CONTEXT.md
@@ -84,19 +84,19 @@ Public placeholders only (see `.env.example` and [`docs/DEPLOY.md`](./DEPLOY.md)
 
 Worker uses `SUPABASE_SERVICE_ROLE_KEY` only via `createWorkerDomainStore()` (never `NEXT_PUBLIC_`, never committed, never printed, never on the web `getDomainStore()` path). Hosted worker is fail-closed on `OPENBENTO_WORKER_ENABLED` (default off). Optional `OPENBENTO_WORKER_INTERVAL_MS` has a 300000 ms ceiling.
 
-## Planned infrastructure (config prepared; not provisioned by this PR)
+## Hosted infrastructure
 
 | Platform | Region | Role |
 | --- | --- | --- |
 | **Supabase** | North Virginia, **us-east-1** | Database, Auth, Storage (dev project already exists) |
-| **Railway** | **US East / Virginia** | `apps/web` runtime + `apps/worker` WatchBot worker |
+| **Railway** | Target: **US East / Virginia**; live check found `ams` | `apps/web` runtime + disabled `apps/worker` WatchBot worker |
 
-## Observability (not wired)
+## Observability
 
 | System | Role |
 | --- | --- |
-| **Sentry** | Errors, crashes, performance, worker failures |
-| **PostHog** | Product analytics, funnels, retention, feature flags, session behavior, AI/LLM cost analytics |
+| **Sentry** | Opt-in web + worker error/crash monitoring; no tracing, replay, default PII, or runtime auth token |
+| **PostHog** | Not wired; broad analytics/product tracking is out of scope |
 | **Resend** | Transactional email; future WatchBot alerts/digests |
 
 Event taxonomy: [`docs/ANALYTICS.md`](./docs/ANALYTICS.md). No secrets, instructions, article/social bodies, source HTML, or untrusted payloads.
