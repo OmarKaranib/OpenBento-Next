@@ -11,7 +11,8 @@
     "build": "pnpm --filter web build",
     "lint": "pnpm --filter web lint && eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit -p tsconfig.json && pnpm --filter web exec next typegen && pnpm --filter web exec tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "eval:terra-compare": "pnpm --filter @openbento/watchbot eval:terra-compare"
   },
   "devDependencies": {
     "@types/node": "^20",

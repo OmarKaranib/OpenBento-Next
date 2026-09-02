@@ -64,6 +64,65 @@ clustered representatives only. Telemetry may include
 `classifierBudgetExhausted`
 — never source text, instructions, keys, or raw model output.
 
+## Offline Terra compare eval (operator harness only)
+
+Replay harness for ≤5 pinned X Live Test WatchBot candidates through the
+**existing** Slice E OpenAI adapter (`createOpenAIMeaningfulnessClassifier`,
+`formatClassifierUserPayload`, `MEANINGFULNESS_CLASSIFIER_INSTRUCTIONS`,
+`MEANINGFULNESS_JUDGMENT_TEXT_FORMAT`). It does **not** change the
+classifier prompt, discover via X, run a worker cycle, or create Cards.
+
+**Do not merge this as a product feature until Lead says.** Eval only.
+
+### How to run
+
+Set `OPENAI_API_KEY` in the local shell. The harness never invents or
+fetches secrets (no Railway API, no remote secret lookup). Missing or
+empty key → print a clear message and exit non-zero.
+
+```bash
+OPENAI_API_KEY=… pnpm eval:terra-compare
+# or
+OPENAI_API_KEY=… pnpm --filter @openbento/watchbot eval:terra-compare
+```
+
+Model (default **`gpt-5.6-terra`** — not the production Luna default):
+
+| Env | Role |
+| --- | --- |
+| `OPENAI_TERRA_EVAL_MODEL` | Harness-specific override (wins) |
+| `OPENAI_MEANINGFULNESS_MODEL` | Shared adapter override |
+| (unset) | `gpt-5.6-terra` |
+
+Hard cap is **exactly 5** classifier calls (`ClassifierCallBudget` 5/5).
+Fixture: `packages/watchbot/scripts/fixtures/terra-compare-five.json`
+(instruction `(OpenAI OR WebMCP) -is:retweet`, `sourceType: x`,
+snippet ≡ title). Edit titles in that JSON if a durable
+`watch_bot_events.title` needs correction — no code change. A leftover
+Unicode ellipsis (`…`) in a title refuses the run.
+
+CI must not make live OpenAI calls. Unit tests inject `fetchImpl`.
+
+### Expected output (safe fields only)
+
+A compact table plus per-candidate confirmation:
+
+```
+# | meaningful | importanceScore | classificationStatus | url
+1 | yes        | 0.91            | classified           | https://x.com/…
+```
+
+and for each candidate: `title`, `url` (from the fixture), `meaningful`
+yes/no, `importanceScore`, `classificationStatus` if present,
+`provider=openai`, `model` id.
+
+### Safety rules
+
+- Never log prompts, raw model output, API keys, or full SOURCE dumps.
+- Title/url are printed only because they are already in the fixture.
+- No X provider, no `X_BEARER_TOKEN`, no worker pipeline, no Cards.
+- Fail closed without `OPENAI_API_KEY`. Never retrieve secrets.
+
 ## SourceProvider
 
 Provider-agnostic port in `src/provider.ts`. Tests inject `FakeSourceProvider`.
