@@ -56,10 +56,12 @@ export {
   PASSTHROUGH_IMPORTANCE,
   PASSTHROUGH_MEANINGFULNESS_CLASSIFIER,
   PASSTHROUGH_MEANINGFULNESS_JUDGMENT,
+  FAIL_CLOSED_MEANINGFULNESS_JUDGMENT,
   createFixtureMeaningfulnessClassifier,
   isMeaningfulDevelopment,
   judgeRepresentatives,
   normalizeImportanceScore,
+  normalizeMeaningfulnessJudgment,
   selectMeaningfulDevelopments,
   toMeaningfulnessInput,
   type JudgedCandidate,
@@ -83,6 +85,15 @@ export {
   X_MAX_REQUESTS_PER_WORKER_TICK_CEILING,
   X_MAX_REQUESTS_PER_WORKER_TICK_DEFAULT,
 } from "./x-http-budget";
+export {
+  ClassifierCallBudget,
+  classifierMaxCallsPerCycle,
+  classifierMaxCallsPerWorkerTick,
+  CLASSIFIER_MAX_CALLS_PER_CYCLE_CEILING,
+  CLASSIFIER_MAX_CALLS_PER_CYCLE_DEFAULT,
+  CLASSIFIER_MAX_CALLS_PER_TICK_CEILING,
+  CLASSIFIER_MAX_CALLS_PER_TICK_DEFAULT,
+} from "./classifier-budget";
 export { FakeSourceProvider } from "./fake-provider";
 export {
   createGrokSourceProvider,
@@ -90,6 +101,17 @@ export {
   grokEnvApiKey,
   type GrokSourceProviderOptions,
 } from "./adapters/grok";
+export {
+  CLASSIFIER_TIMEOUT_MS_CEILING,
+  CLASSIFIER_TIMEOUT_MS_DEFAULT,
+  MEANINGFULNESS_CLASSIFIER_INSTRUCTIONS,
+  createModelMeaningfulnessClassifier,
+  formatClassifierUserPayload,
+  isMeaningfulnessClassifierEnabled,
+  parseMeaningfulnessJudgment,
+  classifierTimeoutMs,
+  type ModelMeaningfulnessClassifierOptions,
+} from "./adapters/meaningfulness-classifier";
 export {
   createXSourceProvider,
   xBearerToken,
@@ -99,7 +121,9 @@ export {
   type XSourceProviderOptions,
 } from "./adapters/x";
 export {
+  emptyMeaningfulnessClassifierTelemetry,
   noopWatchBotTelemetry,
   type EmitWatchBotTelemetry,
+  type MeaningfulnessClassifierTelemetry,
   type WatchBotCostTelemetry,
 } from "./telemetry";

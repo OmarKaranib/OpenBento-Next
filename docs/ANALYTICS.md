@@ -22,7 +22,7 @@ Events must **never** include:
 - source HTML,
 - untrusted payloads, titles-as-prompt, snippets, transcripts.
 
-Allowed cost metadata: `provider`, `units`, `watchBotId`, `durationMs`.
+Allowed cost metadata: `provider`, `units`, `watchBotId`, `durationMs`, plus classifier counters `classifierCalls`, `classifierMeaningful`, `classifierNotMeaningful`, `classifierErrors`.
 
 ## Event names
 
@@ -77,6 +77,8 @@ Properties: `canvasId`, `frameId`, `actor`, `active` (fullscreen only).
 Properties: `canvasId`, `watchBotId`, `status`, `actor`. **No instruction text.**
 
 Cost (PostHog): `ob.watchbot.cost` with `provider`, `units`, `watchBotId`, `durationMs`.
+
+Classifier counters (worker tick / cost telemetry only; never source text): `classifierCalls`, `classifierMeaningful`, `classifierNotMeaningful`, `classifierErrors`.
 
 ### Agent
 

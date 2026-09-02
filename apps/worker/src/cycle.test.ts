@@ -5,6 +5,7 @@ import {
   type WatchBotSourceType,
 } from "@openbento/domain";
 import {
+  createModelMeaningfulnessClassifier,
   createXSourceProvider,
   FakeSourceProvider,
 } from "@openbento/watchbot";
@@ -341,6 +342,78 @@ describe("WatchBot worker cycle", () => {
     expect(result.skippedPaused).toBe(1);
     expect(result.processed).toBe(1);
     expect(runningX.id).not.toBe(pausedX.id);
+  });
+});
+
+describe("WatchBot intelligence Slice D worker composition", () => {
+  it("keeps passthrough and makes no model calls when the classifier gate is off", async () => {
+    const { store, provider } = await seedFixtureStore();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const result = await runWorkerCycle({
+      store,
+      provider,
+      env: {
+        WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED: "false",
+        XAI_API_KEY: "test-not-a-secret",
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+    expect(result.classifierCalls).toBe(0);
+    expect(result.classifierErrors).toBe(0);
+    expect(result.notMeaningful).toBe(0);
+    expect(result.cardsCreated).toBeGreaterThan(0);
+  });
+
+  it("keeps passthrough when the gate is on but credentials are missing", async () => {
+    const { store, provider } = await seedFixtureStore();
+    const result = await runWorkerCycle({
+      store,
+      provider,
+      env: { WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED: "true" },
+    });
+    expect(result.classifierCalls).toBe(0);
+    expect(result.notMeaningful).toBe(0);
+    expect(result.cardsCreated).toBeGreaterThan(0);
+  });
+
+  it("aggregates classifier counters when a mock adapter is injected", async () => {
+    const { store, provider } = await seedFixtureStore();
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          output: [
+            {
+              type: "message",
+              content: [
+                {
+                  type: "output_text",
+                  text: JSON.stringify({
+                    meaningful: true,
+                    importanceScore: 0.8,
+                  }),
+                },
+              ],
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const classifier = createModelMeaningfulnessClassifier({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    const result = await runWorkerCycle({
+      store,
+      provider,
+      meaningfulnessClassifier: classifier,
+    });
+    expect(result.classifierCalls).toBeGreaterThan(0);
+    expect(result.classifierErrors).toBe(0);
+    expect(fetchImpl).toHaveBeenCalled();
+    expect(result.cardsCreated).toBeGreaterThan(0);
   });
 });
 

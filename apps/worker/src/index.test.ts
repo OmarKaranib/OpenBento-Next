@@ -48,6 +48,10 @@ const EMPTY_CYCLE: WorkerCycleResult = {
   meaningful: 0,
   notMeaningful: 0,
   selected: 0,
+  classifierCalls: 0,
+  classifierMeaningful: 0,
+  classifierNotMeaningful: 0,
+  classifierErrors: 0,
   cycles: [],
 };
 
@@ -62,6 +66,9 @@ function clearPersistEnv(): void {
   delete process.env.X_PROVIDER_ENABLED;
   delete process.env.X_BEARER_TOKEN;
   delete process.env.X_MAX_REQUESTS_PER_WORKER_TICK;
+  delete process.env.WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED;
+  delete process.env.XAI_API_KEY;
+  delete process.env.GROK_API_KEY;
 }
 
 beforeEach(clearPersistEnv);
@@ -380,6 +387,10 @@ describe("worker tick telemetry", () => {
               meaningful: 0,
               notMeaningful: 0,
               selected: 0,
+              classifierCalls: 0,
+              classifierMeaningful: 0,
+              classifierNotMeaningful: 0,
+              classifierErrors: 0,
             },
             topOutcome: "rejected_relevance",
             cardsCreated: 0,
@@ -409,6 +420,8 @@ describe("worker tick telemetry", () => {
     expect(() => assertSafeWorkerTelemetry(telemetry)).not.toThrow();
     const serialized = formatWorkerTickTelemetry(telemetry);
     expect(serialized.toLowerCase()).not.toMatch(/bearer|service_role|instruction/);
+    expect(telemetry.classifierCalls).toBe(0);
+    expect(telemetry.classifierErrors).toBe(0);
   });
 });
 

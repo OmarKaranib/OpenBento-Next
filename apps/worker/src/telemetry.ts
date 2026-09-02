@@ -23,6 +23,10 @@ export interface WorkerTickTelemetry {
   meaningful: number;
   notMeaningful: number;
   selected: number;
+  classifierCalls: number;
+  classifierMeaningful: number;
+  classifierNotMeaningful: number;
+  classifierErrors: number;
   watchBots?: WorkerWatchBotTelemetry[];
 }
 
@@ -37,6 +41,10 @@ export interface WorkerWatchBotTelemetry {
   meaningful: number;
   notMeaningful: number;
   selected: number;
+  classifierCalls: number;
+  classifierMeaningful: number;
+  classifierNotMeaningful: number;
+  classifierErrors: number;
 }
 
 const FORBIDDEN_TELEMETRY_SUBSTRINGS = [
@@ -81,6 +89,10 @@ export function buildWorkerTickTelemetry(input: {
     meaningful: input.result.meaningful,
     notMeaningful: input.result.notMeaningful,
     selected: input.result.selected,
+    classifierCalls: input.result.classifierCalls,
+    classifierMeaningful: input.result.classifierMeaningful,
+    classifierNotMeaningful: input.result.classifierNotMeaningful,
+    classifierErrors: input.result.classifierErrors,
   };
 
   if (input.includeWatchBots) {
@@ -95,6 +107,10 @@ export function buildWorkerTickTelemetry(input: {
       meaningful: cycle.stats.meaningful,
       notMeaningful: cycle.stats.notMeaningful,
       selected: cycle.stats.selected,
+      classifierCalls: cycle.stats.classifierCalls,
+      classifierMeaningful: cycle.stats.classifierMeaningful,
+      classifierNotMeaningful: cycle.stats.classifierNotMeaningful,
+      classifierErrors: cycle.stats.classifierErrors,
     }));
   }
 
