@@ -1,9 +1,9 @@
 "use client";
 
 import { X } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { AgentPanel } from "@/components/shell/AgentPanel";
 import { WatchBotCanvasPanel } from "@/components/shell/WatchBotManager";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { useWorkspaceUi } from "@/components/workspace/workspace-ui";
@@ -59,10 +59,10 @@ export function SidePanels() {
 
       {agentOpen ? (
         <aside
-          className="absolute bottom-3 right-3 top-14 z-20 w-80 rounded-xl border border-zinc-800 bg-[#11141a]/95 p-4 shadow-2xl backdrop-blur-sm"
+          className="absolute bottom-3 right-3 top-14 z-20 flex w-[22rem] flex-col rounded-xl border border-zinc-800 bg-[#11141a]/95 p-4 shadow-2xl backdrop-blur-sm"
           aria-label="Agent"
         >
-          <div className="flex items-center justify-between">
+          <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-medium text-zinc-100">Agent</h2>
             <button
               type="button"
@@ -73,20 +73,9 @@ export function SidePanels() {
               <X className="h-4 w-4" />
             </button>
           </div>
-          <p className="mt-3 text-sm leading-6 text-zinc-500">
-            Interactive Agent panel arrives in a later phase. This control stays
-            in the top-right — not the left rail or Canvas toolbar.
-          </p>
-          <p className="mt-3 text-sm leading-6 text-zinc-500">
-            WebMCP tools on this page are the Issue #1 snake_case catalog
-            wrappers. They dispatch through{" "}
-            <code className="text-zinc-400">runBoundAction</code> +{" "}
-            <code className="text-zinc-400">requireOwnerIdFromRequest</code>.{" "}
-            <Link className="text-zinc-300 underline" href="/webmcp">
-              Judge notes
-            </Link>
-            .
-          </p>
+          <div className="min-h-0 flex-1">
+            <AgentPanel />
+          </div>
         </aside>
       ) : null}
     </>
