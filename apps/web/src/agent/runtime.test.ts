@@ -108,3 +108,546 @@ describe("Interactive Agent tools/context", () => {
     expect(sanitizeUntrustedPromptText("  hi\u0000 there  ", 8)).toBe("hi there");
   });
 });
+
+describe("Interactive Agent runtime", () => {
+  it("returns a normal assistant response with no tool call", async () => {
+    const { executor, canvas } = await seedCanvas();
+    const provider = mockProvider([
+      {
+        assistantText: "This Canvas has Official Sources and a Key Question note.",
+        functionCalls: [],
+        continuationItems: [],
+      },
+    ]);
+
+    const result = await runInteractiveAgentTurn({
+      canvasId: canvas.id,
+      message: "Summarize what is currently on this Canvas.",
+      execute: boundExecute(executor) as never,
+      provider,
+      env: { OPENAI_AGENT_MODEL: "gpt-5.6-terra" },
+    });
+
+    expect(result.error).toBeUndefined();
+    expect(result.assistantText).toMatch(/Official Sources/);
+    expect(result.toolCallCount).toBe(0);
+    expect(result.toolActivity).toEqual([]);
+    expect(provider.calls).toBe(1);
+  });
+
+  it("creates a Frame through the catalog and shows tool activity", async () => {
+    const { executor, canvas } = await seedCanvas();
+    const provider = mockProvider([
+      {
+        assistantText: "",
+        functionCalls: [
+          {
+            call_id: "call_1",
+            name: "createFrame",
+            arguments: JSON.stringify({
+              canvasId: canvas.id,
+              name: "Reactions",
+              bounds: { x: 900, y: 40, width: 500, height: 400 },
+            }),
+          },
+        ],
+        continuationItems: [
+          {
+            type: "function_call",
+            call_id: "call_1",
+            name: "createFrame",
+            arguments: JSON.stringify({
+              canvasId: canvas.id,
+              name: "Reactions",
+              bounds: { x: 900, y: 40, width: 500, height: 400 },
+            }),
+          },
+        ],
+      },
+      {
+        assistantText: "Created the Reactions Frame.",
+        functionCalls: [],
+        continuationItems: [],
+      },
+    ]);
+
+    const result = await runInteractiveAgentTurn({
+      canvasId: canvas.id,
+      message: 'Create a Frame called "Reactions".',
+      execute: boundExecute(executor) as never,
+      provider,
+    });
+
+    expect(result.toolCallCount).toBe(1);
+    expect(result.toolActivity[0]).toMatchObject({
+      name: "createFrame",
+      success: true,
+    });
+    const state = await executor.getCanvasState({ canvasId: canvas.id });
+    expect(state.frames.some((frame) => frame.name === "Reactions")).toBe(true);
+  });
+
+  it("rejects actions outside the Agent catalog", async () => {
+    const { executor, canvas } = await seedCanvas();
+    const provider = mockProvider([
+      {
+        assistantText: "",
+        functionCalls: [
+          {
+            call_id: "call_x",
+            name: "createCanvas",
+            arguments: JSON.stringify({ name: "Hijack" }),
+          },
+        ],
+        continuationItems: [
+          {
+            type: "function_call",
+            call_id: "call_x",
+            name: "createCanvas",
+            arguments: JSON.stringify({ name: "Hijack" }),
+          },
+        ],
+      },
+      {
+        assistantText: "I cannot create a new Canvas from here.",
+        functionCalls: [],
+        continuationItems: [],
+      },
+    ]);
+
+    const before = (await executor.getCanvasState({ canvasId: canvas.id })).canvas
+      .name;
+    const result = await runInteractiveAgentTurn({
+      canvasId: canvas.id,
+      message: "Create another Canvas",
+      execute: boundExecute(executor) as never,
+      provider,
+    });
+
+    expect(result.toolActivity[0]?.success).toBe(false);
+    expect(result.toolActivity[0]?.summary).toMatch(/not in Agent catalog/);
+    const after = await executor.getCanvasState({ canvasId: canvas.id });
+    expect(after.canvas.name).toBe(before);
+  });
+
+  it("rejects malformed tool call arguments", async () => {
+    const { executor, canvas } = await seedCanvas();
+    const provider = mockProvider([
+      {
+        assistantText: "",
+        functionCalls: [
+          {
+            call_id: "call_bad",
+            name: "renameCanvas",
+            arguments: "{not-json",
+          },
+        ],
+        continuationItems: [
+          {
+            type: "function_call",
+            call_id: "call_bad",
+            name: "renameCanvas",
+            arguments: "{not-json",
+          },
+        ],
+      },
+      {
+        assistantText: "That tool call was invalid.",
+        functionCalls: [],
+        continuationItems: [],
+      },
+    ]);
+
+    const result = await runInteractiveAgentTurn({
+      canvasId: canvas.id,
+      message: "Rename this Canvas",
+      execute: boundExecute(executor) as never,
+      provider,
+    });
+
+    expect(result.toolActivity[0]?.success).toBe(false);
+    expect(result.toolActivity[0]?.summary).toMatch(/Malformed|invalid/i);
+  });
+
+  it("rejects ownerId on model tool arguments", async () => {
+    const { executor, canvas } = await seedCanvas();
+    const provider = mockProvider([
+      {
+        assistantText: "",
+        functionCalls: [
+          {
+            call_id: "call_owner",
+            name: "renameCanvas",
+            arguments: JSON.stringify({
+              canvasId: canvas.id,
+              name: "OpenAI Live Intelligence",
+              ownerId: "attacker",
+            }),
+          },
+        ],
+        continuationItems: [
+          {
+            type: "function_call",
+            call_id: "call_owner",
+            name: "renameCanvas",
+            arguments: JSON.stringify({
+              canvasId: canvas.id,
+              name: "OpenAI Live Intelligence",
+              ownerId: "attacker",
+            }),
+          },
+        ],
+      },
+      {
+        assistantText: "I cannot accept ownerId from tools.",
+        functionCalls: [],
+        continuationItems: [],
+      },
+    ]);
+
+    const before = (await executor.getCanvasState({ canvasId: canvas.id })).canvas
+      .name;
+    const result = await runInteractiveAgentTurn({
+      canvasId: canvas.id,
+      message: "Rename this Canvas to OpenAI Live Intelligence.",
+      execute: boundExecute(executor) as never,
+      provider,
+    });
+
+    expect(result.toolActivity[0]?.success).toBe(false);
+    expect(result.toolActivity[0]?.summary).toMatch(/ownerId/);
+    const state = await executor.getCanvasState({ canvasId: canvas.id });
+    expect(state.canvas.name).toBe(before);
+  });
+
+  it("enforces the per-turn tool-loop bound", async () => {
+    const { executor, canvas } = await seedCanvas();
+    const calls = Array.from({ length: 3 }, (_, index) => ({
+      call_id: `call_${index}`,
+      name: "createFrame" as const,
+      arguments: JSON.stringify({
+        canvasId: canvas.id,
+        name: `Frame ${index}`,
+        bounds: { x: index * 10, y: 0, width: 100, height: 100 },
+      }),
+    }));
+    const provider = mockProvider([
+      {
+        assistantText: "",
+        functionCalls: calls,
+        continuationItems: calls.map((call) => ({
+          type: "function_call" as const,
+          ...call,
+        })),
+      },
+    ]);
+
+    const result = await runInteractiveAgentTurn({
+      canvasId: canvas.id,
+      message: "Create many frames",
+      execute: boundExecute(executor) as never,
+      provider,
+      maxToolCalls: 2,
+    });
+
+    expect(result.toolCallCount).toBe(2);
+    expect(
+      result.toolActivity.some((item) =>
+        item.summary.includes("tool loop bound"),
+      ),
+    ).toBe(true);
+  });
+
+  it("preserves Frame membership follow-up after createCard", async () => {
+    const { executor, canvas, frame } = await seedCanvas();
+    const provider = mockProvider([
+      {
+        assistantText: "",
+        functionCalls: [
+          {
+            call_id: "call_card",
+            name: "createCard",
+            arguments: JSON.stringify({
+              canvasId: canvas.id,
+              type: "note",
+              payload: { text: "Inside Official Sources" },
+              position: { x: 50, y: 50 },
+              size: { width: 200, height: 120 },
+            }),
+          },
+        ],
+        continuationItems: [
+          {
+            type: "function_call",
+            call_id: "call_card",
+            name: "createCard",
+            arguments: JSON.stringify({
+              canvasId: canvas.id,
+              type: "note",
+              payload: { text: "Inside Official Sources" },
+              position: { x: 50, y: 50 },
+              size: { width: 200, height: 120 },
+            }),
+          },
+        ],
+      },
+      {
+        assistantText: "Created the note inside the Frame.",
+        functionCalls: [],
+        continuationItems: [],
+      },
+    ]);
+
+    const result = await runInteractiveAgentTurn({
+      canvasId: canvas.id,
+      message: "Create a note called Inside Official Sources.",
+      execute: boundExecute(executor) as never,
+      provider,
+    });
+
+    expect(result.toolActivity[0]?.success).toBe(true);
+    const state = await executor.getCanvasState({ canvasId: canvas.id });
+    const created = state.cards.find(
+      (card) =>
+        card.type === "note" &&
+        "text" in card.payload &&
+        card.payload.text === "Inside Official Sources",
+    );
+    expect(created?.frameId).toBe(frame.id);
+  });
+
+  it("creates and pauses a WatchBot through the executor", async () => {
+    const { executor, canvas } = await seedCanvas();
+    let createdId = "";
+    const provider: AgentProvider = {
+      async createResponse(request) {
+        const last = request.input[request.input.length - 1];
+        if (
+          typeof last === "object" &&
+          last !== null &&
+          "type" in last &&
+          last.type === "function_call_output"
+        ) {
+          return {
+            assistantText: "Paused the WatchBot.",
+            functionCalls: [],
+            continuationItems: [],
+          };
+        }
+        if (!createdId) {
+          return {
+            assistantText: "",
+            functionCalls: [
+              {
+                call_id: "wb_create",
+                name: "createWatchBot",
+                arguments: JSON.stringify({
+                  canvasId: canvas.id,
+                  instruction:
+                    "Monitor meaningful OpenAI announcements on X",
+                  name: "OpenAI WatchBot",
+                  sourceTypes: ["x"],
+                }),
+              },
+            ],
+            continuationItems: [
+              {
+                type: "function_call",
+                call_id: "wb_create",
+                name: "createWatchBot",
+                arguments: JSON.stringify({
+                  canvasId: canvas.id,
+                  instruction:
+                    "Monitor meaningful OpenAI announcements on X",
+                  name: "OpenAI WatchBot",
+                  sourceTypes: ["x"],
+                }),
+              },
+            ],
+          };
+        }
+        return {
+          assistantText: "",
+          functionCalls: [
+            {
+              call_id: "wb_pause",
+              name: "pauseWatchBot",
+              arguments: JSON.stringify({ watchBotId: createdId }),
+            },
+          ],
+          continuationItems: [
+            {
+              type: "function_call",
+              call_id: "wb_pause",
+              name: "pauseWatchBot",
+              arguments: JSON.stringify({ watchBotId: createdId }),
+            },
+          ],
+        };
+      },
+    };
+
+    const createTurn = await runInteractiveAgentTurn({
+      canvasId: canvas.id,
+      message:
+        "Create a WatchBot monitoring meaningful OpenAI announcements on X.",
+      execute: async (name, input) => {
+        const result = await executor.execute(name, input);
+        if (name === "createWatchBot") {
+          createdId = (result as { id: string }).id;
+        }
+        return result;
+      },
+      provider,
+    });
+    expect(createTurn.toolActivity[0]?.name).toBe("createWatchBot");
+    expect(createTurn.toolActivity[0]?.success).toBe(true);
+
+    const pauseTurn = await runInteractiveAgentTurn({
+      canvasId: canvas.id,
+      message: "Pause the OpenAI WatchBot.",
+      execute: boundExecute(executor) as never,
+      provider,
+    });
+    expect(pauseTurn.toolActivity.some((item) => item.name === "pauseWatchBot"))
+      .toBe(true);
+    const status = await executor.getWatchBotStatus({ watchBotId: createdId });
+    expect(status.status).toBe("paused");
+  });
+
+  it("renders provider errors safely without exposing secrets", async () => {
+    const { executor, canvas } = await seedCanvas();
+    const provider: AgentProvider = {
+      async createResponse() {
+        throw new Error("secret_key_sk-live-should-not-leak");
+      },
+    };
+
+    const result = await runInteractiveAgentTurn({
+      canvasId: canvas.id,
+      message: "Hello",
+      execute: boundExecute(executor) as never,
+      provider,
+      env: { OPENAI_API_KEY: "sk-live-secret" },
+    });
+
+    expect(result.error).toMatch(/provider failed/i);
+    expect(JSON.stringify(result)).not.toContain("sk-live");
+  });
+
+  it("fails closed when Canvas access is unauthenticated", async () => {
+    const result = await runInteractiveAgentTurn({
+      canvasId: "missing",
+      message: "Hello",
+      execute: async () => {
+        throw new DomainError(
+          "unauthenticated",
+          "Authentication is required.",
+        );
+      },
+      provider: mockProvider([]),
+    });
+    expect(result.error).toMatch(/Authentication/i);
+    expect(result.toolCallCount).toBe(0);
+  });
+});
+
+describe("OpenAI agent provider boundary", () => {
+  it("never reads NEXT_PUBLIC OpenAI keys", () => {
+    expect(
+      openaiAgentApiKey({
+        NEXT_PUBLIC_OPENAI_API_KEY: "public-leak",
+      }),
+    ).toBeUndefined();
+    expect(
+      openaiAgentApiKey({
+        OPENAI_API_KEY: "server-only-key",
+      }),
+    ).toBe("server-only-key");
+  });
+
+  it("defaults the interactive model to gpt-5.6-terra", () => {
+    expect(openaiAgentModel({})).toBe("gpt-5.6-terra");
+    expect(openaiAgentModel({ OPENAI_AGENT_MODEL: "gpt-custom" })).toBe(
+      "gpt-custom",
+    );
+  });
+
+  it("posts to the Responses API with Authorization bearer", async () => {
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          output: [
+            {
+              type: "message",
+              content: [{ type: "output_text", text: "Hi" }],
+            },
+          ],
+        }),
+        { status: 200 },
+      ),
+    );
+    const provider = createOpenAIAgentProvider({
+      apiKey: "test-key",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    const result = await provider.createResponse({
+      model: "gpt-5.6-terra",
+      instructions: "test",
+      input: [{ role: "user", content: "hi" }],
+      tools: [],
+    });
+    expect(result.assistantText).toBe("Hi");
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    const init = fetchImpl.mock.calls[0]?.[1] as RequestInit;
+    expect(init.headers).toMatchObject({
+      authorization: "Bearer test-key",
+    });
+    expect(String(fetchImpl.mock.calls[0]?.[0])).toContain("/responses");
+  });
+});
+
+describe("Agent panel activity shape", () => {
+  it("keeps tool activity concise for the panel", async () => {
+    const { executor, canvas } = await seedCanvas();
+    const provider = mockProvider([
+      {
+        assistantText: "",
+        functionCalls: [
+          {
+            call_id: "c1",
+            name: "renameCanvas",
+            arguments: JSON.stringify({
+              canvasId: canvas.id,
+              name: "Renamed",
+            }),
+          },
+        ],
+        continuationItems: [
+          {
+            type: "function_call",
+            call_id: "c1",
+            name: "renameCanvas",
+            arguments: JSON.stringify({
+              canvasId: canvas.id,
+              name: "Renamed",
+            }),
+          },
+        ],
+      },
+      {
+        assistantText: "Done.",
+        functionCalls: [],
+        continuationItems: [],
+      },
+    ]);
+    const result = await runInteractiveAgentTurn({
+      canvasId: canvas.id,
+      message: "Rename",
+      execute: boundExecute(executor) as never,
+      provider,
+    });
+    expect(result.toolActivity[0]?.summary.length).toBeLessThan(120);
+    expect(result.toolActivity[0]?.name).toBe("renameCanvas");
+  });
+});
