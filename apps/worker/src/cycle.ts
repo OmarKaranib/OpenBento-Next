@@ -4,7 +4,7 @@ import {
   type WatchBot,
 } from "@openbento/domain";
 import {
-  createModelMeaningfulnessClassifier,
+  createConfiguredMeaningfulnessClassifier,
   isWatchBotProviderEligible,
   runWatchBotPipeline,
   XHttpBudget,
@@ -39,6 +39,8 @@ export interface WorkerCycleResult {
   classifierMeaningful: number;
   classifierNotMeaningful: number;
   classifierErrors: number;
+  classifierProvider?: string;
+  classifierModel?: string;
   cycles: PipelineCycleResult[];
 }
 
@@ -50,13 +52,38 @@ export interface RunWorkerCycleInput {
   env?: NodeJS.ProcessEnv;
   /**
    * Optional injected classifier (tests). Production composition uses
-   * {@link createModelMeaningfulnessClassifier} from env: gate OFF or
-   * missing credentials → passthrough.
+   * {@link createConfiguredMeaningfulnessClassifier} from env:
+   * gate OFF, provider unset/`none`, or missing key for the selected
+   * provider → passthrough. Never auto-picks OpenAI vs xAI from keys.
    */
   meaningfulnessClassifier?: MeaningfulnessClassifier | null;
 }
 
 const DEFAULT_SOURCE_TYPES = ["web", "news"] as const;
+
+function classifierSafeIdentity(
+  classifier: MeaningfulnessClassifier | null,
+): Pick<WorkerCycleResult, "classifierProvider" | "classifierModel"> {
+  if (!classifier || !("telemetry" in classifier)) {
+    return {};
+  }
+  const telemetry = (
+    classifier as {
+      telemetry?: { classifierProvider?: string; classifierModel?: string };
+    }
+  ).telemetry;
+  if (!telemetry || typeof telemetry !== "object") {
+    return {};
+  }
+  return {
+    ...(telemetry.classifierProvider
+      ? { classifierProvider: telemetry.classifierProvider }
+      : {}),
+    ...(telemetry.classifierModel
+      ? { classifierModel: telemetry.classifierModel }
+      : {}),
+  };
+}
 
 function resolveSourceTypes(bot: WatchBot): readonly string[] {
   return bot.sourceTypes.length > 0 ? bot.sourceTypes : DEFAULT_SOURCE_TYPES;
@@ -104,7 +131,7 @@ export async function runWorkerCycle(
       : undefined;
   const meaningfulnessClassifier =
     input.meaningfulnessClassifier === undefined
-      ? createModelMeaningfulnessClassifier(undefined, env)
+      ? createConfiguredMeaningfulnessClassifier(undefined, env)
       : input.meaningfulnessClassifier;
 
   const result: WorkerCycleResult = {
@@ -133,6 +160,7 @@ export async function runWorkerCycle(
     classifierNotMeaningful: 0,
     classifierErrors: 0,
     cycles: [],
+    ...classifierSafeIdentity(meaningfulnessClassifier),
   };
 
   for (const bot of bots) {

@@ -1,25 +1,22 @@
 /**
- * WatchBot Intelligence v1 — Slice D xAI/Grok MeaningfulnessClassifier.
+ * WatchBot Intelligence v1 — Slice E OpenAI MeaningfulnessClassifier.
  *
- * Reuses the optional xAI/Grok Responses conventions from `grok.ts`
- * (same env key names, base URL, model). The pipeline still talks only
- * to {@link MeaningfulnessClassifier}. Domain never imports this file.
+ * Implements the Slice C port with the OpenAI Responses API and strict
+ * JSON-schema structured output. Domain never imports this file.
  *
- * This constructor is **xAI-only**. Worker composition uses
+ * This constructor is **OpenAI-only**. Worker composition uses
  * `createConfiguredMeaningfulnessClassifier`, which requires an explicit
- * `WATCHBOT_MEANINGFULNESS_PROVIDER=xai` in addition to the env gate and
- * xAI credentials. Calling this factory directly (tests / compat) still
- * constructs when the gate is on and an xAI/Grok key is present.
+ * `WATCHBOT_MEANINGFULNESS_PROVIDER=openai` in addition to the env gate
+ * and `OPENAI_API_KEY`. Calling this factory directly (tests) still
+ * constructs when the gate is on and an OpenAI key is present.
  *
  * Disabled unless WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true **and**
- * XAI_API_KEY / GROK_API_KEY is present. Missing gate or credentials →
- * `createModelMeaningfulnessClassifier` returns null so the worker keeps
- * passthrough. This adapter does not silently start paid calls and does
- * not fall back to OpenAI.
+ * OPENAI_API_KEY is present. Missing gate or credentials → returns null
+ * so the worker keeps passthrough. Never falls back to xAI/Grok.
  *
  * Title / snippet / URL are untrusted data. The WatchBot instruction is
  * configuration context only. Protocol JSON is parsed once; source text
- * is never JSON.parsed into commands.
+ * is never JSON.parsed into commands. No tools / web-search in this call.
  */
 
 import {
@@ -37,10 +34,10 @@ import {
   emptyMeaningfulnessClassifierTelemetry,
   type MeaningfulnessClassifierTelemetry,
 } from "../telemetry";
-import { grokEnvApiKey } from "./grok";
 import {
   CLASSIFIER_TIMEOUT_MS_DEFAULT,
   MEANINGFULNESS_CLASSIFIER_INSTRUCTIONS,
+  MEANINGFULNESS_JUDGMENT_TEXT_FORMAT,
   classifierEnabled,
   classifierFetchWithTimeout,
   classifierTimeoutMs,
@@ -48,21 +45,12 @@ import {
   parseMeaningfulnessJudgment,
 } from "./meaningfulness-classifier-protocol";
 
-export {
-  CLASSIFIER_TIMEOUT_MS_CEILING,
-  CLASSIFIER_TIMEOUT_MS_DEFAULT,
-  MEANINGFULNESS_CLASSIFIER_INSTRUCTIONS,
-  MEANINGFULNESS_JUDGMENT_JSON_SCHEMA,
-  MEANINGFULNESS_JUDGMENT_TEXT_FORMAT,
-  classifierTimeoutMs,
-  formatClassifierUserPayload,
-  isMeaningfulnessClassifierEnabled,
-  parseMeaningfulnessJudgment,
-} from "./meaningfulness-classifier-protocol";
+export const OPENAI_MEANINGFULNESS_MODEL_DEFAULT = "gpt-5.6-luna";
+export const OPENAI_API_BASE_URL_DEFAULT = "https://api.openai.com/v1";
 
 export type { MeaningfulnessClassifierTelemetry };
 
-export interface ModelMeaningfulnessClassifierOptions {
+export interface OpenAIMeaningfulnessClassifierOptions {
   /** Explicit construction (tests). Production uses the env gate. */
   enabled?: boolean;
   apiKey?: string;
@@ -74,30 +62,47 @@ export interface ModelMeaningfulnessClassifierOptions {
   telemetry?: MeaningfulnessClassifierTelemetry;
 }
 
+export function openaiEnvApiKey(
+  env: NodeJS.ProcessEnv = process.env,
+): string | undefined {
+  const key = env.OPENAI_API_KEY;
+  return key && key.length > 0 ? key : undefined;
+}
+
+export function openaiMeaningfulnessModel(
+  env: NodeJS.ProcessEnv = process.env,
+): string {
+  const model = env.OPENAI_MEANINGFULNESS_MODEL?.trim();
+  return model && model.length > 0
+    ? model
+    : OPENAI_MEANINGFULNESS_MODEL_DEFAULT;
+}
+
 /**
- * Construct the xAI/Grok adapter, or null when the gate is off or
+ * Construct the OpenAI adapter, or null when the gate is off or
  * credentials are missing (worker must keep passthrough).
  *
- * Paid calls require the env gate `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true`
- * (or `options.enabled === true` in tests) **and** an xAI/Grok API key.
- * The factory never invents credentials and never reads OPENAI_API_KEY.
+ * Paid calls require `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true`
+ * (or `options.enabled === true` in tests) **and** OPENAI_API_KEY.
+ * The factory never invents credentials and never reads XAI_API_KEY.
  */
-export function createModelMeaningfulnessClassifier(
-  options?: Partial<ModelMeaningfulnessClassifierOptions>,
+export function createOpenAIMeaningfulnessClassifier(
+  options?: Partial<OpenAIMeaningfulnessClassifierOptions>,
   env: NodeJS.ProcessEnv = process.env,
-): (MeaningfulnessClassifier & GrokMeaningfulnessClassifierPublic) | null {
+): (MeaningfulnessClassifier & OpenAIMeaningfulnessClassifierPublic) | null {
   const enabled = options?.enabled ?? classifierEnabled(env);
   if (!enabled) {
     return null;
   }
-  const apiKey = options?.apiKey ?? grokEnvApiKey(env);
+  const apiKey = options?.apiKey ?? openaiEnvApiKey(env);
   if (!apiKey) {
     return null;
   }
-  return new GrokMeaningfulnessClassifier({
+  return new OpenAIMeaningfulnessClassifier({
     apiKey,
-    baseUrl: options?.baseUrl ?? env.XAI_API_BASE_URL ?? "https://api.x.ai/v1",
-    model: options?.model ?? env.XAI_MODEL ?? "grok-4-fast-non-reasoning",
+    baseUrl:
+      options?.baseUrl ?? env.OPENAI_API_BASE_URL ?? OPENAI_API_BASE_URL_DEFAULT,
+    model: options?.model ?? openaiMeaningfulnessModel(env),
     fetchImpl: options?.fetchImpl,
     timeoutMs: options?.timeoutMs ?? classifierTimeoutMs(env),
     budget:
@@ -110,16 +115,16 @@ export function createModelMeaningfulnessClassifier(
   });
 }
 
-export interface GrokMeaningfulnessClassifierPublic {
+export interface OpenAIMeaningfulnessClassifierPublic {
   readonly telemetry: MeaningfulnessClassifierTelemetry;
-  readonly vendor: "xai-grok";
+  readonly vendor: "openai";
   startCycle(): void;
 }
 
-class GrokMeaningfulnessClassifier
-  implements MeaningfulnessClassifier, GrokMeaningfulnessClassifierPublic
+class OpenAIMeaningfulnessClassifier
+  implements MeaningfulnessClassifier, OpenAIMeaningfulnessClassifierPublic
 {
-  readonly vendor = "xai-grok" as const;
+  readonly vendor = "openai" as const;
   readonly telemetry: MeaningfulnessClassifierTelemetry;
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -128,10 +133,15 @@ class GrokMeaningfulnessClassifier
   private readonly timeoutMs: number;
   private readonly budget: ClassifierCallBudget;
 
-  constructor(options: ModelMeaningfulnessClassifierOptions & { apiKey: string }) {
+  constructor(
+    options: OpenAIMeaningfulnessClassifierOptions & { apiKey: string },
+  ) {
     this.apiKey = options.apiKey;
-    this.baseUrl = (options.baseUrl ?? "https://api.x.ai/v1").replace(/\/$/, "");
-    this.model = options.model ?? "grok-4-fast-non-reasoning";
+    this.baseUrl = (options.baseUrl ?? OPENAI_API_BASE_URL_DEFAULT).replace(
+      /\/$/,
+      "",
+    );
+    this.model = options.model ?? OPENAI_MEANINGFULNESS_MODEL_DEFAULT;
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.timeoutMs = options.timeoutMs ?? CLASSIFIER_TIMEOUT_MS_DEFAULT;
     this.budget =
@@ -142,7 +152,7 @@ class GrokMeaningfulnessClassifier
       );
     this.telemetry =
       options.telemetry ?? emptyMeaningfulnessClassifierTelemetry();
-    this.telemetry.classifierProvider = "xai";
+    this.telemetry.classifierProvider = "openai";
     this.telemetry.classifierModel = this.model;
   }
 
@@ -192,6 +202,7 @@ class GrokMeaningfulnessClassifier
               content: formatClassifierUserPayload(input),
             },
           ],
+          text: MEANINGFULNESS_JUDGMENT_TEXT_FORMAT,
         }),
       },
       this.timeoutMs,

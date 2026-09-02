@@ -567,6 +567,12 @@ export async function runWatchBotPipeline(
       classifierMeaningful: classifierTelemetry.classifierMeaningful,
       classifierNotMeaningful: classifierTelemetry.classifierNotMeaningful,
       classifierErrors: classifierTelemetry.classifierErrors,
+      ...(classifierTelemetry.classifierProvider
+        ? { classifierProvider: classifierTelemetry.classifierProvider }
+        : {}),
+      ...(classifierTelemetry.classifierModel
+        ? { classifierModel: classifierTelemetry.classifierModel }
+        : {}),
     });
   }
 
@@ -625,6 +631,12 @@ function snapshotClassifierTelemetry(
     classifierMeaningful: telemetry.classifierMeaningful ?? 0,
     classifierNotMeaningful: telemetry.classifierNotMeaningful ?? 0,
     classifierErrors: telemetry.classifierErrors ?? 0,
+    ...(telemetry.classifierProvider
+      ? { classifierProvider: telemetry.classifierProvider }
+      : {}),
+    ...(telemetry.classifierModel
+      ? { classifierModel: telemetry.classifierModel }
+      : {}),
   };
 }
 
@@ -643,6 +655,10 @@ function deltaClassifierTelemetry(
       after.classifierNotMeaningful - before.classifierNotMeaningful,
     ),
     classifierErrors: Math.max(0, after.classifierErrors - before.classifierErrors),
+    ...(after.classifierProvider
+      ? { classifierProvider: after.classifierProvider }
+      : {}),
+    ...(after.classifierModel ? { classifierModel: after.classifierModel } : {}),
   };
 }
 

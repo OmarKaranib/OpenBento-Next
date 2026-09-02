@@ -284,8 +284,8 @@ describe("meaningfulness source boundary", () => {
   it("does not encode ASCII/English lexical gates or vendor adapters", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "meaningfulness.ts"), "utf8");
-    expect(src).not.toMatch(/XAI_API_KEY|GROK_API_KEY|X_BEARER_TOKEN|api\.x\.com/i);
-    expect(src).not.toMatch(/from\s+["'][^"']*(?:adapters\/(?:x|grok))[^"']*["']/);
+    expect(src).not.toMatch(/XAI_API_KEY|GROK_API_KEY|OPENAI_API_KEY|X_BEARER_TOKEN|api\.x\.com|api\.openai\.com/i);
+    expect(src).not.toMatch(/from\s+["'][^"']*(?:adapters\/(?:x|grok|openai))[^"']*["']/);
     expect(src).not.toMatch(/split\(\/\^\[a-z0-9/i);
     expect(src).not.toMatch(
       /(?:announce|confirm|breaking|lawsuit|officials|developments?)\s*[:=]/i,

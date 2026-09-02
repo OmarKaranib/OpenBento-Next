@@ -7,8 +7,11 @@ through `@openbento/watchbot` and `@openbento/domain` `createActionExecutor`.
 Paused bots skip discovery. Unexpected failures set status `error` + `lastError`
 without crashing the process. Meaningfulness classification is passthrough
 unless `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true` **and**
-`XAI_API_KEY` / `GROK_API_KEY` is set; missing gate or credentials keep
-passthrough. The worker does not start paid classifier calls by default.
+`WATCHBOT_MEANINGFULNESS_PROVIDER` is `openai` or `xai` **and** the matching
+vendor key is set (`OPENAI_API_KEY` or `XAI_API_KEY` / `GROK_API_KEY`).
+Missing gate, unset/`none` provider, or missing key for the selected
+provider keep passthrough. The worker does not start paid classifier calls
+by default and never auto-picks a vendor from which key is present.
 
 Runtime persist is `createWorkerDomainStore()` (explicit service-role factory).
 It must not use web `getDomainStore()`, which is user-JWT only. The worker
@@ -53,10 +56,17 @@ Effective safety: global worker-tick budget **and** per-WatchBot adapter caps.
 ### Meaning classifier gate (`WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED`)
 
 Default **off**. The worker composes
-`createModelMeaningfulnessClassifier` from env. Paid classification
-requires `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true` **and**
-`XAI_API_KEY` (or `GROK_API_KEY`). Missing either keeps Slice C
-passthrough — existing web/news/X Card creation is unchanged.
+`createConfiguredMeaningfulnessClassifier` from env. Paid classification
+requires **all** of:
+
+1. `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true`
+2. `WATCHBOT_MEANINGFULNESS_PROVIDER=openai` or `xai` (missing/empty/`none` → passthrough)
+3. Matching vendor key: `OPENAI_API_KEY` for OpenAI, `XAI_API_KEY` / `GROK_API_KEY` for xAI
+
+OpenAI default model is `gpt-5.6-luna` (`OPENAI_MEANINGFULNESS_MODEL`).
+Provider selection is explicit and deterministic. Both keys present does
+**not** auto-pick a vendor. Missing key for the selected provider does
+**not** fall back to the other vendor.
 
 Call caps: `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_TICK` (default 5,
 ceiling 20) and `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_CYCLE` (default 5,
@@ -69,10 +79,10 @@ implementation PR does not make live model calls.
 Each tick emits JSON with aggregate pipeline counters, for example:
 `watchBotsLoaded`, `watchBotsProcessed`, `providerEligibleWatchBots`,
 `discovered`, `normalized`, `novel`, `duplicates`, `rejectedRelevance`,
-`candidatesEligible`, `clustered`, `representatives`, `meaningful`, `notMeaningful`, `selected`, `classifierCalls`, `classifierMeaningful`, `classifierNotMeaningful`, `classifierErrors`, `cardsCreated`, `errors`, `xHttpRequests`,
+`candidatesEligible`, `clustered`, `representatives`, `meaningful`, `notMeaningful`, `selected`, `classifierCalls`, `classifierMeaningful`, `classifierNotMeaningful`, `classifierErrors`, optional `classifierProvider` / `classifierModel`, `cardsCreated`, `errors`, `xHttpRequests`,
 `durationMs`, `runMode`
 (`once` | `loop`), and optional per-WatchBot summaries. Never logs bearer
-tokens, service-role keys, owner IDs, instructions, or full tweet bodies.
+tokens, service-role keys, owner IDs, instructions, API keys, source text, or full tweet bodies.
 
 `railway.worker.toml` starts:
 `pnpm --filter worker start:loop -- --provider=x`

@@ -67,8 +67,10 @@ function clearPersistEnv(): void {
   delete process.env.X_BEARER_TOKEN;
   delete process.env.X_MAX_REQUESTS_PER_WORKER_TICK;
   delete process.env.WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED;
+  delete process.env.WATCHBOT_MEANINGFULNESS_PROVIDER;
   delete process.env.XAI_API_KEY;
   delete process.env.GROK_API_KEY;
+  delete process.env.OPENAI_API_KEY;
 }
 
 beforeEach(clearPersistEnv);
