@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { SafeExternalLink } from "../components/cards/SafeExternalLink";
 import { UntrustedText } from "../components/cards/UntrustedText";
+import { SourceProvenanceMeta } from "../components/cards/SourceProvenanceMeta";
 import {
   hostnameFromHttpUrl,
   safeHttpUrl,
@@ -63,5 +64,35 @@ describe("untrusted source display", () => {
     expect(safeLink).toContain('href="https://example.com/?q=%3Cscript%3Ealert(1)%3C/script%3E"');
     expect(safeLink).not.toContain("<script>");
     expect(safeLink).not.toContain("<img");
+  });
+
+  it("renders sourced identity as text, never as HTML, and drops unsafe hrefs", () => {
+    const html = renderToStaticMarkup(
+      createElement(SourceProvenanceMeta, {
+        card: {
+          id: "c1",
+          canvasId: "canvas-1",
+          position: { x: 0, y: 0 },
+          size: { width: 280, height: 180 },
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          type: "article",
+          payload: {
+            provenance: {
+              sourceUrl: XSS_URL,
+              title: XSS_TITLE,
+              publishedAt: "",
+              sourceType: "web",
+              author: XSS_TITLE,
+            },
+          },
+        },
+      }),
+    );
+    expect(html).not.toContain("<a ");
+    expect(html).not.toContain("javascript:");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain("onerror");
   });
 });

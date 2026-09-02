@@ -20,8 +20,10 @@ import { FrameNode } from "./nodes/FrameNode";
 import { CanvasToolbar } from "./CanvasToolbar";
 import { FrameDrawLayer } from "./FrameDrawLayer";
 import { canvasDoubleClickShouldCreateNote } from "./empty-canvas-target";
-import { cardNodeId, frameNodeId, parseFlowNodeId } from "./flow-ids";
+import { parseFlowNodeId } from "./flow-ids";
 import { useCanvasCommands } from "./use-canvas-commands";
+import { nodesFromSnapshot } from "@/lib/canvas/flow-nodes";
+import { useCanvasMonitor } from "@/components/workspace/canvas-monitor";
 
 import "@xyflow/react/dist/style.css";
 
@@ -29,43 +31,6 @@ const NODE_TYPES = {
   ...cardNodeTypes(),
   frame: FrameNode,
 };
-
-function nodesFromSnapshot(
-  cards: ReturnType<typeof useWorkspace>["snapshot"]["cards"],
-  frames: ReturnType<typeof useWorkspace>["snapshot"]["frames"],
-  fullscreen: ReturnType<typeof useWorkspace>["snapshot"]["fullscreen"],
-): Node[] {
-  const active = Boolean(fullscreen?.active);
-  const visibleFrames = active
-    ? frames.filter((frame) => frame.id === fullscreen?.frameId)
-    : frames;
-  const visibleCards = active
-    ? cards.filter((card) => card.frameId === fullscreen?.frameId)
-    : cards;
-
-  return [
-    ...visibleFrames.map((frame) => ({
-      id: frameNodeId(frame.id),
-      type: "frame" as const,
-      position: { x: frame.bounds.x, y: frame.bounds.y },
-      style: { width: frame.bounds.width, height: frame.bounds.height },
-      data: { frameId: frame.id },
-      zIndex: frame.zIndex ?? 0,
-      selectable: !active,
-      draggable: !active,
-    })),
-    ...visibleCards.map((card) => ({
-      id: cardNodeId(card.id),
-      type: card.type,
-      position: { ...card.position },
-      style: { width: card.size.width, height: card.size.height },
-      data: { cardId: card.id },
-      zIndex: card.zIndex ?? 1,
-      selectable: !active,
-      draggable: !active,
-    })),
-  ];
-}
 
 function CanvasSurface() {
   const { snapshot, execute, undo, redo } = useWorkspace();
@@ -76,6 +41,7 @@ function CanvasSurface() {
   } = useWorkspaceUi();
   const { persistCardGeometry, persistCreatedNote, persistFrameMove } =
     useCanvasCommands();
+  const { cardVisible, filter } = useCanvasMonitor();
   const { screenToFlowPosition, setViewport, fitView } = useReactFlow();
   const interactingRef = useRef(false);
   const viewportTimer = useRef<number | null>(null);
@@ -88,7 +54,9 @@ function CanvasSurface() {
   const readOnly = Boolean(fullscreen?.active);
 
   const [nodes, setNodes] = useState<Node[]>(() =>
-    nodesFromSnapshot(snapshot.cards, snapshot.frames, snapshot.fullscreen),
+    nodesFromSnapshot(snapshot.cards, snapshot.frames, snapshot.fullscreen, {
+      cardVisible,
+    }),
   );
 
   useEffect(() => {
@@ -99,8 +67,22 @@ function CanvasSurface() {
     if (interactingRef.current) {
       return;
     }
-    setNodes(nodesFromSnapshot(snapshot.cards, snapshot.frames, snapshot.fullscreen));
-  }, [snapshot.cards, snapshot.frames, snapshot.fullscreen, snapshot.revision]);
+    setNodes(
+      nodesFromSnapshot(snapshot.cards, snapshot.frames, snapshot.fullscreen, {
+        cardVisible,
+      }),
+    );
+  }, [
+    snapshot.cards,
+    snapshot.frames,
+    snapshot.fullscreen,
+    snapshot.revision,
+    cardVisible,
+    filter.query,
+    filter.types,
+    filter.sourceTypes,
+    filter.newOnly,
+  ]);
 
   useEffect(() => {
     if (fullscreen?.active) {

@@ -28,6 +28,8 @@ Compact, icon-first. Not a wide sidebar.
 ## Top area
 
 - **Top-left:** current Canvas selector/name (`OpenBento / {name} ▾`) plus **current-Canvas** WatchBot status. Click status → compact popover for this Canvas’s bots.
+- **Top-left (monitor):** compact current-Canvas search/filter. Query matches Note text and source provenance titles. Type chips cover note / youtube / article / web / x. Filtering is **presentation-only** (unmatched Cards are omitted from the XYFlow node list). Stored positions, sizes, and frame membership are not rewritten. Frames stay visible for spatial context. Clearing search/filter restores every Card.
+- **New since last visit:** browser-local `localStorage` key `openbento:canvas-last-visit:{canvasId}`. Cards with `createdAt` after that timestamp (else `updatedAt` if createdAt is missing) show a New badge. Copy must not imply server unread or sync. lastVisitAt is written on Canvas switch or **Mark seen**.
 - **Top-right:** **Agent** control. Opens a right-side placeholder panel. Not a WatchBot. Not in the rail or toolbar.
 
 Left-rail WatchBots is global. Top-left status is current Canvas only.
@@ -47,8 +49,8 @@ Frame tool: click → crosshair → drag rectangle → name/move/resize.
 
 - Cards are freely positioned and resizable via `moveCard` / `resizeCard`.
 - Frame membership **feels geometric**. Internally persist `card.frameId` through `setCardFrame` after `selectSmallestContainingFrame` + `canSetCardFrame`.
-- Cards are `type` + typed payload via the card registry (Note, YouTube, Article, Web). Source types carry provenance on the payload; notes do not.
-- Source titles/URLs/snippets are untrusted text. Do not inject source HTML. YouTube playback is the official `youtube.com/embed` player only, lazy-mounted with a live-iframe cap. Unknown `publishedAt` is stored as `""` and is not shown as a date.
+- Cards are `type` + typed payload via the card registry (Note, YouTube, Article, Web, X). Source types carry provenance on the payload; notes do not.
+- Source titles/URLs/snippets are untrusted text. Do not inject source HTML. YouTube playback is the official `youtube.com/embed` player only, lazy-mounted with a live-iframe cap. Unknown `publishedAt` / `discoveredAt` is stored as `""` / omitted and is not shown as a date. Missing provenance is not invented.
 - Overlapping Frames: smallest area wins; equal-area ties use newest `createdAt`.
 - **Fullscreen Frame** is view-only presentation (`fullscreenFrame`). Chrome hides; Frame + member Cards show; **stored geometry is not rewritten**.
 
