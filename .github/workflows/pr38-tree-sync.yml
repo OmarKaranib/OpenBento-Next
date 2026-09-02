@@ -1,0 +1,30 @@
+name: pr38-tree-sync
+on:
+  push:
+    branches: [cursor/interactive-agent-mvp-22be]
+    paths: [.github/workflows/pr38-tree-sync.yml]
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: cursor/interactive-agent-mvp-22be
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Sync tree from rebased tip
+        run: |
+          set -eux
+          git fetch origin cursor/interactive-agent-mvp-rebased-22be
+          git checkout origin/cursor/interactive-agent-mvp-rebased-22be -- \
+            docs/OPENBENTO_MASTER_CONTEXT.md \
+            packages/watchbot/src/pipeline.test.ts \
+            pnpm-lock.yaml
+          git rm -f .github/workflows/pr38-tree-sync.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "chore: sync #35/#36/#37 main tree onto Agent PR tip for clean merge"
+          git push origin HEAD:cursor/interactive-agent-mvp-22be
