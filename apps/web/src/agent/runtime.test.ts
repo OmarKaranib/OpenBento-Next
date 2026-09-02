@@ -528,11 +528,24 @@ describe("Interactive Agent runtime", () => {
       message: "Hello",
       execute: boundExecute(executor) as never,
       provider,
-      env: { OPENAI_API_KEY: "sk-live-secret" },
+      env: { OPENAI_AGENT_API_KEY: "sk-live-secret" },
     });
 
     expect(result.error).toMatch(/provider failed/i);
     expect(JSON.stringify(result)).not.toContain("sk-live");
+  });
+
+  it("fails closed when only worker OPENAI_API_KEY is present", async () => {
+    const { executor, canvas } = await seedCanvas();
+    const result = await runInteractiveAgentTurn({
+      canvasId: canvas.id,
+      message: "Hello",
+      execute: boundExecute(executor) as never,
+      provider: null,
+      env: { OPENAI_API_KEY: "worker-only-must-not-enable-agent" },
+    });
+    expect(result.error).toMatch(/OPENAI_AGENT_API_KEY/);
+    expect(result.toolCallCount).toBe(0);
   });
 
   it("fails closed when Canvas access is unauthenticated", async () => {
@@ -553,17 +566,24 @@ describe("Interactive Agent runtime", () => {
 });
 
 describe("OpenAI agent provider boundary", () => {
-  it("never reads NEXT_PUBLIC OpenAI keys", () => {
+  it("reads OPENAI_AGENT_API_KEY and ignores worker OPENAI_API_KEY / NEXT_PUBLIC", () => {
     expect(
       openaiAgentApiKey({
         NEXT_PUBLIC_OPENAI_API_KEY: "public-leak",
+        OPENAI_API_KEY: "worker-only-key",
       }),
     ).toBeUndefined();
     expect(
       openaiAgentApiKey({
-        OPENAI_API_KEY: "server-only-key",
+        OPENAI_API_KEY: "worker-only-key",
+        OPENAI_AGENT_API_KEY: "agent-web-key",
       }),
-    ).toBe("server-only-key");
+    ).toBe("agent-web-key");
+    expect(
+      openaiAgentApiKey({
+        OPENAI_AGENT_API_KEY: "agent-web-key",
+      }),
+    ).toBe("agent-web-key");
   });
 
   it("defaults the interactive model to gpt-5.6-terra", () => {
