@@ -1,6 +1,7 @@
 # Deploy — Gate 3 (prepare, do not activate)
 
-Application + config so Omar can later authorize a **Railway US East** deploy of web + worker against the **existing** `openbento-next` Supabase **dev** project (us-east-1, ref `rullqomazkamlncuotqu`). Persistence already lives there.
+Application + config for Railway web + worker against the existing
+`openbento-next` Supabase dev project. Persistence already lives there.
 
 **Status (truthful):**
 
@@ -8,7 +9,7 @@ Application + config so Omar can later authorize a **Railway US East** deploy of
 | --- | --- |
 | Web service | Hosted on Railway (`web-production-4d6c9e`) |
 | WatchBot worker **implementation** | Ready in-repo (`apps/worker`, X adapter, fail-closed gates) |
-| WatchBot worker **deployment** | **Not yet authorized** — do not create/start the Railway worker service from this doc alone |
+| WatchBot worker **deployment** | Hosted on Railway, globally disabled (`OPENBENTO_WORKER_ENABLED` fail-closed) |
 | Live X verification | **Not yet verified** — no production/dev X cycle has been authorized |
 
 This document does **not** deploy Railway, create a Railway worker service, apply production SQL, create another Supabase project, enable `OPENBENTO_WORKER_ENABLED`, enable `X_PROVIDER_ENABLED`, or call the X API. Public worker deploy and live providers remain **CR3**.
@@ -17,7 +18,9 @@ This document does **not** deploy Railway, create a Railway worker service, appl
 
 Railway Config as Code (`railway.toml` / `railway.json`) describes **one service per file**. Create **two services** in the dashboard from this GitHub repo. Both must use **Root Directory = repo root** (`/` / empty). Do **not** set Root Directory to `apps/web` — the pnpm lockfile lives at the repo root.
 
-Region: **US East / Virginia**.
+Target region: **US East / Virginia**. Read-only verification on 2 September
+2026 found both live services configured in Railway region `ams` instead. Moving
+regions is a separate production CR3 change and is not authorized by this file.
 
 | Service | Config file | Public domain | Healthcheck |
 | --- | --- | --- | --- |
@@ -69,6 +72,8 @@ Names only. Set real values in the Railway dashboard (and never commit them). Do
 | `NEXT_PUBLIC_SUPABASE_URL` | Existing **dev** project URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable / anon key. Alias: `NEXT_PUBLIC_SUPABASE_ANON_KEY` |
 | `NEXT_PUBLIC_SITE_URL` | Public origin for Auth redirects (hosted web origin) |
+| `NEXT_PUBLIC_SENTRY_DSN` | Optional browser error-ingestion DSN; public by design. Default PII and tracing are disabled |
+| `SENTRY_DSN` | Optional web server/edge error-ingestion DSN; service-scoped |
 
 Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web service.
 
@@ -79,6 +84,7 @@ Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web servic
 | `NEXT_PUBLIC_SUPABASE_URL` | Same **dev** project as web. Historical/shared factory input — on the worker this is used **only** to construct the Supabase client, not to expose a browser runtime |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Same as web (or `NEXT_PUBLIC_SUPABASE_ANON_KEY`). Same factory-input note as above |
 | `SUPABASE_SERVICE_ROLE_KEY` | **Worker-only.** Never on web. Required only when the worker gate is enabled |
+| `SENTRY_DSN` | Optional worker error-ingestion DSN; keep scoped to the worker service |
 | `OPENBENTO_WORKER_ENABLED` | **`false`** initially. Global fail-closed gate. Absent / `false` / anything other than `true` or `1` → clean exit (`openbento_worker_disabled`), **before** store/provider construction, service-role access, X credentials, or cycles |
 | `OPENBENTO_WORKER_RUN_ONCE` | **`false`** initially. When `true`/`1` with worker enabled, runs **exactly one** tick and exits — even when `railway.worker.toml` starts `--loop`. Logs `openbento_worker_run_once`. Does **not** bypass worker or X gates |
 | `OPENBENTO_WORKER_INTERVAL_MS` | Optional loop interval. Default `60000`. Hard ceiling `300000` (5 minutes) |
@@ -100,6 +106,11 @@ Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web servic
 | `WATCHBOT_MEANINGFULNESS_TIMEOUT_MS` | `8000` (ceiling `15000`) |
 
 **Secret separation:** `SUPABASE_SERVICE_ROLE_KEY` and `X_BEARER_TOKEN` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path. `XAI_API_KEY` and `OPENAI_API_KEY` are also worker-only when the classifier or Grok discovery adapter is used. Never log or commit either key.
+
+Sentry is error monitoring only: no product analytics, replay, performance
+tracing, or default PII collection. Do not place `SENTRY_AUTH_TOKEN` on either
+runtime service; this repository does not upload source maps. A missing DSN
+leaves monitoring inert.
 
 **Gate order (do not weaken):**
 
@@ -156,6 +167,12 @@ Local Site URL may remain `http://localhost:3000` until the hosted origin is rea
 
 - Web `GET /health` returns **200** when the Next process is up. Body is a static `{ ok: true }` — no secrets, env, or user data.
 - Railway healthcheck is **web-only**. The worker has no public domain and no healthcheck path.
+- Read-only production verification on 2 September 2026 returned HTTP 200 and
+  `{ "ok": true }` from the Railway web `/health` endpoint. Both latest Railway
+  deployments reported `SUCCESS`; the worker log exited at
+  `openbento_worker_disabled` and showed the Node 20 Supabase deprecation warning.
+  The repository pins Node 22.23.2; confirm the warning disappears after a
+  separately authorized deployment.
 
 ## Rollback
 

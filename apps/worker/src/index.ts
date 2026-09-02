@@ -6,6 +6,7 @@ import {
 } from "@openbento/watchbot";
 import { runWorkerCycle, type WorkerCycleResult } from "./cycle";
 import { seedFixtureStore } from "./fixture";
+import { createWorkerMonitoring, type WorkerMonitoring } from "./monitoring";
 import {
   buildWorkerTickTelemetry,
   formatWorkerTickTelemetry,
@@ -20,6 +21,7 @@ export type WorkerMainOptions = {
   runCycle?: typeof runWorkerCycle;
   abortSignal?: AbortSignal;
   env?: NodeJS.ProcessEnv;
+  monitoring?: WorkerMonitoring;
 };
 
 /**
@@ -112,6 +114,7 @@ export async function main(
   if (stopped) {
     return;
   }
+  const monitoring = options.monitoring ?? createWorkerMonitoring(env);
   if (useGrok && useX) {
     throw new Error("Select only one WatchBot provider per worker process");
   }
@@ -179,10 +182,15 @@ export async function main(
       }
       try {
         await tick();
-      } catch {
+      } catch (error) {
+        monitoring.capture(error, "watchbot_tick");
         process.stderr.write("watchbot_tick_error\n");
       }
     }
+  } catch (error) {
+    monitoring.capture(error, "worker_main");
+    await monitoring.flush();
+    throw error;
   } finally {
     if (!runOnce) {
       process.off("SIGTERM", stop);

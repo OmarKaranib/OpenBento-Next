@@ -4,7 +4,7 @@
   "description": "OpenBento-Next monorepo — AI-native live intelligence canvas",
   "packageManager": "pnpm@10.33.3",
   "engines": {
-    "node": ">=20"
+    "node": "22.23.x"
   },
   "scripts": {
     "dev": "pnpm --filter web dev",
@@ -14,7 +14,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
-    "@types/node": "^20",
+    "@types/node": "^22",
     "eslint": "^9",
     "typescript": "^5",
     "typescript-eslint": "^8",

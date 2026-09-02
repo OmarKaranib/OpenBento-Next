@@ -5,6 +5,7 @@
 # Start selects the official X adapter via --provider=x. That only chooses the
 # adapter path — X_PROVIDER_ENABLED and OPENBENTO_WORKER_ENABLED remain fail-
 # closed defaults (false). Worker deployment is not authorized by this file.
+# Node 22.23.2 is pinned by package.json, .nvmrc, and .node-version.
 
 [build]
 builder = "RAILPACK"
