@@ -105,13 +105,15 @@ Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web servic
 | `WATCHBOT_OPENAI_WEB_MAX_REQUESTS_PER_CYCLE` | `1` (per WatchBot cycle; hard ceiling `2`) |
 | `WATCHBOT_OPENAI_WEB_MAX_RESULTS_PER_CYCLE` | `10` (hard ceiling `20`) |
 | `WATCHBOT_OPENAI_WEB_TIMEOUT_MS` | `15000` (ceiling `30000`) |
+| `OPENAI_AGENT_API_KEY` | **Web server-only.** Interactive Agent Responses API credential. Never reuse `OPENAI_API_KEY` on web. Never `NEXT_PUBLIC_` |
+| `OPENAI_AGENT_MODEL` | Web optional. Default `gpt-5.6-terra` for the Interactive Agent |
 | `OPENAI_MEANINGFULNESS_MODEL` | `gpt-5.6-luna` (override to compare Luna vs Terra without domain changes) |
 | `OPENAI_API_BASE_URL` | `https://api.openai.com/v1` |
 | `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_TICK` | `5` (shared across WatchBots in one tick; hard ceiling `20`) |
 | `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_CYCLE` | `5` (per WatchBot pipeline cycle; hard ceiling `10`) |
 | `WATCHBOT_MEANINGFULNESS_TIMEOUT_MS` | `8000` (ceiling `15000`) |
 
-**Secret separation:** `SUPABASE_SERVICE_ROLE_KEY` and `X_BEARER_TOKEN` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path. `XAI_API_KEY` and `OPENAI_API_KEY` are also worker-only when the classifier, Grok discovery, or OpenAI web/news adapter is used. Never log or commit either key.
+**Secret separation:** `SUPABASE_SERVICE_ROLE_KEY` and `X_BEARER_TOKEN` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path. `XAI_API_KEY` and `OPENAI_API_KEY` are also worker-only when the classifier, Grok discovery, or OpenAI web/news adapter is used. The Interactive Agent uses a dedicated web server-only `OPENAI_AGENT_API_KEY` and must not fall back to worker `OPENAI_API_KEY`. Never log or commit these keys.
 
 Sentry is error monitoring only: no product analytics, replay, performance
 tracing, or default PII collection. Do not place `SENTRY_AUTH_TOKEN` on either
