@@ -36,8 +36,10 @@ import {
   type RankableCandidate,
 } from "./select-candidates";
 import {
+  emptyMeaningfulnessClassifierTelemetry,
   noopWatchBotTelemetry,
   type EmitWatchBotTelemetry,
+  type MeaningfulnessClassifierTelemetry,
 } from "./telemetry";
 import type { XHttpBudget } from "./x-http-budget";
 
@@ -82,6 +84,10 @@ export interface PipelineCycleStats {
   meaningful: number;
   notMeaningful: number;
   selected: number;
+  classifierCalls: number;
+  classifierMeaningful: number;
+  classifierNotMeaningful: number;
+  classifierErrors: number;
 }
 
 export interface PipelineCycleResult {
@@ -173,6 +179,7 @@ export function computePipelineCycleStats(
   discoveredCount: number,
   items: PipelineItemResult[],
   cardsCreated: number,
+  classifierTelemetry: MeaningfulnessClassifierTelemetry = emptyMeaningfulnessClassifierTelemetry(),
 ): PipelineCycleStats {
   let duplicates = 0;
   let rejectedRelevance = 0;
@@ -229,6 +236,10 @@ export function computePipelineCycleStats(
     meaningful,
     notMeaningful,
     selected,
+    classifierCalls: classifierTelemetry.classifierCalls,
+    classifierMeaningful: classifierTelemetry.classifierMeaningful,
+    classifierNotMeaningful: classifierTelemetry.classifierNotMeaningful,
+    classifierErrors: classifierTelemetry.classifierErrors,
   };
 }
 
@@ -333,6 +344,7 @@ export async function runWatchBotPipeline(
   const results: PipelineItemResult[] = [];
   let cardsCreated = 0;
   let discoveredCount = 0;
+  let classifierTelemetry = emptyMeaningfulnessClassifierTelemetry();
 
   try {
     const providerResults = await provider.discover({
@@ -407,11 +419,19 @@ export async function runWatchBotPipeline(
       eligible,
       (candidate) => candidate.normalized.title,
     );
+    const classifier =
+      input.meaningfulnessClassifier ?? PASSTHROUGH_MEANINGFULNESS_CLASSIFIER;
+    classifier.startCycle?.();
+    const telemetryBefore = snapshotClassifierTelemetry(classifier);
     const judged = await judgeRepresentatives(
       clustered.representatives,
       (candidate) =>
         toMeaningfulnessInput(candidate.normalized, watchBot.instruction),
-      input.meaningfulnessClassifier ?? PASSTHROUGH_MEANINGFULNESS_CLASSIFIER,
+      classifier,
+    );
+    classifierTelemetry = deltaClassifierTelemetry(
+      telemetryBefore,
+      snapshotClassifierTelemetry(classifier),
     );
     const meaningful = selectMeaningfulDevelopments(judged);
     const selected = selectCandidates(
@@ -552,10 +572,19 @@ export async function runWatchBotPipeline(
       units: results.length,
       watchBotId: watchBot.id,
       durationMs: Date.now() - started,
+      classifierCalls: classifierTelemetry.classifierCalls,
+      classifierMeaningful: classifierTelemetry.classifierMeaningful,
+      classifierNotMeaningful: classifierTelemetry.classifierNotMeaningful,
+      classifierErrors: classifierTelemetry.classifierErrors,
     });
   }
 
-  const stats = computePipelineCycleStats(discoveredCount, results, cardsCreated);
+  const stats = computePipelineCycleStats(
+    discoveredCount,
+    results,
+    cardsCreated,
+    classifierTelemetry,
+  );
   return {
     watchBotId: watchBot.id,
     skipped: false,
@@ -582,6 +611,47 @@ function emptyPipelineStats(): PipelineCycleStats {
     meaningful: 0,
     notMeaningful: 0,
     selected: 0,
+    classifierCalls: 0,
+    classifierMeaningful: 0,
+    classifierNotMeaningful: 0,
+    classifierErrors: 0,
+  };
+}
+
+function snapshotClassifierTelemetry(
+  classifier: MeaningfulnessClassifier,
+): MeaningfulnessClassifierTelemetry {
+  if (!("telemetry" in classifier)) {
+    return emptyMeaningfulnessClassifierTelemetry();
+  }
+  const telemetry = (classifier as { telemetry?: MeaningfulnessClassifierTelemetry })
+    .telemetry;
+  if (!telemetry || typeof telemetry !== "object") {
+    return emptyMeaningfulnessClassifierTelemetry();
+  }
+  return {
+    classifierCalls: telemetry.classifierCalls ?? 0,
+    classifierMeaningful: telemetry.classifierMeaningful ?? 0,
+    classifierNotMeaningful: telemetry.classifierNotMeaningful ?? 0,
+    classifierErrors: telemetry.classifierErrors ?? 0,
+  };
+}
+
+function deltaClassifierTelemetry(
+  before: MeaningfulnessClassifierTelemetry,
+  after: MeaningfulnessClassifierTelemetry,
+): MeaningfulnessClassifierTelemetry {
+  return {
+    classifierCalls: Math.max(0, after.classifierCalls - before.classifierCalls),
+    classifierMeaningful: Math.max(
+      0,
+      after.classifierMeaningful - before.classifierMeaningful,
+    ),
+    classifierNotMeaningful: Math.max(
+      0,
+      after.classifierNotMeaningful - before.classifierNotMeaningful,
+    ),
+    classifierErrors: Math.max(0, after.classifierErrors - before.classifierErrors),
   };
 }
 

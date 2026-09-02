@@ -4,10 +4,12 @@ import {
   type WatchBot,
 } from "@openbento/domain";
 import {
+  createModelMeaningfulnessClassifier,
   isWatchBotProviderEligible,
   runWatchBotPipeline,
   XHttpBudget,
   xMaxRequestsPerWorkerTick,
+  type MeaningfulnessClassifier,
   type PipelineCycleResult,
   type SourceProvider,
 } from "@openbento/watchbot";
@@ -33,6 +35,10 @@ export interface WorkerCycleResult {
   meaningful: number;
   notMeaningful: number;
   selected: number;
+  classifierCalls: number;
+  classifierMeaningful: number;
+  classifierNotMeaningful: number;
+  classifierErrors: number;
   cycles: PipelineCycleResult[];
 }
 
@@ -42,6 +48,12 @@ export interface RunWorkerCycleInput {
   now?: () => string;
   id?: () => string;
   env?: NodeJS.ProcessEnv;
+  /**
+   * Optional injected classifier (tests). Production composition uses
+   * {@link createModelMeaningfulnessClassifier} from env: gate OFF or
+   * missing credentials → passthrough.
+   */
+  meaningfulnessClassifier?: MeaningfulnessClassifier | null;
 }
 
 const DEFAULT_SOURCE_TYPES = ["web", "news"] as const;
@@ -66,6 +78,10 @@ function aggregateCycleStats(
   result.meaningful += cycle.stats.meaningful;
   result.notMeaningful += cycle.stats.notMeaningful;
   result.selected += cycle.stats.selected;
+  result.classifierCalls += cycle.stats.classifierCalls;
+  result.classifierMeaningful += cycle.stats.classifierMeaningful;
+  result.classifierNotMeaningful += cycle.stats.classifierNotMeaningful;
+  result.classifierErrors += cycle.stats.classifierErrors;
 }
 
 /**
@@ -86,6 +102,10 @@ export async function runWorkerCycle(
     input.provider.vendor === "x-api"
       ? new XHttpBudget(xMaxRequestsPerWorkerTick(env))
       : undefined;
+  const meaningfulnessClassifier =
+    input.meaningfulnessClassifier === undefined
+      ? createModelMeaningfulnessClassifier(undefined, env)
+      : input.meaningfulnessClassifier;
 
   const result: WorkerCycleResult = {
     watchBotsLoaded: bots.length,
@@ -108,6 +128,10 @@ export async function runWorkerCycle(
     meaningful: 0,
     notMeaningful: 0,
     selected: 0,
+    classifierCalls: 0,
+    classifierMeaningful: 0,
+    classifierNotMeaningful: 0,
+    classifierErrors: 0,
     cycles: [],
   };
 
@@ -143,6 +167,9 @@ export async function runWorkerCycle(
         now,
         id: input.id,
         xHttpBudget,
+        ...(meaningfulnessClassifier
+          ? { meaningfulnessClassifier }
+          : {}),
       });
       result.cycles.push(cycle);
       result.watchBotsProcessed += 1;

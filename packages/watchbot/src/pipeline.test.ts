@@ -15,6 +15,8 @@ import {
   createFixtureMeaningfulnessClassifier,
   type MeaningfulnessInput,
 } from "./meaningfulness";
+import { createModelMeaningfulnessClassifier } from "./adapters/meaningfulness-classifier";
+import { ClassifierCallBudget } from "./classifier-budget";
 import { assertSourceCardPayload, runWatchBotPipeline } from "./pipeline";
 import { buildDedupKey } from "./dedup";
 import {
@@ -1773,5 +1775,307 @@ describe("WatchBot intelligence Slice C meaningful-development contract", () => 
         externalId: "90",
       });
     }
+  });
+});
+
+function classifierEnvelope(judgment: unknown): unknown {
+  return {
+    output: [
+      {
+        type: "message",
+        content: [
+          {
+            type: "output_text",
+            text: JSON.stringify(judgment),
+          },
+        ],
+      },
+    ],
+  };
+}
+
+describe("WatchBot intelligence Slice D model-backed classifier adapter", () => {
+  it("excludes chatter and keeps a high-importance development (mock HTTP)", async () => {
+    const chatterItem = newsAbout(
+      "slice-d-chatter",
+      "People keep talking about renaming Lake Ontario again",
+    );
+    const lawsuitItem = newsAbout(
+      "slice-d-lawsuit",
+      "Canada files a lawsuit over the Lake Ontario rename",
+    );
+    const { store, executor, watchBot, provider } = await seed([
+      chatterItem,
+      lawsuitItem,
+    ]);
+    const fetchImpl = vi.fn(async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        input?: { content?: string }[];
+      };
+      const content = body.input?.[0]?.content ?? "";
+      const meaningful = content.includes("Canada files a lawsuit");
+      return new Response(
+        JSON.stringify(
+          classifierEnvelope({
+            meaningful,
+            importanceScore: meaningful ? 0.93 : 0.11,
+          }),
+        ),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as typeof fetch;
+    const classifier = createModelMeaningfulnessClassifier({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl,
+    });
+
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: classifier ?? undefined,
+    });
+
+    expect(result.cardsCreated).toBe(1);
+    expect(result.stats.classifierCalls).toBe(2);
+    expect(result.stats.classifierMeaningful).toBe(1);
+    expect(result.stats.classifierNotMeaningful).toBe(1);
+    expect(result.stats.notMeaningful).toBe(1);
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(
+      state.cards.map((card) =>
+        "provenance" in card.payload ? card.payload.provenance.sourceUrl : "",
+      ),
+    ).toEqual(["https://news.example.com/slice-d-lawsuit"]);
+  });
+
+  it("classifies clustered representatives only", async () => {
+    const lawsuitItem = newsAbout(
+      "slice-d-rep",
+      "Canada files a lawsuit over the Lake Ontario rename",
+    );
+    const paraphrase = newsAbout(
+      "slice-d-para",
+      "Canada files a lawsuit over the Lake Ontario rename today",
+    );
+    const chatterItem = newsAbout(
+      "slice-d-talk",
+      "People keep talking about renaming Lake Ontario again",
+    );
+    const { store, executor, watchBot, provider } = await seed([
+      chatterItem,
+      lawsuitItem,
+      paraphrase,
+    ]);
+    const titles: string[] = [];
+    const fetchImpl = vi.fn(async (_url, init) => {
+      const body = JSON.parse(String(init?.body ?? "{}")) as {
+        input?: { content?: string }[];
+      };
+      const content = body.input?.[0]?.content ?? "";
+      titles.push(content);
+      const meaningful = content.includes("Canada files a lawsuit");
+      return new Response(
+        JSON.stringify(
+          classifierEnvelope({
+            meaningful,
+            importanceScore: meaningful ? 0.9 : 0.2,
+          }),
+        ),
+        { status: 200, headers: { "content-type": "application/json" } },
+      );
+    }) as typeof fetch;
+    const classifier = createModelMeaningfulnessClassifier({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl,
+    });
+
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: classifier ?? undefined,
+    });
+
+    expect(result.stats.candidatesEligible).toBe(3);
+    expect(result.stats.clustered).toBe(1);
+    expect(result.stats.representatives).toBe(2);
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+    expect(titles.some((text) => text.includes(paraphrase.title))).toBe(false);
+    expect(result.cardsCreated).toBe(1);
+  });
+
+  it("fail-closes a representative on malformed adapter output", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      newsAbout("slice-d-bad", "Canada files a lawsuit over the Lake Ontario rename"),
+    ]);
+    const classifier = createModelMeaningfulnessClassifier({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: (async () =>
+        new Response(JSON.stringify(classifierEnvelope("not-json-object")), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })) as typeof fetch,
+    });
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: classifier ?? undefined,
+    });
+    expect(result.cardsCreated).toBe(0);
+    expect(result.stats.notMeaningful).toBe(1);
+    expect(result.stats.classifierErrors).toBe(1);
+    expect(result.items[0]?.detail).toBe("not_meaningful");
+  });
+
+  it("fail-closes remaining representatives when the call budget is exhausted", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      newsAbout("slice-d-a", "Canada files a lawsuit over the Lake Ontario rename"),
+      newsAbout("slice-d-b", "New York lawmakers schedule Lake America hearings"),
+    ]);
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify(
+          classifierEnvelope({ meaningful: true, importanceScore: 0.8 }),
+        ),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const classifier = createModelMeaningfulnessClassifier({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: fetchImpl as typeof fetch,
+      budget: new ClassifierCallBudget(1, 1),
+    });
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: classifier ?? undefined,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result.stats.classifierCalls).toBe(1);
+    expect(result.stats.classifierErrors).toBe(1);
+    expect(result.stats.notMeaningful).toBe(1);
+    expect(result.cardsCreated).toBe(1);
+  });
+
+  it("keeps selected Card provenance identical when the adapter is used", async () => {
+    const item: DiscoveredItem = {
+      sourceUrl: "https://news.example.com/provenance-slice-d?utm_source=rss",
+      title: "Canada files a lawsuit over the Lake Ontario rename",
+      publishedAt: "2026-08-28T12:00:00.000Z",
+      sourceType: "news",
+      rawExcerpt: "Canada filed in federal court over the Lake Ontario proposal.",
+      author: "desk",
+      externalId: "prov-d-1",
+    };
+    const { store, executor, watchBot, provider } = await seed([item]);
+    const classifier = createModelMeaningfulnessClassifier({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: (async () =>
+        new Response(
+          JSON.stringify(
+            classifierEnvelope({ meaningful: true, importanceScore: 0.88 }),
+          ),
+          { status: 200, headers: { "content-type": "application/json" } },
+        )) as typeof fetch,
+    });
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: classifier ?? undefined,
+    });
+    expect(result.cardsCreated).toBe(1);
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    const card = state.cards[0];
+    expect(card?.type).toBe("news");
+    if (card && "provenance" in card.payload) {
+      expect(card.payload.provenance).toMatchObject({
+        sourceUrl: "https://news.example.com/provenance-slice-d",
+        title: item.title,
+        publishedAt: "2026-08-28T12:00:00.000Z",
+        sourceType: "news",
+        watchBotId: watchBot.id,
+        author: "desk",
+        externalId: "prov-d-1",
+      });
+    }
+  });
+
+  it("does not call the model when the adapter is disabled (passthrough)", async () => {
+    const fetchImpl = vi.fn(async () => new Response("{}", { status: 200 }));
+    expect(
+      createModelMeaningfulnessClassifier(
+        { fetchImpl: fetchImpl as typeof fetch },
+        {
+          XAI_API_KEY: "test-not-a-secret",
+          WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED: "false",
+        },
+      ),
+    ).toBeNull();
+    const { store, executor, watchBot, provider } = await seed([
+      newsItem,
+      webItem,
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
+    expect(result.stats.classifierCalls).toBe(0);
+    expect(result.stats.notMeaningful).toBe(0);
+    expect(result.cardsCreated).toBe(2);
+  });
+
+  it("does not send source text or instructions in classifier telemetry", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      newsAbout("slice-d-tel", "Canada files a lawsuit over the Lake Ontario rename"),
+    ]);
+    const events: Record<string, unknown>[] = [];
+    const classifier = createModelMeaningfulnessClassifier({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: (async () =>
+        new Response(
+          JSON.stringify(
+            classifierEnvelope({ meaningful: true, importanceScore: 0.7 }),
+          ),
+          { status: 200, headers: { "content-type": "application/json" } },
+        )) as typeof fetch,
+    });
+    await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: classifier ?? undefined,
+      emitTelemetry: (event) => {
+        events.push({ ...event });
+      },
+    });
+    expect(events).toHaveLength(1);
+    const payload = JSON.stringify(events[0]);
+    expect(payload).not.toMatch(/Lake Ontario/i);
+    expect(payload).not.toMatch(/https:\/\//);
+    expect(payload).not.toMatch(/test-not-a-secret/);
+    expect(events[0]).toMatchObject({
+      classifierCalls: 1,
+      classifierMeaningful: 1,
+      classifierErrors: 0,
+    });
   });
 });

@@ -6,8 +6,9 @@ Runs `discover → normalize → dedup → novelty → relevance → cluster →
 through `@openbento/watchbot` and `@openbento/domain` `createActionExecutor`.
 Paused bots skip discovery. Unexpected failures set status `error` + `lastError`
 without crashing the process. Meaningfulness classification is passthrough
-unless the pipeline is given an explicit classifier; the worker does not
-make model calls.
+unless `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true` **and**
+`XAI_API_KEY` / `GROK_API_KEY` is set; missing gate or credentials keep
+passthrough. The worker does not start paid classifier calls by default.
 
 Runtime persist is `createWorkerDomainStore()` (explicit service-role factory).
 It must not use web `getDomainStore()`, which is user-JWT only. The worker
@@ -49,12 +50,26 @@ one worker tick. Once exhausted, later X WatchBots are skipped cleanly
 
 Effective safety: global worker-tick budget **and** per-WatchBot adapter caps.
 
+### Meaning classifier gate (`WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED`)
+
+Default **off**. The worker composes
+`createModelMeaningfulnessClassifier` from env. Paid classification
+requires `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true` **and**
+`XAI_API_KEY` (or `GROK_API_KEY`). Missing either keeps Slice C
+passthrough — existing web/news/X Card creation is unchanged.
+
+Call caps: `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_TICK` (default 5,
+ceiling 20) and `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_CYCLE` (default 5,
+ceiling 10). Timeout default 8000 ms (ceiling 15000). Exhausted budget or
+model error fail-closes that representative (`meaningful: false`). This
+implementation PR does not make live model calls.
+
 ### Tick telemetry
 
 Each tick emits JSON with aggregate pipeline counters, for example:
 `watchBotsLoaded`, `watchBotsProcessed`, `providerEligibleWatchBots`,
 `discovered`, `normalized`, `novel`, `duplicates`, `rejectedRelevance`,
-`candidatesEligible`, `clustered`, `representatives`, `meaningful`, `notMeaningful`, `selected`, `cardsCreated`, `errors`, `xHttpRequests`,
+`candidatesEligible`, `clustered`, `representatives`, `meaningful`, `notMeaningful`, `selected`, `classifierCalls`, `classifierMeaningful`, `classifierNotMeaningful`, `classifierErrors`, `cardsCreated`, `errors`, `xHttpRequests`,
 `durationMs`, `runMode`
 (`once` | `loop`), and optional per-WatchBot summaries. Never logs bearer
 tokens, service-role keys, owner IDs, instructions, or full tweet bodies.
@@ -76,6 +91,9 @@ defaults to `false`.
 7. Observe exactly one tick
 8. Return worker=false / X=false
 9. `OPENBENTO_WORKER_RUN_ONCE=false`
+
+Keep `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=false` until a separately
+reviewed live classifier gate. This worker does not enable it by default.
 
 `start` and `start:loop` never pass `--fixture`. They use the service-role
 durable store and require `SUPABASE_SERVICE_ROLE_KEY` (never committed; never

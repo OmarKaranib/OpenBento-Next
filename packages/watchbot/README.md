@@ -26,6 +26,21 @@ web/news/X behavior is unchanged. When a classifier is injected,
 Ranking after clustering is `importance → relevance → novelty → arrivalIndex`.
 Adapters stay out of `@openbento/domain`.
 
+## Meaningfulness model adapter (Slice D)
+
+`packages/watchbot/src/adapters/meaningfulness-classifier.ts` is a **bounded
+xAI/Grok Responses adapter** for the Slice C port. It is constructed only
+when `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true` **and**
+`XAI_API_KEY` / `GROK_API_KEY` is set. Missing gate or credentials → the
+worker keeps passthrough (no paid calls). Output is strictly
+`{ meaningful: boolean, importanceScore: number }` with the score clamped
+to `[0, 1]`; malformed, timeout, provider error, or call-budget exhaustion
+fail-closes that representative (`meaningful: false`). Classification is
+capped per worker tick and per WatchBot cycle and runs on clustered
+representatives only. Telemetry may include `classifierCalls` /
+`classifierMeaningful` / `classifierNotMeaningful` / `classifierErrors`
+— never source text, instructions, or secrets.
+
 ## SourceProvider
 
 Provider-agnostic port in `src/provider.ts`. Tests inject `FakeSourceProvider`.
