@@ -3,34 +3,37 @@
 import type { Node, NodeProps } from "@xyflow/react";
 import type { Card } from "@openbento/domain";
 import { SourceCardChrome } from "@/components/cards/SourceCardChrome";
-import { SafeExternalLink } from "@/components/cards/SafeExternalLink";
+import { SourceProvenanceMeta } from "@/components/cards/SourceProvenanceMeta";
 import { UntrustedText } from "@/components/cards/UntrustedText";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
-import { knownPublishedAtLabel } from "@/lib/domain/source-card";
+import { sourceKindLabel } from "@/lib/canvas/provenance-display";
 import { hostnameFromHttpUrl, sanitizeUntrustedDisplayText } from "@/lib/untrusted";
 
 export type ArticleNode = Node<{ cardId: string }, "article">;
 export type WebNode = Node<{ cardId: string }, "web">;
+export type XNode = Node<{ cardId: string }, "x">;
+
+type SourceLinkCard = Extract<Card, { type: "article" | "web" | "x" }>;
 
 function SourceLinkBody({
   card,
   selected,
   label,
 }: {
-  card: Extract<Card, { type: "article" | "web" }>;
+  card: SourceLinkCard;
   selected: boolean;
-  label: string;
+  label?: string;
 }) {
   const provenance = card.payload.provenance;
   const host = hostnameFromHttpUrl(provenance.sourceUrl);
   const author = sanitizeUntrustedDisplayText(provenance.author ?? "", 120);
-  const published = knownPublishedAtLabel(provenance.publishedAt);
+  const kind = label ?? sourceKindLabel(card) ?? "Source";
 
   return (
     <SourceCardChrome
       card={card}
       selected={selected}
-      label={label}
+      label={kind}
       minWidth={200}
       minHeight={120}
     >
@@ -42,17 +45,7 @@ function SourceLinkBody({
         {host ? (
           <UntrustedText value={host} className="text-[11px] text-zinc-500" />
         ) : null}
-        <SafeExternalLink
-          href={provenance.sourceUrl}
-          className="nodrag nopan truncate text-[11px] text-indigo-300 hover:text-indigo-200"
-        />
-        {author || published ? (
-          <p className="text-[11px] text-zinc-500">
-            {author ? <UntrustedText value={author} /> : null}
-            {author && published ? " · " : null}
-            {published ? <UntrustedText value={published} /> : null}
-          </p>
-        ) : null}
+        <SourceProvenanceMeta card={card} author={author} />
       </div>
     </SourceCardChrome>
   );
@@ -74,4 +67,13 @@ export function WebCardNode({ data, selected }: NodeProps<WebNode>) {
     return null;
   }
   return <SourceLinkBody card={card} selected={selected} label="Web" />;
+}
+
+export function XCardNode({ data, selected }: NodeProps<XNode>) {
+  const { snapshot } = useWorkspace();
+  const card = snapshot.cards.find((entry) => entry.id === data.cardId);
+  if (!card || card.type !== "x") {
+    return null;
+  }
+  return <SourceLinkBody card={card} selected={selected} label="X" />;
 }
