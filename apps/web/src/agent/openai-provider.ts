@@ -12,7 +12,8 @@ export const AGENT_PROVIDER_TIMEOUT_MS_DEFAULT = 45_000;
 export function openaiAgentApiKey(
   env: NodeJS.ProcessEnv = process.env,
 ): string | undefined {
-  const key = env.OPENAI_API_KEY?.trim();
+  // Dedicated web server-only key. Never fall back to worker OPENAI_API_KEY.
+  const key = env.OPENAI_AGENT_API_KEY?.trim();
   return key ? key : undefined;
 }
 
