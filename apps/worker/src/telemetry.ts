@@ -20,6 +20,8 @@ export interface WorkerTickTelemetry {
   candidatesEligible: number;
   clustered: number;
   representatives: number;
+  meaningful: number;
+  notMeaningful: number;
   selected: number;
   watchBots?: WorkerWatchBotTelemetry[];
 }
@@ -32,6 +34,8 @@ export interface WorkerWatchBotTelemetry {
   candidatesEligible: number;
   clustered: number;
   representatives: number;
+  meaningful: number;
+  notMeaningful: number;
   selected: number;
 }
 
@@ -74,6 +78,8 @@ export function buildWorkerTickTelemetry(input: {
     candidatesEligible: input.result.candidatesEligible,
     clustered: input.result.clustered,
     representatives: input.result.representatives,
+    meaningful: input.result.meaningful,
+    notMeaningful: input.result.notMeaningful,
     selected: input.result.selected,
   };
 
@@ -86,6 +92,8 @@ export function buildWorkerTickTelemetry(input: {
       candidatesEligible: cycle.stats.candidatesEligible,
       clustered: cycle.stats.clustered,
       representatives: cycle.stats.representatives,
+      meaningful: cycle.stats.meaningful,
+      notMeaningful: cycle.stats.notMeaningful,
       selected: cycle.stats.selected,
     }));
   }

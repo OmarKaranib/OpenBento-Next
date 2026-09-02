@@ -1,10 +1,11 @@
 # `@openbento/watchbot`
 
 WatchBot **v0 first slice**: provider-agnostic discovery port plus the
-`discover → normalize → dedup → novelty → relevance → cluster → select → provenance → Card`
+`discover → normalize → dedup → novelty → relevance → cluster → meaning → select → provenance → Card`
 pipeline. Selection ranks same-story representatives of eligible candidates
 (passed normalize/dedup/novelty/relevance, then conservative near-duplicate
-clustering) before any Card is created.
+clustering, then an optional meaningful-development classifier) before any
+Card is created.
 
 A WatchBot is a persistent monitoring agent bound to a Canvas. Status is
 `running` | `paused` | `error` only.
@@ -12,6 +13,18 @@ A WatchBot is a persistent monitoring agent bound to a Canvas. Status is
 It mutates the world only through `@openbento/domain` actions via
 `createActionExecutor`. `createWatchBot` requires an `instruction`.
 `ownerId` is session-derived.
+
+## Meaningfulness (Slice C)
+
+`packages/watchbot/src/meaningfulness.ts` is a **provider-independent
+classifier contract**, not a lexical scorer. Distinguishing relevant chatter
+from a genuine development is semantic; this package does not encode
+ASCII/English keyword gates and does not call X/Grok. Production default is
+passthrough (all representatives remain eligible, importance `0`) so ordinary
+web/news/X behavior is unchanged. When a classifier is injected,
+`meaningful: false` excludes that representative before Card creation.
+Ranking after clustering is `importance → relevance → novelty → arrivalIndex`.
+Adapters stay out of `@openbento/domain`.
 
 ## SourceProvider
 

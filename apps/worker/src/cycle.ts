@@ -30,6 +30,8 @@ export interface WorkerCycleResult {
   candidatesEligible: number;
   clustered: number;
   representatives: number;
+  meaningful: number;
+  notMeaningful: number;
   selected: number;
   cycles: PipelineCycleResult[];
 }
@@ -61,6 +63,8 @@ function aggregateCycleStats(
   result.candidatesEligible += cycle.stats.candidatesEligible;
   result.clustered += cycle.stats.clustered;
   result.representatives += cycle.stats.representatives;
+  result.meaningful += cycle.stats.meaningful;
+  result.notMeaningful += cycle.stats.notMeaningful;
   result.selected += cycle.stats.selected;
 }
 
@@ -101,6 +105,8 @@ export async function runWorkerCycle(
     candidatesEligible: 0,
     clustered: 0,
     representatives: 0,
+    meaningful: 0,
+    notMeaningful: 0,
     selected: 0,
     cycles: [],
   };

@@ -27,6 +27,7 @@ describe("vendor boundary", () => {
       expect(text).not.toMatch(
         /from\s+["'][^"']*(?:xai|grok|adapters\/x)[^"']*["']|XAI_API_KEY|GROK_API_KEY|X_BEARER_TOKEN|api\.x\.com/i,
       );
+      expect(text).not.toMatch(/MeaningfulnessClassifier|createFixtureMeaningfulnessClassifier/);
     }
   });
 });

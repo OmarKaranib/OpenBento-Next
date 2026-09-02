@@ -2,10 +2,12 @@
 
 WatchBot worker (v0 first slice).
 
-Runs `discover → normalize → dedup → novelty → relevance → provenance → Card`
+Runs `discover → normalize → dedup → novelty → relevance → cluster → meaning → select → provenance → Card`
 through `@openbento/watchbot` and `@openbento/domain` `createActionExecutor`.
 Paused bots skip discovery. Unexpected failures set status `error` + `lastError`
-without crashing the process.
+without crashing the process. Meaningfulness classification is passthrough
+unless the pipeline is given an explicit classifier; the worker does not
+make model calls.
 
 Runtime persist is `createWorkerDomainStore()` (explicit service-role factory).
 It must not use web `getDomainStore()`, which is user-JWT only. The worker
@@ -52,7 +54,7 @@ Effective safety: global worker-tick budget **and** per-WatchBot adapter caps.
 Each tick emits JSON with aggregate pipeline counters, for example:
 `watchBotsLoaded`, `watchBotsProcessed`, `providerEligibleWatchBots`,
 `discovered`, `normalized`, `novel`, `duplicates`, `rejectedRelevance`,
-`candidatesEligible`, `clustered`, `representatives`, `selected`, `cardsCreated`, `errors`, `xHttpRequests`,
+`candidatesEligible`, `clustered`, `representatives`, `meaningful`, `notMeaningful`, `selected`, `cardsCreated`, `errors`, `xHttpRequests`,
 `durationMs`, `runMode`
 (`once` | `loop`), and optional per-WatchBot summaries. Never logs bearer
 tokens, service-role keys, owner IDs, instructions, or full tweet bodies.
