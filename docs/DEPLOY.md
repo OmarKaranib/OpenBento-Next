@@ -93,13 +93,15 @@ Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web servic
 | `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED` | **`false`** initially. Independent meaning-classifier gate. Defaults off even when the global worker and X lane are enabled. Missing this gate → passthrough (no paid classifier calls) |
 | `WATCHBOT_MEANINGFULNESS_PROVIDER` | **`none`** initially. Explicit selector: `openai` \| `xai` \| `none`. Missing/empty/unknown → `none` (passthrough). Never auto-picks from which API key is present |
 | `OPENAI_API_KEY` | **Worker-only.** Required only when the classifier gate is on **and** `WATCHBOT_MEANINGFULNESS_PROVIDER=openai`. Never on web. Never `NEXT_PUBLIC_` |
+| `OPENAI_AGENT_API_KEY` | **Web server-only.** Interactive Agent Responses API credential. Never reuse `OPENAI_API_KEY` on web. Never `NEXT_PUBLIC_` |
+| `OPENAI_AGENT_MODEL` | Web optional. Default `gpt-5.6-terra` for the Interactive Agent |
 | `OPENAI_MEANINGFULNESS_MODEL` | `gpt-5.6-luna` (override to compare Luna vs Terra without domain changes) |
 | `OPENAI_API_BASE_URL` | `https://api.openai.com/v1` |
 | `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_TICK` | `5` (shared across WatchBots in one tick; hard ceiling `20`) |
 | `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_CYCLE` | `5` (per WatchBot pipeline cycle; hard ceiling `10`) |
 | `WATCHBOT_MEANINGFULNESS_TIMEOUT_MS` | `8000` (ceiling `15000`) |
 
-**Secret separation:** `SUPABASE_SERVICE_ROLE_KEY` and `X_BEARER_TOKEN` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path. `XAI_API_KEY` and `OPENAI_API_KEY` are also worker-only when the classifier or Grok discovery adapter is used. Never log or commit either key.
+**Secret separation:** `SUPABASE_SERVICE_ROLE_KEY` and `X_BEARER_TOKEN` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path. `XAI_API_KEY` and `OPENAI_API_KEY` are also worker-only when the classifier or Grok discovery adapter is used. The Interactive Agent uses a dedicated web server-only `OPENAI_AGENT_API_KEY` and must not fall back to worker `OPENAI_API_KEY`. Never log or commit these keys.
 
 **Gate order (do not weaken):**
 
@@ -140,7 +142,7 @@ Do **not** execute this plan from this documentation-only readiness change.
 
 ## Hosted Auth (document only)
 
-After the Railway **web** public URL is known, set `NEXT_PUBLIC_SITE_URL` to that origin (no trailing slash), then in the existing **openbento-next** Supabase project:
+After the Railway **web** public URL is known, set `NEXT_PUBLIC_SITE_URL` to that origin (no trailing slash), then in the existing **openbento-next` Supabase project:
 
 1. Authentication → URL Configuration
 2. **Site URL** = `{NEXT_PUBLIC_SITE_URL}`
