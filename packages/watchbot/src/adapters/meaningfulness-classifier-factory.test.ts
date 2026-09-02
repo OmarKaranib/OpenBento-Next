@@ -184,5 +184,6 @@ describe("meaningfulness provider selector", () => {
     expect(example).toMatch(/^WATCHBOT_MEANINGFULNESS_PROVIDER=none$/m);
     expect(example).toMatch(/^OPENAI_MEANINGFULNESS_MODEL=gpt-5\.6-luna$/m);
     expect(example).toMatch(/^OPENAI_API_KEY=$/m);
+    expect(example).toMatch(/^WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED=false$/m);
   });
 });
