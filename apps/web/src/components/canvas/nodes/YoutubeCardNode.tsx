@@ -4,7 +4,7 @@ import type { Node, NodeProps } from "@xyflow/react";
 import { Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { SourceCardChrome } from "@/components/cards/SourceCardChrome";
-import { SafeExternalLink } from "@/components/cards/SafeExternalLink";
+import { SourceProvenanceMeta } from "@/components/cards/SourceProvenanceMeta";
 import { UntrustedText } from "@/components/cards/UntrustedText";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import {
@@ -12,7 +12,6 @@ import {
   releaseYoutubeEmbedSlot,
   subscribeYoutubeEmbedSlots,
 } from "@/lib/youtube-embed-slots";
-import { knownPublishedAtLabel } from "@/lib/domain/source-card";
 import { sanitizeUntrustedDisplayText } from "@/lib/untrusted";
 import {
   isYouTubeVideoId,
@@ -74,7 +73,6 @@ export function YoutubeCardNode({ data, selected }: NodeProps<YoutubeNode>) {
     (isYouTubeVideoId(provenance.externalId) ? provenance.externalId : null);
   const embedSrc = videoId ? officialYouTubeEmbedUrl(videoId) : null;
   const iframeTitle = sanitizeUntrustedDisplayText(provenance.title) || "YouTube";
-  const published = knownPublishedAtLabel(provenance.publishedAt);
   const mounted = Boolean(
     wantsPlay && inView && embedSrc && liveIds.includes(card.id),
   );
@@ -122,16 +120,7 @@ export function YoutubeCardNode({ data, selected }: NodeProps<YoutubeNode>) {
               </button>
             )}
           </div>
-          <SafeExternalLink
-            href={provenance.sourceUrl}
-            className="nodrag nopan shrink-0 truncate text-[11px] text-indigo-300 hover:text-indigo-200"
-          />
-          {published ? (
-            <UntrustedText
-              value={published}
-              className="shrink-0 text-[11px] text-zinc-500"
-            />
-          ) : null}
+          <SourceProvenanceMeta card={card} />
         </div>
       </SourceCardChrome>
     </div>

@@ -6,6 +6,7 @@ import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { NOTE_DEFAULT_SIZE, buildCreateNoteCardInput } from "@/lib/domain/note-card";
 import { findFreeCardPosition } from "@/lib/find-free-card-position";
 import { AddSourceCards } from "./AddSourceCard";
+import { CanvasMonitorBar } from "./CanvasMonitorBar";
 import { CanvasSwitcher } from "./CanvasSwitcher";
 import { WatchBotStatus } from "./WatchBotStatus";
 import { AgentEntry } from "./AgentEntry";
@@ -17,7 +18,7 @@ export function TopBar() {
 
   return (
     <header className="pointer-events-none absolute inset-x-0 top-0 z-20 flex h-12 items-center justify-between px-3">
-      <div className="pointer-events-auto flex items-center gap-1">
+      <div className="pointer-events-auto flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
         <CanvasSwitcher />
         <span className="text-zinc-700">·</span>
         <WatchBotStatus />
@@ -39,6 +40,7 @@ export function TopBar() {
           Note
         </button>
         <AddSourceCards />
+        <CanvasMonitorBar />
       </div>
       <div className="pointer-events-auto">
         <AgentEntry />

@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { WebMcpHost } from "@/webmcp/WebMcpHost";
 import { WorkspaceProvider, useWorkspace } from "./WorkspaceProvider";
 import { WorkspaceUiProvider } from "./workspace-ui";
+import { CanvasMonitorProvider } from "./canvas-monitor";
 
 function WorkspaceChrome() {
   const { snapshot } = useWorkspace();
@@ -30,8 +31,10 @@ export function WorkspaceApp() {
     <TooltipProvider>
       <WorkspaceProvider>
         <WorkspaceUiProvider>
-          <WebMcpHost />
-          <WorkspaceChrome />
+          <CanvasMonitorProvider>
+            <WebMcpHost />
+            <WorkspaceChrome />
+          </CanvasMonitorProvider>
         </WorkspaceUiProvider>
       </WorkspaceProvider>
     </TooltipProvider>

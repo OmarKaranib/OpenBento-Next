@@ -290,10 +290,12 @@ describe("source Card nodes do not execute untrusted HTML", () => {
     expect(source).toContain('type: "youtube"');
     expect(source).toContain('type: "article"');
     expect(source).toContain('type: "web"');
+    expect(source).toContain('type: "x"');
     expect(source).toContain("NoteCardNode");
     expect(source).toContain("YoutubeCardNode");
     expect(source).toContain("ArticleCardNode");
     expect(source).toContain("WebCardNode");
+    expect(source).toContain("XCardNode");
     expect(source).not.toMatch(/LOCAL_SESSION_OWNER_ID/);
     expect(
       readFileSync(join(webSrc, "lib/domain/source-card.ts"), "utf8"),
@@ -309,9 +311,11 @@ describe("source Card nodes do not execute untrusted HTML", () => {
       "components/cards/SafeExternalLink.tsx",
       "components/canvas/nodes/YoutubeCardNode.tsx",
       "components/canvas/nodes/ArticleCardNode.tsx",
+      "components/cards/SourceProvenanceMeta.tsx",
       "lib/untrusted.ts",
       "lib/youtube.ts",
       "lib/domain/source-card.ts",
+      "lib/canvas/provenance-display.ts",
     ];
     for (const relative of files) {
       const source = readFileSync(join(webSrc, relative), "utf8");
