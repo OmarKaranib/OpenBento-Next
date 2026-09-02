@@ -1,6 +1,7 @@
 # Web service (Railway Config as Code is one service per file).
 # Create a second service for the worker and set its Config File to railway.worker.toml.
 # Root Directory must stay the repo root (pnpm lockfile). See docs/DEPLOY.md.
+# Node 22.23.2 is pinned by package.json, .nvmrc, and .node-version.
 
 [build]
 builder = "RAILPACK"

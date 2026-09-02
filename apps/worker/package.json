@@ -11,6 +11,7 @@
   "dependencies": {
     "@openbento/domain": "workspace:*",
     "@openbento/watchbot": "workspace:*",
+    "@sentry/node": "10.73.0",
     "tsx": "^4.20.5"
   }
 }

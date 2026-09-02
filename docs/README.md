@@ -46,7 +46,7 @@ docs/                    Specs + master context
 
 ## Install and verify
 
-Node 20+ and pnpm 10.
+Node 22.23.2 and pnpm 10.
 
 ```bash
 pnpm install

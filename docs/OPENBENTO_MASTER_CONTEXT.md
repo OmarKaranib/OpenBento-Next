@@ -571,6 +571,8 @@ Proposed baseline:
 - Supabase PostgreSQL
 - Supabase migrations
 - Railway for eventual web/worker hosting
+- opt-in Sentry error monitoring for web and worker (no product analytics,
+  replay, tracing, default PII, or runtime source-map auth token)
 - pnpm workspace
 
 Suggested repository structure:
