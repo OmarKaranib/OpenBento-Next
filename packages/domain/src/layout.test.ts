@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { findFreeCardPosition as sharedFindFreeCardPosition } from "@openbento/domain";
 import {
   FREE_CARD_COLUMNS,
   FREE_CARD_GAP,
@@ -7,14 +9,10 @@ import {
   aabbsOverlapWithGap,
   findFreeCardPosition,
   type OccupiedCardGeometry,
-} from "./find-free-card-position";
-import {
-  SOURCE_LINK_DEFAULT_SIZE,
-  YOUTUBE_DEFAULT_SIZE,
-} from "./domain/source-card";
+} from "./layout";
 
-const SOURCE_SIZE = SOURCE_LINK_DEFAULT_SIZE;
-const YOUTUBE_SIZE = YOUTUBE_DEFAULT_SIZE;
+const SOURCE_SIZE = { width: 280, height: 180 };
+const YOUTUBE_SIZE = { width: 320, height: 228 };
 
 function stackedDefaultPosition(index: number): { x: number; y: number } {
   return { x: 80 + index * 24, y: 80 + index * 16 };
@@ -49,10 +47,6 @@ function overlapsAny(
 }
 
 describe("findFreeCardPosition", () => {
-  it("re-exports the shared domain helper", () => {
-    expect(findFreeCardPosition).toBe(sharedFindFreeCardPosition);
-  });
-
   it("returns the first grid slot on an empty canvas", () => {
     expect(findFreeCardPosition([], SOURCE_SIZE)).toEqual(FREE_CARD_ORIGIN);
   });
@@ -65,6 +59,22 @@ describe("findFreeCardPosition", () => {
       y: FREE_CARD_ORIGIN.y,
     });
     expect(overlapsAny(next, SOURCE_SIZE, [first])).toBe(false);
+  });
+
+  it("fills a gap that count-based length stacking would miss", () => {
+    const secondSlot = occupies({
+      x: FREE_CARD_ORIGIN.x + SOURCE_SIZE.width + FREE_CARD_GAP,
+      y: FREE_CARD_ORIGIN.y,
+    });
+    const countStacked = {
+      x: FREE_CARD_ORIGIN.x + SOURCE_SIZE.width + FREE_CARD_GAP,
+      y: FREE_CARD_ORIGIN.y,
+    };
+    expect(overlapsAny(countStacked, SOURCE_SIZE, [secondSlot], 0)).toBe(true);
+
+    const free = findFreeCardPosition([secondSlot], SOURCE_SIZE);
+    expect(free).toEqual(FREE_CARD_ORIGIN);
+    expect(overlapsAny(free, SOURCE_SIZE, [secondSlot])).toBe(false);
   });
 
   it("does not pick the colliding 24×16 diagonal stack used by count-based placement", () => {
@@ -97,6 +107,18 @@ describe("findFreeCardPosition", () => {
     expect(occupied).toEqual(snapshot);
   });
 
+  it("places sequential candidates without overlapping earlier ones", () => {
+    const occupied: OccupiedCardGeometry[] = [];
+    const placed: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < 5; i += 1) {
+      const next = findFreeCardPosition(occupied, SOURCE_SIZE);
+      expect(overlapsAny(next, SOURCE_SIZE, occupied)).toBe(false);
+      occupied.push(occupies(next));
+      placed.push(next);
+    }
+    expect(new Set(placed.map((point) => `${point.x},${point.y}`)).size).toBe(5);
+  });
+
   it("is deterministic for the same occupied geometries and candidate size", () => {
     const occupied: OccupiedCardGeometry[] = [
       occupies({ x: 48, y: 64 }, SOURCE_SIZE),
@@ -125,5 +147,13 @@ describe("findFreeCardPosition", () => {
       x: FREE_CARD_ORIGIN.x,
       y: FREE_CARD_ORIGIN.y + SOURCE_SIZE.height + FREE_CARD_GAP,
     });
+  });
+
+  it("does not depend on randomness or camera zoom", () => {
+    const src = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "layout.ts"),
+      "utf8",
+    );
+    expect(src).not.toMatch(/Math\.random|crypto\.random|viewport|\.zoom\b/);
   });
 });
