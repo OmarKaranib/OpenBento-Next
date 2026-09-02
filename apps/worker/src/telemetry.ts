@@ -18,6 +18,8 @@ export interface WorkerTickTelemetry {
   durationMs: number;
   runMode: WorkerRunMode;
   candidatesEligible: number;
+  clustered: number;
+  representatives: number;
   selected: number;
   watchBots?: WorkerWatchBotTelemetry[];
 }
@@ -28,6 +30,8 @@ export interface WorkerWatchBotTelemetry {
   cardsCreated: number;
   topOutcome: string;
   candidatesEligible: number;
+  clustered: number;
+  representatives: number;
   selected: number;
 }
 
@@ -68,6 +72,8 @@ export function buildWorkerTickTelemetry(input: {
     durationMs,
     runMode: input.runMode,
     candidatesEligible: input.result.candidatesEligible,
+    clustered: input.result.clustered,
+    representatives: input.result.representatives,
     selected: input.result.selected,
   };
 
@@ -78,6 +84,8 @@ export function buildWorkerTickTelemetry(input: {
       cardsCreated: cycle.stats.cardsCreated,
       topOutcome: cycle.topOutcome ?? (cycle.skipped ? cycle.skipReason ?? "skipped" : "none"),
       candidatesEligible: cycle.stats.candidatesEligible,
+      clustered: cycle.stats.clustered,
+      representatives: cycle.stats.representatives,
       selected: cycle.stats.selected,
     }));
   }

@@ -52,7 +52,7 @@ Effective safety: global worker-tick budget **and** per-WatchBot adapter caps.
 Each tick emits JSON with aggregate pipeline counters, for example:
 `watchBotsLoaded`, `watchBotsProcessed`, `providerEligibleWatchBots`,
 `discovered`, `normalized`, `novel`, `duplicates`, `rejectedRelevance`,
-`candidatesEligible`, `selected`, `cardsCreated`, `errors`, `xHttpRequests`,
+`candidatesEligible`, `clustered`, `representatives`, `selected`, `cardsCreated`, `errors`, `xHttpRequests`,
 `durationMs`, `runMode`
 (`once` | `loop`), and optional per-WatchBot summaries. Never logs bearer
 tokens, service-role keys, owner IDs, instructions, or full tweet bodies.
