@@ -1943,6 +1943,7 @@ describe("WatchBot intelligence Slice D model-backed classifier adapter", () => 
     expect(result.cardsCreated).toBe(0);
     expect(result.stats.notMeaningful).toBe(1);
     expect(result.stats.classifierErrors).toBe(1);
+    expect(result.stats.classifierBudgetExhausted).toBe(0);
     expect(result.items[0]?.detail).toBe("not_meaningful");
   });
 
@@ -1974,9 +1975,58 @@ describe("WatchBot intelligence Slice D model-backed classifier adapter", () => 
     });
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(result.stats.classifierCalls).toBe(1);
-    expect(result.stats.classifierErrors).toBe(1);
+    expect(result.stats.classifierErrors).toBe(0);
+    expect(result.stats.classifierBudgetExhausted).toBe(1);
     expect(result.stats.notMeaningful).toBe(1);
     expect(result.cardsCreated).toBe(1);
+  });
+
+  it("counts nine representatives with budget 3 as three calls and six budget skips", async () => {
+    const representatives = [
+      "Canada files a lawsuit over the Lake Ontario rename",
+      "New York lawmakers schedule Lake America hearings",
+      "Ontario premier issues an official Lake Ontario rename statement",
+      "UN water agency comments on the Lake Ontario proposal",
+      "Shipping industry warns about Lake Ontario rename charts",
+      "Indigenous nations oppose the Lake America renaming",
+      "Environment ministry reviews Lake Ontario rename impact",
+      "Border towns hold town halls on the Lake Ontario rename",
+      "Cartographers update maps after Lake Ontario rename debate",
+    ];
+    const { store, executor, watchBot, provider } = await seed(
+      representatives.map((title, index) =>
+        newsAbout(`slice-d-rep-${index + 1}`, title),
+      ),
+    );
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify(
+          classifierEnvelope({ meaningful: false, importanceScore: 0.18 }),
+        ),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const classifier = createModelMeaningfulnessClassifier({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: fetchImpl as typeof fetch,
+      budget: new ClassifierCallBudget(3, 3),
+    });
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: classifier ?? undefined,
+    });
+    expect(result.stats.representatives).toBe(9);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(result.stats.classifierCalls).toBe(3);
+    expect(result.stats.classifierNotMeaningful).toBe(3);
+    expect(result.stats.classifierBudgetExhausted).toBe(6);
+    expect(result.stats.classifierErrors).toBe(0);
+    expect(result.stats.notMeaningful).toBe(9);
+    expect(result.cardsCreated).toBe(0);
   });
 
   it("keeps selected Card provenance identical when the adapter is used", async () => {
@@ -2087,6 +2137,7 @@ describe("WatchBot intelligence Slice D model-backed classifier adapter", () => 
       classifierCalls: 1,
       classifierMeaningful: 1,
       classifierErrors: 0,
+      classifierBudgetExhausted: 0,
     });
   });
 });
@@ -2203,9 +2254,58 @@ describe("WatchBot intelligence Slice E OpenAI meaningfulness classifier adapter
       classifierCalls: 1,
       classifierMeaningful: 1,
       classifierErrors: 0,
+      classifierBudgetExhausted: 0,
       classifierProvider: "openai",
       classifierModel: "gpt-5.6-luna",
     });
+  });
+
+  it("counts nine representatives with budget 3 as three OpenAI calls and six budget skips", async () => {
+    const representatives = [
+      "Canada files a lawsuit over the Lake Ontario rename",
+      "New York lawmakers schedule Lake America hearings",
+      "Ontario premier issues an official Lake Ontario rename statement",
+      "UN water agency comments on the Lake Ontario proposal",
+      "Shipping industry warns about Lake Ontario rename charts",
+      "Indigenous nations oppose the Lake America renaming",
+      "Environment ministry reviews Lake Ontario rename impact",
+      "Border towns hold town halls on the Lake Ontario rename",
+      "Cartographers update maps after Lake Ontario rename debate",
+    ];
+    const { store, executor, watchBot, provider } = await seed(
+      representatives.map((title, index) =>
+        newsAbout(`slice-e-rep-${index + 1}`, title),
+      ),
+    );
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify(
+          classifierEnvelope({ meaningful: false, importanceScore: 0.18 }),
+        ),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const classifier = createOpenAIMeaningfulnessClassifier({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: fetchImpl as typeof fetch,
+      budget: new ClassifierCallBudget(3, 3),
+    });
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: classifier ?? undefined,
+    });
+    expect(result.stats.representatives).toBe(9);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(result.stats.classifierCalls).toBe(3);
+    expect(result.stats.classifierNotMeaningful).toBe(3);
+    expect(result.stats.classifierBudgetExhausted).toBe(6);
+    expect(result.stats.classifierErrors).toBe(0);
+    expect(result.stats.notMeaningful).toBe(9);
+    expect(result.cardsCreated).toBe(0);
   });
 });
 

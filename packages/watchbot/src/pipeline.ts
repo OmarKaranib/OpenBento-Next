@@ -90,6 +90,7 @@ export interface PipelineCycleStats {
   classifierMeaningful: number;
   classifierNotMeaningful: number;
   classifierErrors: number;
+  classifierBudgetExhausted: number;
 }
 
 export interface PipelineCycleResult {
@@ -231,6 +232,7 @@ export function computePipelineCycleStats(
     classifierMeaningful: classifierTelemetry.classifierMeaningful,
     classifierNotMeaningful: classifierTelemetry.classifierNotMeaningful,
     classifierErrors: classifierTelemetry.classifierErrors,
+    classifierBudgetExhausted: classifierTelemetry.classifierBudgetExhausted,
   };
 }
 
@@ -567,6 +569,7 @@ export async function runWatchBotPipeline(
       classifierMeaningful: classifierTelemetry.classifierMeaningful,
       classifierNotMeaningful: classifierTelemetry.classifierNotMeaningful,
       classifierErrors: classifierTelemetry.classifierErrors,
+      classifierBudgetExhausted: classifierTelemetry.classifierBudgetExhausted,
       ...(classifierTelemetry.classifierProvider
         ? { classifierProvider: classifierTelemetry.classifierProvider }
         : {}),
@@ -612,6 +615,7 @@ function emptyPipelineStats(): PipelineCycleStats {
     classifierMeaningful: 0,
     classifierNotMeaningful: 0,
     classifierErrors: 0,
+    classifierBudgetExhausted: 0,
   };
 }
 
@@ -631,6 +635,7 @@ function snapshotClassifierTelemetry(
     classifierMeaningful: telemetry.classifierMeaningful ?? 0,
     classifierNotMeaningful: telemetry.classifierNotMeaningful ?? 0,
     classifierErrors: telemetry.classifierErrors ?? 0,
+    classifierBudgetExhausted: telemetry.classifierBudgetExhausted ?? 0,
     ...(telemetry.classifierProvider
       ? { classifierProvider: telemetry.classifierProvider }
       : {}),
@@ -655,6 +660,10 @@ function deltaClassifierTelemetry(
       after.classifierNotMeaningful - before.classifierNotMeaningful,
     ),
     classifierErrors: Math.max(0, after.classifierErrors - before.classifierErrors),
+    classifierBudgetExhausted: Math.max(
+      0,
+      after.classifierBudgetExhausted - before.classifierBudgetExhausted,
+    ),
     ...(after.classifierProvider
       ? { classifierProvider: after.classifierProvider }
       : {}),

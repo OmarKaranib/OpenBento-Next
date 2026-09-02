@@ -5,6 +5,7 @@ import {
   type WatchBotSourceType,
 } from "@openbento/domain";
 import {
+  ClassifierCallBudget,
   createModelMeaningfulnessClassifier,
   createOpenAIMeaningfulnessClassifier,
   createXSourceProvider,
@@ -362,6 +363,7 @@ describe("WatchBot intelligence Slice D worker composition", () => {
     fetchSpy.mockRestore();
     expect(result.classifierCalls).toBe(0);
     expect(result.classifierErrors).toBe(0);
+    expect(result.classifierBudgetExhausted).toBe(0);
     expect(result.notMeaningful).toBe(0);
     expect(result.cardsCreated).toBeGreaterThan(0);
   });
@@ -413,6 +415,7 @@ describe("WatchBot intelligence Slice D worker composition", () => {
     });
     expect(result.classifierCalls).toBeGreaterThan(0);
     expect(result.classifierErrors).toBe(0);
+    expect(result.classifierBudgetExhausted).toBe(0);
     expect(fetchImpl).toHaveBeenCalled();
     expect(result.cardsCreated).toBeGreaterThan(0);
   });
@@ -512,10 +515,88 @@ describe("WatchBot intelligence Slice E OpenAI worker composition", () => {
     });
     expect(result.classifierCalls).toBeGreaterThan(0);
     expect(result.classifierErrors).toBe(0);
+    expect(result.classifierBudgetExhausted).toBe(0);
     expect(result.classifierProvider).toBe("openai");
     expect(result.classifierModel).toBe("gpt-5.6-luna");
     expect(fetchImpl).toHaveBeenCalled();
     expect(result.cardsCreated).toBeGreaterThan(0);
+  });
+
+  it("rolls up classifierBudgetExhausted separately from classifierErrors", async () => {
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "budget-rollup-user" });
+    const canvas = await executor.createCanvas({ name: "Ontario Watch" });
+    await executor.createFrame({
+      canvasId: canvas.id,
+      name: "Main Story",
+      bounds: { x: 0, y: 0, width: 1600, height: 1000 },
+    });
+    await executor.createWatchBot({
+      canvasId: canvas.id,
+      instruction:
+        "Monitor meaningful developments around renaming Lake Ontario to Lake America",
+      sourceTypes: ["news"],
+    });
+    const titles = [
+      "Canada files a lawsuit over the Lake Ontario rename",
+      "New York lawmakers schedule Lake America hearings",
+      "Ontario premier issues an official Lake Ontario rename statement",
+      "UN water agency comments on the Lake Ontario proposal",
+      "Shipping industry warns about Lake Ontario rename charts",
+      "Indigenous nations oppose the Lake America renaming",
+      "Environment ministry reviews Lake Ontario rename impact",
+      "Border towns hold town halls on the Lake Ontario rename",
+      "Cartographers update maps after Lake Ontario rename debate",
+    ];
+    const provider = new FakeSourceProvider(
+      titles.map((title, index) => ({
+        sourceUrl: `https://news.example.com/budget-rollup-${index + 1}`,
+        title,
+        publishedAt: "2026-08-28T12:00:00.000Z",
+        sourceType: "news" as const,
+        rawExcerpt: title,
+      })),
+    );
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          output: [
+            {
+              type: "message",
+              content: [
+                {
+                  type: "output_text",
+                  text: JSON.stringify({
+                    meaningful: false,
+                    importanceScore: 0.18,
+                  }),
+                },
+              ],
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const classifier = createOpenAIMeaningfulnessClassifier({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: fetchImpl as typeof fetch,
+      budget: new ClassifierCallBudget(3, 3),
+    });
+    const result = await runWorkerCycle({
+      store,
+      provider,
+      meaningfulnessClassifier: classifier,
+    });
+    expect(result.representatives).toBe(9);
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(result.classifierCalls).toBe(3);
+    expect(result.classifierNotMeaningful).toBe(3);
+    expect(result.classifierBudgetExhausted).toBe(6);
+    expect(result.classifierErrors).toBe(0);
+    expect(result.cycles[0]?.stats.classifierBudgetExhausted).toBe(6);
+    expect(result.cycles[0]?.stats.classifierErrors).toBe(0);
   });
 });
 

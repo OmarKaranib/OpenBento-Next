@@ -152,7 +152,7 @@ class GrokMeaningfulnessClassifier
 
   async classify(input: MeaningfulnessInput): Promise<MeaningfulnessJudgment> {
     if (!this.budget.tryConsume()) {
-      this.telemetry.classifierErrors += 1;
+      this.telemetry.classifierBudgetExhausted += 1;
       return FAIL_CLOSED_MEANINGFULNESS_JUDGMENT;
     }
     try {

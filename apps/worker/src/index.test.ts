@@ -52,6 +52,7 @@ const EMPTY_CYCLE: WorkerCycleResult = {
   classifierMeaningful: 0,
   classifierNotMeaningful: 0,
   classifierErrors: 0,
+  classifierBudgetExhausted: 0,
   cycles: [],
 };
 
@@ -393,6 +394,7 @@ describe("worker tick telemetry", () => {
               classifierMeaningful: 0,
               classifierNotMeaningful: 0,
               classifierErrors: 0,
+              classifierBudgetExhausted: 0,
             },
             topOutcome: "rejected_relevance",
             cardsCreated: 0,
@@ -424,6 +426,7 @@ describe("worker tick telemetry", () => {
     expect(serialized.toLowerCase()).not.toMatch(/bearer|service_role|instruction/);
     expect(telemetry.classifierCalls).toBe(0);
     expect(telemetry.classifierErrors).toBe(0);
+    expect(telemetry.classifierBudgetExhausted).toBe(0);
   });
 });
 

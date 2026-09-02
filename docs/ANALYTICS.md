@@ -22,7 +22,7 @@ Events must **never** include:
 - source HTML,
 - untrusted payloads, titles-as-prompt, snippets, transcripts.
 
-Allowed cost metadata: `provider`, `units`, `watchBotId`, `durationMs`, plus classifier counters `classifierCalls`, `classifierMeaningful`, `classifierNotMeaningful`, `classifierErrors`.
+Allowed cost metadata: `provider`, `units`, `watchBotId`, `durationMs`, plus classifier counters `classifierCalls`, `classifierMeaningful`, `classifierNotMeaningful`, `classifierErrors`, `classifierBudgetExhausted`.
 
 ## Event names
 
@@ -78,7 +78,7 @@ Properties: `canvasId`, `watchBotId`, `status`, `actor`. **No instruction text.*
 
 Cost (PostHog): `ob.watchbot.cost` with `provider`, `units`, `watchBotId`, `durationMs`.
 
-Classifier counters (worker tick / cost telemetry only; never source text): `classifierCalls`, `classifierMeaningful`, `classifierNotMeaningful`, `classifierErrors`.
+Classifier counters (worker tick / cost telemetry only; never source text): `classifierCalls`, `classifierMeaningful`, `classifierNotMeaningful`, `classifierErrors`, `classifierBudgetExhausted`. Budget-exhausted fail-closed skips increment `classifierBudgetExhausted` only (no HTTP attempt). Provider/protocol/network failures after an attempted call increment `classifierCalls` + `classifierErrors`.
 
 ### Agent
 

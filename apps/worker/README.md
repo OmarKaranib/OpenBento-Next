@@ -79,7 +79,7 @@ implementation PR does not make live model calls.
 Each tick emits JSON with aggregate pipeline counters, for example:
 `watchBotsLoaded`, `watchBotsProcessed`, `providerEligibleWatchBots`,
 `discovered`, `normalized`, `novel`, `duplicates`, `rejectedRelevance`,
-`candidatesEligible`, `clustered`, `representatives`, `meaningful`, `notMeaningful`, `selected`, `classifierCalls`, `classifierMeaningful`, `classifierNotMeaningful`, `classifierErrors`, optional `classifierProvider` / `classifierModel`, `cardsCreated`, `errors`, `xHttpRequests`,
+`candidatesEligible`, `clustered`, `representatives`, `meaningful`, `notMeaningful`, `selected`, `classifierCalls`, `classifierMeaningful`, `classifierNotMeaningful`, `classifierErrors`, `classifierBudgetExhausted`, optional `classifierProvider` / `classifierModel`, `cardsCreated`, `errors`, `xHttpRequests`,
 `durationMs`, `runMode`
 (`once` | `loop`), and optional per-WatchBot summaries. Never logs bearer
 tokens, service-role keys, owner IDs, instructions, API keys, source text, or full tweet bodies.

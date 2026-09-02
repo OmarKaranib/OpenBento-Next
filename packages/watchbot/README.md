@@ -47,7 +47,8 @@ call-budget exhaustion fail-closes that representative (`meaningful: false`).
 Classification is capped per worker tick and per WatchBot cycle and runs on
 clustered representatives only. Telemetry may include
 `classifierProvider` / `classifierModel` plus `classifierCalls` /
-`classifierMeaningful` / `classifierNotMeaningful` / `classifierErrors`
+`classifierMeaningful` / `classifierNotMeaningful` / `classifierErrors` /
+`classifierBudgetExhausted`
 — never source text, instructions, keys, or raw model output.
 
 ## SourceProvider
