@@ -142,7 +142,7 @@ Do **not** execute this plan from this documentation-only readiness change.
 
 ## Hosted Auth (document only)
 
-After the Railway **web** public URL is known, set `NEXT_PUBLIC_SITE_URL` to that origin (no trailing slash), then in the existing **openbento-next` Supabase project:
+After the Railway **web** public URL is known, set `NEXT_PUBLIC_SITE_URL` to that origin (no trailing slash), then in the existing **openbento-next** Supabase project:
 
 1. Authentication → URL Configuration
 2. **Site URL** = `{NEXT_PUBLIC_SITE_URL}`
