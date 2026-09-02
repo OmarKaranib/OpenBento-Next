@@ -135,7 +135,7 @@ function missingApiKeyMessage(): string {
   return [
     "terra-compare-eval: OPENAI_API_KEY is missing or empty.",
     "Refusing to run. Set OPENAI_API_KEY in the local environment.",
-    "This harness never invents or fetches secrets (no Railway / no remote secret APIs).",
+    "This harness never invents or fetches secrets.",
   ].join(" ");
 }
 

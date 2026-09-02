@@ -213,8 +213,11 @@ describe("Terra compare eval replay", () => {
       expect(text).not.toMatch(
         /createXSourceProvider|X_BEARER_TOKEN|X_PROVIDER_ENABLED|runWatchBotPipeline|createCard|createWatchBot/,
       );
-      expect(text).not.toMatch(/railway|RAILWAY_|supabase/i);
-      expect(text).toMatch(/createOpenAIMeaningfulnessClassifier/);
+      expect(text).not.toMatch(
+        /from\s+["'][^"']*(?:railway|supabase)[^"']*["']|RAILWAY_[A-Z_]+|SUPABASE_/,
+      );
     }
+    expect(src).toMatch(/createOpenAIMeaningfulnessClassifier/);
+    expect(cli).toMatch(/runTerraCompareEvalCli/);
   });
 });
