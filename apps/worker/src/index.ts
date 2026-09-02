@@ -1,6 +1,7 @@
 import { createWorkerDomainStore, type DomainStore } from "@openbento/domain";
 import {
   createGrokSourceProvider,
+  createOpenAIWebSourceProvider,
   createXSourceProvider,
   FakeSourceProvider,
 } from "@openbento/watchbot";
@@ -99,6 +100,7 @@ export async function main(
   const runOnce = resolveRunOnce(argv, env);
   const useGrok = argv.includes("--provider=grok");
   const useX = argv.includes("--provider=x");
+  const useOpenAIWeb = argv.includes("--provider=openai-web");
   const useFixture = argv.includes("--fixture");
   const runMode: WorkerRunMode = runOnce ? "once" : "loop";
 
@@ -115,7 +117,7 @@ export async function main(
     return;
   }
   const monitoring = options.monitoring ?? createWorkerMonitoring(env);
-  if (useGrok && useX) {
+  if ([useGrok, useX, useOpenAIWeb].filter(Boolean).length > 1) {
     throw new Error("Select only one WatchBot provider per worker process");
   }
 
@@ -138,7 +140,17 @@ export async function main(
     if (useGrok && !grok) {
       throw new Error("Grok adapter requested but XAI_API_KEY is unset");
     }
-    const provider = useX ? createXSourceProvider(undefined, env) : grok ?? null;
+    const openaiWeb = useOpenAIWeb
+      ? createOpenAIWebSourceProvider(undefined, env)
+      : null;
+    if (useOpenAIWeb && !openaiWeb) {
+      throw new Error(
+        "OpenAI web adapter requested but WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED is off or OPENAI_API_KEY is unset",
+      );
+    }
+    const provider = useX
+      ? createXSourceProvider(undefined, env)
+      : openaiWeb ?? grok ?? null;
     const seeded = useFixture ? await seedFixtureStore() : null;
     if (stopped) {
       return;

@@ -68,8 +68,16 @@ clustered representatives only. Telemetry may include
 
 Provider-agnostic port in `src/provider.ts`. Tests inject `FakeSourceProvider`.
 An optional xAI/Grok adapter lives in `src/adapters/grok.ts` and is constructed
-only when `XAI_API_KEY` / `GROK_API_KEY` is set. `@openbento/domain` does not
-import Grok.
+only when `XAI_API_KEY` / `GROK_API_KEY` is set. An optional OpenAI web/news
+adapter lives in `src/adapters/openai-web.ts` and is constructed only when
+`WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED=true` **and** `OPENAI_API_KEY` is set.
+It uses the Responses API with the hosted `web_search` tool (no crawling).
+Hard bounds: `WATCHBOT_OPENAI_WEB_MAX_REQUESTS_PER_TICK` (default 1, ceiling 5),
+`WATCHBOT_OPENAI_WEB_MAX_REQUESTS_PER_CYCLE` (default 1, ceiling 2),
+`WATCHBOT_OPENAI_WEB_MAX_RESULTS_PER_CYCLE` (default 10, ceiling 20),
+`WATCHBOT_OPENAI_WEB_TIMEOUT_MS` (default 15000, ceiling 30000). YouTube / X
+URLs are dropped and never coerced to web. `@openbento/domain` does not import
+OpenAI or Grok.
 
 The official X API v2 adapter is in `src/adapters/x.ts`. It is read-only and
 disabled by default. It requires both `X_PROVIDER_ENABLED=true` and the

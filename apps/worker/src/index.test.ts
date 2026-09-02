@@ -72,6 +72,7 @@ function clearPersistEnv(): void {
   delete process.env.XAI_API_KEY;
   delete process.env.GROK_API_KEY;
   delete process.env.OPENAI_API_KEY;
+  delete process.env.WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED;
 }
 
 beforeEach(clearPersistEnv);
@@ -427,6 +428,75 @@ describe("worker tick telemetry", () => {
     expect(telemetry.classifierCalls).toBe(0);
     expect(telemetry.classifierErrors).toBe(0);
     expect(telemetry.classifierBudgetExhausted).toBe(0);
+  });
+});
+
+describe("OpenAI web/news provider selection", () => {
+  it("selects --provider=openai-web without changing the X start command", () => {
+    expect(source).toMatch(/argv\.includes\("--provider=openai-web"\)/);
+    expect(source).toMatch(/createOpenAIWebSourceProvider/);
+    const startLine = railwayWorker
+      .split("\n")
+      .find((line) => line.trimStart().startsWith("startCommand"));
+    expect(startLine).toBe(
+      'startCommand = "pnpm --filter worker start:loop -- --provider=x"',
+    );
+  });
+
+  it("rejects combining openai-web with grok or x", async () => {
+    process.env.OPENBENTO_WORKER_ENABLED = "true";
+    await expect(
+      main(["--once", "--fixture", "--provider=openai-web", "--provider=x"]),
+    ).rejects.toThrow(/Select only one WatchBot provider/);
+    await expect(
+      main(["--once", "--fixture", "--provider=openai-web", "--provider=grok"]),
+    ).rejects.toThrow(/Select only one WatchBot provider/);
+  });
+
+  it("fails closed when openai-web is requested without the gate or key", async () => {
+    process.env.OPENBENTO_WORKER_ENABLED = "true";
+    await expect(
+      main(["--once", "--fixture", "--provider=openai-web"]),
+    ).rejects.toThrow(/WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED|OPENAI_API_KEY/);
+
+    process.env.WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED = "true";
+    await expect(
+      main(["--once", "--fixture", "--provider=openai-web"]),
+    ).rejects.toThrow(/OPENAI_API_KEY/);
+  });
+
+  it("constructs the OpenAI web adapter when gated and keyed, without live HTTP", async () => {
+    process.env.OPENBENTO_WORKER_ENABLED = "true";
+    process.env.WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED = "true";
+    process.env.OPENAI_API_KEY = "test-not-a-secret";
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const runCycle = vi.fn(async () => EMPTY_CYCLE);
+
+    await expect(
+      main(["--once", "--fixture", "--provider=openai-web"], { runCycle }),
+    ).resolves.toBeUndefined();
+    expect(runCycle).toHaveBeenCalledTimes(1);
+    expect(runCycle.mock.calls[0]?.[0]?.provider.id).toBe("openai-web");
+    expect(runCycle.mock.calls[0]?.[0]?.provider.vendor).toBe("openai");
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("does not construct OpenAI web when the worker gate is off", async () => {
+    process.env.WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED = "true";
+    process.env.OPENAI_API_KEY = "must-not-be-read";
+    const createStore = vi.fn(() => {
+      throw new Error("service-role client must not be constructed");
+    });
+    const runCycle = vi.fn(async () => EMPTY_CYCLE);
+    await expect(
+      main(["--once", "--provider=openai-web"], {
+        createStore: createStore as unknown as () => DomainStore,
+        runCycle,
+      }),
+    ).resolves.toBeUndefined();
+    expect(createStore).not.toHaveBeenCalled();
+    expect(runCycle).not.toHaveBeenCalled();
   });
 });
 

@@ -38,7 +38,7 @@ Maintained under [`docs/`](./docs/). Copies also live at the repo root.
 apps/web                 Next.js 16 Railway-inspired workspace (CanvasRoot) + WebMCP host
 apps/worker              WatchBot worker (`createWorkerDomainStore()`; `--fixture` isolated only)
 packages/domain          20-action catalog + shared executor + DomainStore + SupabaseDomainStore
-packages/watchbot        SourceProvider + pipeline; optional Grok adapter
+packages/watchbot        SourceProvider + pipeline; optional Grok / OpenAI web adapters
 packages/ui              Tokens
 supabase/migrations      Dev SQL + RLS — do not apply from this agent
 docs/                    Specs + master context

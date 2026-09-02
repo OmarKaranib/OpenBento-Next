@@ -28,7 +28,11 @@ import { createModelMeaningfulnessClassifier } from "./adapters/meaningfulness-c
 import { createConfiguredMeaningfulnessClassifier } from "./adapters/meaningfulness-classifier-factory";
 import { createOpenAIMeaningfulnessClassifier } from "./adapters/openai-meaningfulness-classifier";
 import { ClassifierCallBudget } from "./classifier-budget";
-import { assertSourceCardPayload, runWatchBotPipeline } from "./pipeline";
+import {
+  assertSourceCardPayload,
+  isWatchBotProviderEligible,
+  runWatchBotPipeline,
+} from "./pipeline";
 import { buildDedupKey } from "./dedup";
 import {
   canonicalizeUrl,
@@ -2719,5 +2723,24 @@ describe("WatchBot-created Card free-position", () => {
     expect(
       events.some((event) => event.kind === "card_created" && event.cardId),
     ).toBe(true);
+  });
+});
+
+describe("isWatchBotProviderEligible", () => {
+  it("treats OpenAI as web/news only and leaves X eligibility unchanged", () => {
+    const openai = {
+      id: "openai-web",
+      vendor: "openai" as const,
+      discover: async () => [],
+    };
+    const x = {
+      id: "x-api-v2",
+      vendor: "x-api" as const,
+      discover: async () => [],
+    };
+    expect(isWatchBotProviderEligible(openai, ["web", "news"])).toBe(true);
+    expect(isWatchBotProviderEligible(openai, ["x"])).toBe(false);
+    expect(isWatchBotProviderEligible(x, ["x"])).toBe(true);
+    expect(isWatchBotProviderEligible(x, ["web", "news"])).toBe(false);
   });
 });

@@ -127,6 +127,9 @@ export async function runWorkerCycle(
   const now = input.now ?? (() => new Date().toISOString());
   const env = input.env ?? process.env;
   const bots = await input.store.listWatchBots();
+  if (typeof input.provider.startWorkerTick === "function") {
+    input.provider.startWorkerTick();
+  }
   const xHttpBudget =
     input.provider.vendor === "x-api"
       ? new XHttpBudget(xMaxRequestsPerWorkerTick(env))
