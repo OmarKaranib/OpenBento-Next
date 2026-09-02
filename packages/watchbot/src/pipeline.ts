@@ -1,12 +1,14 @@
 import {
   DEFAULT_CARD_SIZE,
   DomainError,
+  findFreeCardPosition,
   isDomainError,
   isValidCardPayload,
   selectSmallestContainingFrame,
   type ActionExecutor,
   type CardProvenance,
   type DomainStore,
+  type Size,
   type SourceCardPayload,
   type WatchBot,
   type WatchBotEvent,
@@ -43,7 +45,7 @@ import {
 } from "./telemetry";
 import type { XHttpBudget } from "./x-http-budget";
 
-const SOURCE_CARD_SIZE = {
+const SOURCE_CARD_SIZE: Size = {
   width: Math.max(DEFAULT_CARD_SIZE.width, 280),
   height: Math.max(DEFAULT_CARD_SIZE.height, 180),
 };
@@ -152,17 +154,6 @@ function buildSourcePayload(
   watchBotId: string,
 ): SourceCardPayload {
   return { provenance: buildProvenance(item, watchBotId) };
-}
-
-function nextCardPosition(
-  existingCount: number,
-): { x: number; y: number } {
-  const col = existingCount % 3;
-  const row = Math.floor(existingCount / 3);
-  return {
-    x: 48 + col * (SOURCE_CARD_SIZE.width + 32),
-    y: 48 + row * (SOURCE_CARD_SIZE.height + 32),
-  };
 }
 
 export function isWatchBotProviderEligible(
@@ -863,7 +854,7 @@ async function createCardFromCandidate(input: {
   const canvas = await executor.getCanvasState({ canvasId: watchBot.canvasId });
   const cardType = sourceTypeToCardType(normalized.sourceType);
   const payload = buildSourcePayload(normalized, watchBot.id);
-  const position = nextCardPosition(canvas.cards.length);
+  const position = findFreeCardPosition(canvas.cards, SOURCE_CARD_SIZE);
 
   try {
     const card = await store.runInTransaction(async () => {
