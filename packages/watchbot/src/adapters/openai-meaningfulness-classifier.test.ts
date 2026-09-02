@@ -217,6 +217,7 @@ describe("OpenAI meaningfulness classifier judgments", () => {
         FAIL_CLOSED_MEANINGFULNESS_JUDGMENT,
       );
       expect(classifier?.telemetry.classifierErrors).toBe(1);
+      expect(classifier?.telemetry.classifierBudgetExhausted).toBe(0);
       expect(classifier?.telemetry.classifierMeaningful).toBe(0);
     }
   });
@@ -230,6 +231,7 @@ describe("OpenAI meaningfulness classifier judgments", () => {
     );
     expect(classifier?.telemetry.classifierCalls).toBe(1);
     expect(classifier?.telemetry.classifierErrors).toBe(1);
+    expect(classifier?.telemetry.classifierBudgetExhausted).toBe(0);
   });
 
   it("fail-closes on timeout", async () => {
@@ -243,6 +245,8 @@ describe("OpenAI meaningfulness classifier judgments", () => {
       FAIL_CLOSED_MEANINGFULNESS_JUDGMENT,
     );
     expect(classifier?.telemetry.classifierErrors).toBe(1);
+    expect(classifier?.telemetry.classifierCalls).toBe(1);
+    expect(classifier?.telemetry.classifierBudgetExhausted).toBe(0);
   });
 
   it("fail-closes on network error", async () => {
@@ -253,6 +257,8 @@ describe("OpenAI meaningfulness classifier judgments", () => {
       FAIL_CLOSED_MEANINGFULNESS_JUDGMENT,
     );
     expect(classifier?.telemetry.classifierErrors).toBe(1);
+    expect(classifier?.telemetry.classifierCalls).toBe(1);
+    expect(classifier?.telemetry.classifierBudgetExhausted).toBe(0);
   });
 
   it("does not penalize multilingual/non-ASCII input; scores come from the model", async () => {
@@ -334,7 +340,50 @@ describe("OpenAI meaningfulness classifier judgments", () => {
     expect(second).toEqual(FAIL_CLOSED_MEANINGFULNESS_JUDGMENT);
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(classifier?.telemetry.classifierCalls).toBe(1);
+    expect(classifier?.telemetry.classifierErrors).toBe(0);
+    expect(classifier?.telemetry.classifierBudgetExhausted).toBe(1);
+  });
+
+  it("counts nine representatives with budget 3 as three calls and six budget skips", async () => {
+    const fetchImpl = vi.fn(
+      mockFetch(envelopeWithJudgment({ meaningful: false, importanceScore: 0.2 })),
+    );
+    const classifier = classifierWith(fetchImpl, {
+      budget: new ClassifierCallBudget(3, 3),
+    });
+    const judgments = [];
+    for (let index = 0; index < 9; index += 1) {
+      judgments.push(
+        await classifier?.classify(
+          input({ title: `Lake Ontario development ${index + 1}` }),
+        ),
+      );
+    }
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(judgments.slice(0, 3).every((item) => item?.meaningful === false)).toBe(
+      true,
+    );
+    expect(judgments.slice(3).every((item) => item?.meaningful === false)).toBe(
+      true,
+    );
+    expect(classifier?.telemetry.classifierCalls).toBe(3);
+    expect(classifier?.telemetry.classifierNotMeaningful).toBe(3);
+    expect(classifier?.telemetry.classifierBudgetExhausted).toBe(6);
+    expect(classifier?.telemetry.classifierErrors).toBe(0);
+  });
+
+  it("does not count a real provider error as budget exhaustion", async () => {
+    const fetchImpl = vi.fn(mockFetch({ error: "nope" }, { status: 500 }));
+    const classifier = classifierWith(fetchImpl, {
+      budget: new ClassifierCallBudget(5, 5),
+    });
+    await expect(classifier?.classify(input())).resolves.toEqual(
+      FAIL_CLOSED_MEANINGFULNESS_JUDGMENT,
+    );
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(classifier?.telemetry.classifierCalls).toBe(1);
     expect(classifier?.telemetry.classifierErrors).toBe(1);
+    expect(classifier?.telemetry.classifierBudgetExhausted).toBe(0);
   });
 });
 
@@ -379,6 +428,7 @@ describe("OpenAI classifier output / prompt / telemetry contract", () => {
       classifierCalls: 1,
       classifierMeaningful: 1,
       classifierErrors: 0,
+      classifierBudgetExhausted: 0,
     });
   });
 

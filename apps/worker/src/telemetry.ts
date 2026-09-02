@@ -27,6 +27,7 @@ export interface WorkerTickTelemetry {
   classifierMeaningful: number;
   classifierNotMeaningful: number;
   classifierErrors: number;
+  classifierBudgetExhausted: number;
   classifierProvider?: string;
   classifierModel?: string;
   watchBots?: WorkerWatchBotTelemetry[];
@@ -47,6 +48,7 @@ export interface WorkerWatchBotTelemetry {
   classifierMeaningful: number;
   classifierNotMeaningful: number;
   classifierErrors: number;
+  classifierBudgetExhausted: number;
 }
 
 const FORBIDDEN_TELEMETRY_SUBSTRINGS = [
@@ -98,6 +100,7 @@ export function buildWorkerTickTelemetry(input: {
     classifierMeaningful: input.result.classifierMeaningful,
     classifierNotMeaningful: input.result.classifierNotMeaningful,
     classifierErrors: input.result.classifierErrors,
+    classifierBudgetExhausted: input.result.classifierBudgetExhausted,
     ...(input.result.classifierProvider
       ? { classifierProvider: input.result.classifierProvider }
       : {}),
@@ -122,6 +125,7 @@ export function buildWorkerTickTelemetry(input: {
       classifierMeaningful: cycle.stats.classifierMeaningful,
       classifierNotMeaningful: cycle.stats.classifierNotMeaningful,
       classifierErrors: cycle.stats.classifierErrors,
+      classifierBudgetExhausted: cycle.stats.classifierBudgetExhausted,
     }));
   }
 

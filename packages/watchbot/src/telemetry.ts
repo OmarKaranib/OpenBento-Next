@@ -10,6 +10,8 @@ export interface WatchBotCostTelemetry {
   classifierMeaningful?: number;
   classifierNotMeaningful?: number;
   classifierErrors?: number;
+  /** Budget skip with no HTTP attempt. Distinct from classifierErrors. */
+  classifierBudgetExhausted?: number;
   /** Safe vendor id only (`openai` | `xai`). Never a key or payload. */
   classifierProvider?: string;
   /** Safe model id only (e.g. `gpt-5.6-luna`). Never a key or payload. */
@@ -21,6 +23,7 @@ export interface MeaningfulnessClassifierTelemetry {
   classifierMeaningful: number;
   classifierNotMeaningful: number;
   classifierErrors: number;
+  classifierBudgetExhausted: number;
   classifierProvider?: string;
   classifierModel?: string;
 }
@@ -31,6 +34,7 @@ export function emptyMeaningfulnessClassifierTelemetry(): MeaningfulnessClassifi
     classifierMeaningful: 0,
     classifierNotMeaningful: 0,
     classifierErrors: 0,
+    classifierBudgetExhausted: 0,
   };
 }
 

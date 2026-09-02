@@ -39,6 +39,7 @@ export interface WorkerCycleResult {
   classifierMeaningful: number;
   classifierNotMeaningful: number;
   classifierErrors: number;
+  classifierBudgetExhausted: number;
   classifierProvider?: string;
   classifierModel?: string;
   cycles: PipelineCycleResult[];
@@ -109,6 +110,7 @@ function aggregateCycleStats(
   result.classifierMeaningful += cycle.stats.classifierMeaningful;
   result.classifierNotMeaningful += cycle.stats.classifierNotMeaningful;
   result.classifierErrors += cycle.stats.classifierErrors;
+  result.classifierBudgetExhausted += cycle.stats.classifierBudgetExhausted;
 }
 
 /**
@@ -159,6 +161,7 @@ export async function runWorkerCycle(
     classifierMeaningful: 0,
     classifierNotMeaningful: 0,
     classifierErrors: 0,
+    classifierBudgetExhausted: 0,
     cycles: [],
     ...classifierSafeIdentity(meaningfulnessClassifier),
   };

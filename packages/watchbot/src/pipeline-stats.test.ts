@@ -187,5 +187,22 @@ describe("computePipelineCycleStats novel counting", () => {
     expect(stats.meaningful).toBe(1);
     expect(stats.notMeaningful).toBe(1);
     expect(stats.selected).toBe(1);
+    expect(stats.classifierCalls).toBe(0);
+    expect(stats.classifierErrors).toBe(0);
+    expect(stats.classifierBudgetExhausted).toBe(0);
+  });
+
+  it("plumbs classifierBudgetExhausted separately from classifierErrors", () => {
+    const stats = computePipelineCycleStats(0, [], 0, {
+      classifierCalls: 3,
+      classifierMeaningful: 0,
+      classifierNotMeaningful: 3,
+      classifierErrors: 0,
+      classifierBudgetExhausted: 6,
+    });
+    expect(stats.classifierCalls).toBe(3);
+    expect(stats.classifierNotMeaningful).toBe(3);
+    expect(stats.classifierBudgetExhausted).toBe(6);
+    expect(stats.classifierErrors).toBe(0);
   });
 });
