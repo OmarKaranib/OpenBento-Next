@@ -165,6 +165,9 @@ export function isWatchBotProviderEligible(
   if (provider.vendor === "x-api") {
     return sourceTypes.includes("x");
   }
+  if (provider.vendor === "openai") {
+    return sourceTypes.includes("web") || sourceTypes.includes("news");
+  }
   return true;
 }
 
