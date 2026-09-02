@@ -11,6 +11,10 @@ import {
   type CreateCardInput,
 } from "@openbento/domain";
 import { FakeSourceProvider } from "./fake-provider";
+import {
+  createFixtureMeaningfulnessClassifier,
+  type MeaningfulnessInput,
+} from "./meaningfulness";
 import { assertSourceCardPayload, runWatchBotPipeline } from "./pipeline";
 import { buildDedupKey } from "./dedup";
 import {
@@ -1030,7 +1034,7 @@ describe("WatchBot intelligence Slice B same-story clustering", () => {
         (event) =>
           event.sourceUrl === `watchbot://${watchBot.id}/cycle-select` &&
           event.detail ===
-            `candidates_eligible=6 clustered=${result.stats.clustered} representatives=${result.stats.representatives} selected=${result.stats.selected}`,
+            `candidates_eligible=6 clustered=${result.stats.clustered} representatives=${result.stats.representatives} meaningful=${result.stats.meaningful} not_meaningful=${result.stats.notMeaningful} selected=${result.stats.selected}`,
       ),
     ).toBe(true);
   });
@@ -1413,5 +1417,361 @@ describe("WatchBot intelligence Slice B same-story clustering", () => {
     expect(
       state.cards.every((card) => card.type === "news" || card.type === "web"),
     ).toBe(true);
+  });
+});
+
+describe("WatchBot intelligence Slice C meaningful-development contract", () => {
+  const chatter = newsAbout(
+    "chatter",
+    "People keep talking about renaming Lake Ontario again",
+  );
+  const lawsuit = newsAbout(
+    "lawsuit",
+    "Canada files a lawsuit over the Lake Ontario rename",
+  );
+  const hearings = newsAbout(
+    "hearings",
+    "New York lawmakers schedule Lake America hearings",
+  );
+
+  it("excludes relevant chatter before Card creation when a classifier is present", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      chatter,
+      lawsuit,
+    ]);
+    const spies = spyExecutor(executor);
+    const classify = vi.fn((input: MeaningfulnessInput) => ({
+      meaningful: input.title === lawsuit.title,
+      importanceScore: input.title === lawsuit.title ? 0.9 : 0.15,
+    }));
+
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: { classify },
+    });
+
+    expect(result.stats.candidatesEligible).toBe(2);
+    expect(result.stats.clustered).toBe(0);
+    expect(result.stats.representatives).toBe(2);
+    expect(result.stats.notMeaningful).toBe(1);
+    expect(result.stats.meaningful).toBe(1);
+    expect(result.stats.selected).toBe(1);
+    expect(result.cardsCreated).toBe(1);
+    expect(spies.createCard).toHaveBeenCalledTimes(1);
+
+    expect(result.items.map((item) => item.detail ?? item.kind)).toEqual([
+      "not_meaningful",
+      "card_created",
+    ]);
+    expect(result.items[0]).toMatchObject({
+      kind: "normalized",
+      detail: "not_meaningful",
+      candidateEligible: true,
+      notMeaningful: true,
+    });
+    expect(result.items[0]?.clustered).not.toBe(true);
+    expect(result.items[1]).toMatchObject({
+      kind: "card_created",
+      selected: true,
+      importanceScore: 0.9,
+    });
+
+    const created = spies.createCard.mock.calls[0]?.[0] as CreateCardInput;
+    expect("provenance" in created.payload && created.payload.provenance.sourceUrl).toBe(
+      "https://news.example.com/lawsuit",
+    );
+
+    const events = await store.listWatchBotEventsByWatchBot(watchBot.id);
+    expect(
+      events.some(
+        (event) =>
+          event.sourceUrl === `watchbot://${watchBot.id}/cycle-select` &&
+          event.detail ===
+            "candidates_eligible=2 clustered=0 representatives=2 meaningful=1 not_meaningful=1 selected=1",
+      ),
+    ).toBe(true);
+  });
+
+  it("ranks high-importance developments above low-importance ones under the cap", async () => {
+    const lowEarly = newsAbout(
+      "brief",
+      "Ontario lake news brief about the Lake America rename",
+    );
+    const distinct = [
+      lowEarly,
+      newsAbout(
+        "debate",
+        "Officials debate renaming Lake Ontario to Lake America",
+      ),
+      newsAbout(
+        "lawsuit",
+        "Canada files a lawsuit over the Lake Ontario rename",
+      ),
+      newsAbout(
+        "hearings",
+        "New York lawmakers schedule Lake America hearings",
+      ),
+      newsAbout(
+        "protest",
+        "Environmental groups protest Lake Ontario rename plan",
+      ),
+      newsAbout(
+        "historians",
+        "Historians publish Lake Ontario name timeline research",
+      ),
+    ];
+    const { store, executor, watchBot, provider } = await seed(distinct);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: createFixtureMeaningfulnessClassifier(
+        distinct.map((item, index) => ({
+          title: item.title,
+          meaningful: true,
+          importanceScore: index === 0 ? 0.05 : 0.8,
+        })),
+      ),
+    });
+
+    expect(result.stats.candidatesEligible).toBe(6);
+    expect(result.stats.clustered).toBe(0);
+    expect(result.stats.representatives).toBe(6);
+    expect(result.stats.meaningful).toBe(6);
+    expect(result.stats.notMeaningful).toBe(0);
+    expect(result.stats.selected).toBe(5);
+    expect(result.cardsCreated).toBe(5);
+
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    const urls = state.cards.map((card) =>
+      "provenance" in card.payload ? card.payload.provenance.sourceUrl : "",
+    );
+    expect(urls).not.toContain("https://news.example.com/brief");
+    expect(urls).toContain("https://news.example.com/historians");
+    expect(result.items.find((item) => item.detail === "not_selected")?.dedupKey).toContain(
+      "brief",
+    );
+  });
+
+  it("breaks remaining ties deterministically by earlier arrival", async () => {
+    const first = newsAbout(
+      "tie-0",
+      "Canada files a lawsuit over the Lake Ontario rename",
+    );
+    const second = newsAbout(
+      "tie-1",
+      "New York lawmakers schedule Lake America hearings",
+    );
+    const third = newsAbout(
+      "tie-2",
+      "Environmental groups protest Lake Ontario rename plan",
+    );
+    const { store, executor, watchBot, provider } = await seed([
+      third,
+      first,
+      second,
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: createFixtureMeaningfulnessClassifier(
+        [first, second, third].map((item) => ({
+          title: item.title,
+          meaningful: true,
+          importanceScore: 0.5,
+        })),
+      ),
+    });
+    expect(result.stats.selected).toBe(3);
+    expect(result.cardsCreated).toBe(3);
+    expect(result.items.every((item) => item.kind === "card_created")).toBe(true);
+    expect(result.items.map((item) => item.importanceScore)).toEqual([0.5, 0.5, 0.5]);
+  });
+
+  it("does not penalize multilingual/non-ASCII representatives", async () => {
+    const { store, executor, watchBot, provider } = await seedXWatchBot([
+      xPost("80", "OpenAI note"),
+      xPost("81", "OpenAIとWebMCPの公式発表"),
+      xPost("82", "إعلان رسمي عن OpenAI و WebMCP"),
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: createFixtureMeaningfulnessClassifier([
+        { title: "OpenAI note", meaningful: true, importanceScore: 0.1 },
+        {
+          title: "OpenAIとWebMCPの公式発表",
+          meaningful: true,
+          importanceScore: 0.95,
+        },
+        {
+          title: "إعلان رسمي عن OpenAI و WebMCP",
+          meaningful: true,
+          importanceScore: 0.95,
+        },
+      ]),
+    });
+    expect(result.stats.candidatesEligible).toBe(3);
+    expect(result.stats.selected).toBe(3);
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    const titles = state.cards.map((card) =>
+      "provenance" in card.payload ? card.payload.provenance.title : "",
+    );
+    expect(titles).toEqual(
+      expect.arrayContaining([
+        "OpenAIとWebMCPの公式発表",
+        "إعلان رسمي عن OpenAI و WebMCP",
+        "OpenAI note",
+      ]),
+    );
+    const japanese = result.items.find((item) =>
+      item.dedupKey.includes("81"),
+    );
+    const note = result.items.find((item) => item.dedupKey.includes("80"));
+    expect(japanese?.importanceScore).toBe(0.95);
+    expect(note?.importanceScore).toBe(0.1);
+    expect(japanese?.importanceScore ?? 0).toBeGreaterThan(note?.importanceScore ?? 1);
+  });
+
+  it("classifies clustered representatives only and does not promote clustered chatter", async () => {
+    const classify = vi.fn((input: MeaningfulnessInput) => ({
+      meaningful: input.title.startsWith("Canada files"),
+      importanceScore: input.title.startsWith("Canada files") ? 0.9 : 0.2,
+    }));
+    const paraphrase = newsAbout(
+      "lawsuit-today",
+      "Canada files a lawsuit over the Lake Ontario rename today",
+    );
+    const { store, executor, watchBot, provider } = await seed([
+      chatter,
+      lawsuit,
+      paraphrase,
+    ]);
+    const spies = spyExecutor(executor);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: { classify },
+    });
+
+    expect(result.stats.candidatesEligible).toBe(3);
+    expect(result.stats.clustered).toBe(1);
+    expect(result.stats.representatives).toBe(2);
+    expect(classify).toHaveBeenCalledTimes(2);
+    const classifiedTitles = classify.mock.calls.map((call) => call[0].title);
+    expect(classifiedTitles).toContain(lawsuit.title);
+    expect(classifiedTitles).toContain(chatter.title);
+    expect(classifiedTitles).not.toContain(paraphrase.title);
+
+    expect(result.items.find((item) => item.detail === "clustered")).toMatchObject({
+      clustered: true,
+      candidateEligible: true,
+    });
+    expect(result.items.find((item) => item.detail === "not_meaningful")).toMatchObject({
+      notMeaningful: true,
+    });
+    expect(result.cardsCreated).toBe(1);
+    expect(spies.createCard).toHaveBeenCalledTimes(1);
+    const created = spies.createCard.mock.calls[0]?.[0] as CreateCardInput;
+    expect(
+      "provenance" in created.payload && created.payload.provenance.sourceUrl,
+    ).toBe("https://news.example.com/lawsuit");
+  });
+
+  it("keeps selected Card provenance identical to the source item", async () => {
+    const item: DiscoveredItem = {
+      sourceUrl: "https://news.example.com/provenance-slice-c?utm_source=rss",
+      title: "Canada files a lawsuit over the Lake Ontario rename",
+      publishedAt: "2026-08-28T12:00:00.000Z",
+      sourceType: "news",
+      rawExcerpt: "Canada filed in federal court over the Lake Ontario proposal.",
+      author: "desk",
+      externalId: "prov-c-1",
+    };
+    const { store, executor, watchBot, provider } = await seed([item, chatter]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: createFixtureMeaningfulnessClassifier([
+        { title: item.title, meaningful: true, importanceScore: 0.88 },
+        { title: chatter.title, meaningful: false, importanceScore: 0.1 },
+      ]),
+    });
+    expect(result.cardsCreated).toBe(1);
+    expect(result.items.find((entry) => entry.kind === "card_created")).toMatchObject({
+      selected: true,
+      importanceScore: 0.88,
+    });
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    const card = state.cards[0];
+    expect(card?.type).toBe("news");
+    if (card && "provenance" in card.payload) {
+      expect(card.payload.provenance).toMatchObject({
+        sourceUrl: "https://news.example.com/provenance-slice-c",
+        title: item.title,
+        publishedAt: "2026-08-28T12:00:00.000Z",
+        sourceType: "news",
+        watchBotId: watchBot.id,
+        author: "desk",
+        externalId: "prov-c-1",
+      });
+    }
+  });
+
+  it("passthrough (no classifier) preserves ordinary web/news/X Card creation", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      newsItem,
+      webItem,
+      chatter,
+      hearings,
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.stats.notMeaningful).toBe(0);
+    expect(result.stats.meaningful).toBe(result.stats.representatives);
+    expect(result.cardsCreated).toBeGreaterThan(0);
+    expect(result.items.some((item) => item.detail === "not_meaningful")).toBe(
+      false,
+    );
+
+    const { store: xStore, executor: xExecutor, watchBot: xBot, provider: xProvider } =
+      await seedXWatchBot([xPost("90", "OpenAI shipped a new API")]);
+    const xResult = await runWatchBotPipeline({
+      watchBot: xBot,
+      executor: xExecutor,
+      store: xStore,
+      provider: xProvider,
+    });
+    expect(xResult.cardsCreated).toBe(1);
+    expect(xResult.stats.notMeaningful).toBe(0);
+    const xState = await xExecutor.getCanvasState({ canvasId: xBot.canvasId });
+    const xCard = xState.cards[0];
+    expect(xCard?.type).toBe("x");
+    if (xCard && "provenance" in xCard.payload) {
+      expect(xCard.payload.provenance).toMatchObject({
+        sourceType: "x",
+        sourceUrl: "https://x.com/someone/status/90",
+        title: "OpenAI shipped a new API",
+        watchBotId: xBot.id,
+        author: "someone",
+        externalId: "90",
+      });
+    }
   });
 });

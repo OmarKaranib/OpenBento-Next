@@ -28,7 +28,7 @@ Source Cards require provenance. Notes do not. WatchBot must not invent fake sou
 
 ## Pipeline (`packages/watchbot` + `apps/worker`)
 
-`discover → normalize → dedup → novelty → relevance → provenance → Card`
+`discover → normalize → dedup → novelty → relevance → cluster → meaning → provenance → Card`
 
 - `SourceProvider` is provider-agnostic. Tests inject `FakeSourceProvider`.
 - First adapter may be xAI/Grok behind `XAI_API_KEY`. Domain does not import it.
@@ -36,7 +36,8 @@ Source Cards require provenance. Notes do not. WatchBot must not invent fake sou
 - Membership: `createCard` (bounds only) then `selectSmallestContainingFrame` → `setCardFrame`.
 - Event kinds: `discovered`, `normalized`, `duplicate`, `novel`, `rejected_relevance`, `card_created`, `error`.
 - First slice sources: **web and news only**.
-- Prefer meaningful developments over volume (novelty + relevance + cap).
+- Prefer meaningful developments over volume (novelty + relevance + cluster + optional meaning classifier + cap).
+- Slice C meaning/importance is a provider-independent contract in `@openbento/watchbot`. Default is passthrough (no model call). Low-meaningful representatives are excludable before Card creation when a classifier is present. No ASCII/English lexical gates.
 
 ## Untrusted content
 

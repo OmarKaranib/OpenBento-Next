@@ -45,6 +45,8 @@ const EMPTY_CYCLE: WorkerCycleResult = {
   candidatesEligible: 0,
   clustered: 0,
   representatives: 0,
+  meaningful: 0,
+  notMeaningful: 0,
   selected: 0,
   cycles: [],
 };
@@ -375,6 +377,8 @@ describe("worker tick telemetry", () => {
               candidatesEligible: 0,
               clustered: 0,
               representatives: 0,
+              meaningful: 0,
+              notMeaningful: 0,
               selected: 0,
             },
             topOutcome: "rejected_relevance",

@@ -15,6 +15,13 @@ import {
 import { clusterCandidates } from "./cluster-candidates";
 import { buildDedupKey } from "./dedup";
 import {
+  PASSTHROUGH_MEANINGFULNESS_CLASSIFIER,
+  judgeRepresentatives,
+  selectMeaningfulDevelopments,
+  toMeaningfulnessInput,
+  type MeaningfulnessClassifier,
+} from "./meaningfulness";
+import {
   asSourceType,
   normalizeDiscoveredItem,
   sourceTypeToCardType,
@@ -53,6 +60,10 @@ export interface PipelineItemResult {
   candidateEligible?: boolean;
   /** Eligible but collapsed into another same-story representative. */
   clustered?: boolean;
+  /** Representative excluded as not a meaningful development. */
+  notMeaningful?: boolean;
+  /** Slice C importance when this item was judged as a representative. */
+  importanceScore?: number;
   /** Chosen by selectCandidates for Card creation in this cycle. */
   selected?: boolean;
 }
@@ -68,6 +79,8 @@ export interface PipelineCycleStats {
   candidatesEligible: number;
   clustered: number;
   representatives: number;
+  meaningful: number;
+  notMeaningful: number;
   selected: number;
 }
 
@@ -95,6 +108,12 @@ export interface RunWatchBotPipelineInput {
   id?: () => string;
   emitTelemetry?: EmitWatchBotTelemetry;
   xHttpBudget?: XHttpBudget;
+  /**
+   * Optional Slice C classifier. Default passthrough keeps current
+   * web/news/X Card creation. When provided, `meaningful: false`
+   * excludes that representative before Card creation.
+   */
+  meaningfulnessClassifier?: MeaningfulnessClassifier;
 }
 
 function isNoteLikePayload(payload: unknown): boolean {
@@ -192,6 +211,8 @@ export function computePipelineCycleStats(
   const representatives = items.filter(
     (item) => item.candidateEligible === true && item.clustered !== true,
   ).length;
+  const notMeaningful = items.filter((item) => item.notMeaningful === true).length;
+  const meaningful = Math.max(0, representatives - notMeaningful);
   const selected = items.filter((item) => item.selected === true).length;
 
   return {
@@ -205,6 +226,8 @@ export function computePipelineCycleStats(
     candidatesEligible,
     clustered,
     representatives,
+    meaningful,
+    notMeaningful,
     selected,
   };
 }
@@ -384,13 +407,26 @@ export async function runWatchBotPipeline(
       eligible,
       (candidate) => candidate.normalized.title,
     );
-    const selected = selectCandidates(
+    const judged = await judgeRepresentatives(
       clustered.representatives,
+      (candidate) =>
+        toMeaningfulnessInput(candidate.normalized, watchBot.instruction),
+      input.meaningfulnessClassifier ?? PASSTHROUGH_MEANINGFULNESS_CLASSIFIER,
+    );
+    const meaningful = selectMeaningfulDevelopments(judged);
+    const selected = selectCandidates(
+      meaningful,
       MAX_SELECTED_PER_CYCLE,
     );
     const selectedKeys = new Set(selected.map((item) => item.dedupKey));
     const representativeKeys = new Set(
       clustered.representatives.map((item) => item.dedupKey),
+    );
+    const notMeaningfulKeys = new Set(
+      judged.filter((item) => item.meaningful !== true).map((item) => item.dedupKey),
+    );
+    const importanceByKey = new Map(
+      judged.map((item) => [item.dedupKey, item.importanceScore] as const),
     );
 
     await persistStageEvent(store, {
@@ -401,7 +437,7 @@ export async function runWatchBotPipeline(
       sourceUrl: `watchbot://${watchBot.id}/cycle-select`,
       dedupKey: `cycle-select:${watchBot.id}:${now()}:${id()}`,
       discoveredAt: now(),
-      detail: `candidates_eligible=${eligible.length} clustered=${clustered.clusteredCount} representatives=${clustered.representatives.length} selected=${selected.length}`,
+      detail: `candidates_eligible=${eligible.length} clustered=${clustered.clusteredCount} representatives=${clustered.representatives.length} meaningful=${meaningful.length} not_meaningful=${notMeaningfulKeys.size} selected=${selected.length}`,
     });
 
     for (const evaluation of evaluations) {
@@ -413,7 +449,13 @@ export async function runWatchBotPipeline(
       const { candidate } = evaluation;
       if (!selectedKeys.has(candidate.dedupKey)) {
         const clusteredOut = !representativeKeys.has(candidate.dedupKey);
-        const detail = clusteredOut ? "clustered" : "not_selected";
+        const notMeaningful = notMeaningfulKeys.has(candidate.dedupKey);
+        const importanceScore = importanceByKey.get(candidate.dedupKey);
+        const detail = clusteredOut
+          ? "clustered"
+          : notMeaningful
+            ? "not_meaningful"
+            : "not_selected";
         await persistStageEvent(store, {
           id: id(),
           watchBotId: watchBot.id,
@@ -436,6 +478,8 @@ export async function runWatchBotPipeline(
           passedNovelty: true,
           candidateEligible: true,
           ...(clusteredOut ? { clustered: true } : {}),
+          ...(notMeaningful ? { notMeaningful: true } : {}),
+          ...(importanceScore !== undefined ? { importanceScore } : {}),
         });
         continue;
       }
@@ -449,7 +493,11 @@ export async function runWatchBotPipeline(
           now,
           id,
         });
-        results.push(itemResult);
+        const importanceScore = importanceByKey.get(candidate.dedupKey);
+        results.push({
+          ...itemResult,
+          ...(importanceScore !== undefined ? { importanceScore } : {}),
+        });
         if (itemResult.kind === "card_created") {
           cardsCreated += 1;
         }
@@ -466,6 +514,7 @@ export async function runWatchBotPipeline(
           discoveredAt: now(),
           detail: message.slice(0, 200),
         });
+        const importanceScore = importanceByKey.get(candidate.dedupKey);
         results.push({
           kind: "error",
           dedupKey: candidate.dedupKey,
@@ -474,6 +523,7 @@ export async function runWatchBotPipeline(
           passedNovelty: true,
           candidateEligible: true,
           selected: true,
+          ...(importanceScore !== undefined ? { importanceScore } : {}),
         });
       }
     }
@@ -529,6 +579,8 @@ function emptyPipelineStats(): PipelineCycleStats {
     candidatesEligible: 0,
     clustered: 0,
     representatives: 0,
+    meaningful: 0,
+    notMeaningful: 0,
     selected: 0,
   };
 }

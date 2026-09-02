@@ -53,6 +53,21 @@ export {
   type RankableCandidate,
 } from "./select-candidates";
 export {
+  PASSTHROUGH_IMPORTANCE,
+  PASSTHROUGH_MEANINGFULNESS_CLASSIFIER,
+  PASSTHROUGH_MEANINGFULNESS_JUDGMENT,
+  createFixtureMeaningfulnessClassifier,
+  isMeaningfulDevelopment,
+  judgeRepresentatives,
+  normalizeImportanceScore,
+  selectMeaningfulDevelopments,
+  toMeaningfulnessInput,
+  type JudgedCandidate,
+  type MeaningfulnessClassifier,
+  type MeaningfulnessInput,
+  type MeaningfulnessJudgment,
+} from "./meaningfulness";
+export {
   SAME_STORY_EXACT_MIN_SHARED,
   SAME_STORY_JACCARD,
   SAME_STORY_MIN_SHARED,

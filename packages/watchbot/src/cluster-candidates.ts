@@ -11,7 +11,9 @@
  * tokenization, no ASCII-only split, no English verb/stem list.
  * Conservative — prefer a missed paraphrase over merging
  * distinct developments. Representative is chosen with the
- * Slice A comparator (relevance → novelty → arrivalIndex).
+ * Slice A/C comparator. Importance is not assigned until after
+ * clustering, so representative pick remains relevance → novelty →
+ * arrivalIndex.
  * The representative object is unchanged (provenance stays
  * source-equivalent to that candidate).
  */
