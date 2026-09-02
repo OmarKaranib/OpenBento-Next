@@ -6,7 +6,10 @@ import {
   PASSTHROUGH_IMPORTANCE,
   PASSTHROUGH_MEANINGFULNESS_CLASSIFIER,
   PASSTHROUGH_MEANINGFULNESS_JUDGMENT,
+  classifierStageDetail,
   createFixtureMeaningfulnessClassifier,
+  failClosedMeaningfulnessJudgment,
+  formatImportanceForDetail,
   isMeaningfulDevelopment,
   judgeRepresentatives,
   normalizeImportanceScore,
@@ -141,6 +144,7 @@ describe("meaningfulness contract", () => {
     );
     expect(judged?.meaningful).toBe(false);
     expect(judged?.importanceScore).toBe(0);
+    expect(judged?.classificationStatus).toBe("error");
   });
 
   it("operates on clustered representatives only", async () => {
@@ -189,6 +193,12 @@ describe("meaningfulness contract", () => {
     expect(meaningful).toHaveLength(1);
     expect(meaningful[0]?.title).toBe("lawsuit");
     expect(judged.find((item) => item.title === "chatter")?.meaningful).toBe(false);
+    expect(judged.find((item) => item.title === "chatter")?.classificationStatus).toBe(
+      "classified",
+    );
+    expect(judged.find((item) => item.title === "lawsuit")?.classificationStatus).toBe(
+      "classified",
+    );
   });
 
   it("does not mutate the representative list", async () => {
@@ -198,6 +208,50 @@ describe("meaningfulness contract", () => {
     const snapshot = [...pool];
     await judgeRepresentatives(pool, () => input(), PASSTHROUGH_MEANINGFULNESS_CLASSIFIER);
     expect(pool).toEqual(snapshot);
+  });
+
+  it("formats classifier stage-event detail without source text", () => {
+    expect(formatImportanceForDetail(0.15)).toBe("0.150");
+    expect(formatImportanceForDetail(0.9)).toBe("0.900");
+    expect(formatImportanceForDetail(1.4)).toBe("1.000");
+    expect(
+      classifierStageDetail(failClosedMeaningfulnessJudgment("budget_exhausted")),
+    ).toBe("not_meaningful:budget_exhausted");
+    expect(
+      classifierStageDetail({
+        meaningful: false,
+        importanceScore: 0.15,
+        classificationStatus: "classified",
+      }),
+    ).toBe("not_meaningful:classified:importance=0.150");
+    expect(
+      classifierStageDetail({
+        meaningful: true,
+        importanceScore: 0.9,
+        classificationStatus: "classified",
+      }),
+    ).toBe("meaningful:classified:importance=0.900");
+    expect(classifierStageDetail(failClosedMeaningfulnessJudgment("error"))).toBe(
+      "not_meaningful:error",
+    );
+  });
+
+  it("treats omitted classificationStatus as classified", async () => {
+    const [judged] = await judgeRepresentatives(
+      [{ arrivalIndex: 0, relevanceScore: 0.9, noveltyScore: 1 }],
+      () => input(),
+      {
+        classify: () => ({ meaningful: false, importanceScore: 0.22 }),
+      },
+    );
+    expect(judged?.classificationStatus).toBe("classified");
+    expect(
+      classifierStageDetail({
+        meaningful: judged?.meaningful ?? false,
+        importanceScore: judged?.importanceScore ?? 0,
+        classificationStatus: judged?.classificationStatus,
+      }),
+    ).toBe("not_meaningful:classified:importance=0.220");
   });
 });
 

@@ -18,6 +18,7 @@ import { clusterCandidates } from "./cluster-candidates";
 import { buildDedupKey } from "./dedup";
 import {
   PASSTHROUGH_MEANINGFULNESS_CLASSIFIER,
+  classifierStageDetail,
   judgeRepresentatives,
   selectMeaningfulDevelopments,
   toMeaningfulnessInput,
@@ -441,6 +442,9 @@ export async function runWatchBotPipeline(
     const importanceByKey = new Map(
       judged.map((item) => [item.dedupKey, item.importanceScore] as const),
     );
+    const classificationStatusByKey = new Map(
+      judged.map((item) => [item.dedupKey, item.classificationStatus] as const),
+    );
 
     await persistStageEvent(store, {
       id: id(),
@@ -467,7 +471,13 @@ export async function runWatchBotPipeline(
         const detail = clusteredOut
           ? "clustered"
           : notMeaningful
-            ? "not_meaningful"
+            ? classifierStageDetail({
+                meaningful: false,
+                importanceScore: importanceScore ?? 0,
+                classificationStatus: classificationStatusByKey.get(
+                  candidate.dedupKey,
+                ),
+              })
             : "not_selected";
         await persistStageEvent(store, {
           id: id(),
@@ -498,6 +508,12 @@ export async function runWatchBotPipeline(
       }
 
       try {
+        const importanceScore = importanceByKey.get(candidate.dedupKey);
+        const classifierDetail = classifierStageDetail({
+          meaningful: true,
+          importanceScore: importanceScore ?? 0,
+          classificationStatus: classificationStatusByKey.get(candidate.dedupKey),
+        });
         const itemResult = await createCardFromCandidate({
           candidate,
           watchBot,
@@ -505,8 +521,8 @@ export async function runWatchBotPipeline(
           store,
           now,
           id,
+          classifierDetail,
         });
-        const importanceScore = importanceByKey.get(candidate.dedupKey);
         results.push({
           ...itemResult,
           ...(importanceScore !== undefined ? { importanceScore } : {}),
@@ -873,8 +889,10 @@ async function createCardFromCandidate(input: {
   store: DomainStore;
   now: () => string;
   id: () => string;
+  classifierDetail?: string;
 }): Promise<PipelineItemResult> {
-  const { candidate, watchBot, executor, store, now, id } = input;
+  const { candidate, watchBot, executor, store, now, id, classifierDetail } =
+    input;
   const { normalized, dedupKey, noveltyScore } = candidate;
   const canvas = await executor.getCanvasState({ canvasId: watchBot.canvasId });
   const cardType = sourceTypeToCardType(normalized.sourceType);
@@ -916,6 +934,7 @@ async function createCardFromCandidate(input: {
         publishedAt: normalized.publishedAt,
         sourceType: asSourceType(normalized.sourceType),
         cardId: created.id,
+        ...(classifierDetail ? { detail: classifierDetail } : {}),
       });
       return created;
     });
@@ -925,6 +944,7 @@ async function createCardFromCandidate(input: {
       dedupKey,
       cardId: card.id,
       noveltyScore,
+      ...(classifierDetail ? { detail: classifierDetail } : {}),
       passedNovelty: true,
       candidateEligible: true,
       selected: true,

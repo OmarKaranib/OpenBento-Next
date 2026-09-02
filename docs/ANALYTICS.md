@@ -80,6 +80,8 @@ Cost (PostHog): `ob.watchbot.cost` with `provider`, `units`, `watchBotId`, `dura
 
 Classifier counters (worker tick / cost telemetry only; never source text): `classifierCalls`, `classifierMeaningful`, `classifierNotMeaningful`, `classifierErrors`, `classifierBudgetExhausted`. Budget-exhausted fail-closed skips increment `classifierBudgetExhausted` only (no HTTP attempt). Provider/protocol/network failures after an attempted call increment `classifierCalls` + `classifierErrors`.
 
+Durable `watch_bot_events.detail` (existing string; no new column) may include machine-safe classifier tokens: `not_meaningful:budget_exhausted`, `not_meaningful:classified:importance=<0..1>`, `meaningful:classified:importance=<0..1>`, `not_meaningful:error`. Never prompts, source bodies, raw model output, or secrets.
+
 ### Agent
 
 | Event | When |

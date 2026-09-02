@@ -991,6 +991,19 @@ function newsAbout(id: string, title: string): DiscoveredItem {
   };
 }
 
+function classifierOutcomeDetails(
+  items: Array<{ detail?: string | null }>,
+): string[] {
+  return items
+    .map((item) => item.detail)
+    .filter(
+      (detail): detail is string =>
+        typeof detail === "string" &&
+        (detail.startsWith("not_meaningful:") ||
+          detail.startsWith("meaningful:classified:")),
+    );
+}
+
 describe("WatchBot intelligence Slice B same-story clustering", () => {
   it("collapses obvious paraphrases to one representative before Cards", async () => {
     const { store, executor, watchBot, provider } = await seed([
@@ -1476,18 +1489,19 @@ describe("WatchBot intelligence Slice C meaningful-development contract", () => 
     expect(spies.createCard).toHaveBeenCalledTimes(1);
 
     expect(result.items.map((item) => item.detail ?? item.kind)).toEqual([
-      "not_meaningful",
-      "card_created",
+      "not_meaningful:classified:importance=0.150",
+      "meaningful:classified:importance=0.900",
     ]);
     expect(result.items[0]).toMatchObject({
       kind: "normalized",
-      detail: "not_meaningful",
+      detail: "not_meaningful:classified:importance=0.150",
       candidateEligible: true,
       notMeaningful: true,
     });
     expect(result.items[0]?.clustered).not.toBe(true);
     expect(result.items[1]).toMatchObject({
       kind: "card_created",
+      detail: "meaningful:classified:importance=0.900",
       selected: true,
       importanceScore: 0.9,
     });
@@ -1506,6 +1520,23 @@ describe("WatchBot intelligence Slice C meaningful-development contract", () => 
             "candidates_eligible=2 clustered=0 representatives=2 meaningful=1 not_meaningful=1 selected=1",
       ),
     ).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.kind === "normalized" &&
+          event.detail === "not_meaningful:classified:importance=0.150",
+      ),
+    ).toBe(true);
+    expect(
+      events.some(
+        (event) =>
+          event.kind === "card_created" &&
+          event.detail === "meaningful:classified:importance=0.900",
+      ),
+    ).toBe(true);
+    expect(JSON.stringify(events.map((event) => event.detail))).not.toMatch(
+      /people are talking|Canada files/i,
+    );
   });
 
   it("ranks high-importance developments above low-importance ones under the cap", async () => {
@@ -1690,8 +1721,13 @@ describe("WatchBot intelligence Slice C meaningful-development contract", () => 
       clustered: true,
       candidateEligible: true,
     });
-    expect(result.items.find((item) => item.detail === "not_meaningful")).toMatchObject({
+    expect(
+      result.items.find((item) =>
+        item.detail?.startsWith("not_meaningful:classified:"),
+      ),
+    ).toMatchObject({
       notMeaningful: true,
+      detail: "not_meaningful:classified:importance=0.200",
     });
     expect(result.cardsCreated).toBe(1);
     expect(spies.createCard).toHaveBeenCalledTimes(1);
@@ -1726,6 +1762,7 @@ describe("WatchBot intelligence Slice C meaningful-development contract", () => 
     expect(result.items.find((entry) => entry.kind === "card_created")).toMatchObject({
       selected: true,
       importanceScore: 0.88,
+      detail: "meaningful:classified:importance=0.880",
     });
     const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
     const card = state.cards[0];
@@ -1759,7 +1796,14 @@ describe("WatchBot intelligence Slice C meaningful-development contract", () => 
     expect(result.stats.notMeaningful).toBe(0);
     expect(result.stats.meaningful).toBe(result.stats.representatives);
     expect(result.cardsCreated).toBeGreaterThan(0);
-    expect(result.items.some((item) => item.detail === "not_meaningful")).toBe(
+    expect(
+      result.items
+        .filter((item) => item.kind === "card_created")
+        .every(
+          (item) => item.detail === "meaningful:classified:importance=0.000",
+        ),
+    ).toBe(true);
+    expect(result.items.some((item) => item.detail?.startsWith("not_meaningful"))).toBe(
       false,
     );
 
@@ -1944,7 +1988,18 @@ describe("WatchBot intelligence Slice D model-backed classifier adapter", () => 
     expect(result.stats.notMeaningful).toBe(1);
     expect(result.stats.classifierErrors).toBe(1);
     expect(result.stats.classifierBudgetExhausted).toBe(0);
-    expect(result.items[0]?.detail).toBe("not_meaningful");
+    expect(result.items[0]?.detail).toBe("not_meaningful:error");
+    expect(result.items[0]?.detail).not.toBe("not_meaningful:budget_exhausted");
+    const errorEvents = await store.listWatchBotEventsByWatchBot(watchBot.id);
+    expect(
+      errorEvents.some(
+        (event) =>
+          event.kind === "normalized" && event.detail === "not_meaningful:error",
+      ),
+    ).toBe(true);
+    expect(
+      errorEvents.some((event) => event.detail === "not_meaningful:budget_exhausted"),
+    ).toBe(false);
   });
 
   it("fail-closes remaining representatives when the call budget is exhausted", async () => {
@@ -1979,6 +2034,23 @@ describe("WatchBot intelligence Slice D model-backed classifier adapter", () => 
     expect(result.stats.classifierBudgetExhausted).toBe(1);
     expect(result.stats.notMeaningful).toBe(1);
     expect(result.cardsCreated).toBe(1);
+    expect(result.items.map((item) => item.detail)).toEqual([
+      "meaningful:classified:importance=0.800",
+      "not_meaningful:budget_exhausted",
+    ]);
+    const budgetEvents = await store.listWatchBotEventsByWatchBot(watchBot.id);
+    expect(
+      classifierOutcomeDetails(budgetEvents).filter(
+        (detail) => detail === "not_meaningful:budget_exhausted",
+      ),
+    ).toHaveLength(1);
+    expect(
+      budgetEvents.some(
+        (event) =>
+          event.kind === "card_created" &&
+          event.detail === "meaningful:classified:importance=0.800",
+      ),
+    ).toBe(true);
   });
 
   it("counts nine representatives with budget 3 as three calls and six budget skips", async () => {
@@ -2027,6 +2099,25 @@ describe("WatchBot intelligence Slice D model-backed classifier adapter", () => 
     expect(result.stats.classifierErrors).toBe(0);
     expect(result.stats.notMeaningful).toBe(9);
     expect(result.cardsCreated).toBe(0);
+    expect(
+      result.items.filter(
+        (item) => item.detail === "not_meaningful:classified:importance=0.180",
+      ),
+    ).toHaveLength(3);
+    expect(
+      result.items.filter((item) => item.detail === "not_meaningful:budget_exhausted"),
+    ).toHaveLength(6);
+    const nineEvents = await store.listWatchBotEventsByWatchBot(watchBot.id);
+    expect(
+      classifierOutcomeDetails(nineEvents).filter(
+        (detail) => detail === "not_meaningful:classified:importance=0.180",
+      ),
+    ).toHaveLength(3);
+    expect(
+      classifierOutcomeDetails(nineEvents).filter(
+        (detail) => detail === "not_meaningful:budget_exhausted",
+      ),
+    ).toHaveLength(6);
   });
 
   it("keeps selected Card provenance identical when the adapter is used", async () => {
@@ -2306,6 +2397,65 @@ describe("WatchBot intelligence Slice E OpenAI meaningfulness classifier adapter
     expect(result.stats.classifierErrors).toBe(0);
     expect(result.stats.notMeaningful).toBe(9);
     expect(result.cardsCreated).toBe(0);
+    expect(
+      result.items.filter(
+        (item) => item.detail === "not_meaningful:classified:importance=0.180",
+      ),
+    ).toHaveLength(3);
+    expect(
+      result.items.filter((item) => item.detail === "not_meaningful:budget_exhausted"),
+    ).toHaveLength(6);
+    const nineEvents = await store.listWatchBotEventsByWatchBot(watchBot.id);
+    expect(
+      classifierOutcomeDetails(nineEvents).filter(
+        (detail) => detail === "not_meaningful:classified:importance=0.180",
+      ),
+    ).toHaveLength(3);
+    expect(
+      classifierOutcomeDetails(nineEvents).filter(
+        (detail) => detail === "not_meaningful:budget_exhausted",
+      ),
+    ).toHaveLength(6);
+  });
+
+  it("does not label an OpenAI HTTP error after an attempt as budget_exhausted", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      newsAbout("slice-e-http", "Canada files a lawsuit over the Lake Ontario rename"),
+    ]);
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: "nope" }), {
+          status: 500,
+          headers: { "content-type": "application/json" },
+        }),
+    );
+    const classifier = createOpenAIMeaningfulnessClassifier({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: fetchImpl as typeof fetch,
+      budget: new ClassifierCallBudget(5, 5),
+    });
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+      meaningfulnessClassifier: classifier ?? undefined,
+    });
+    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(result.cardsCreated).toBe(0);
+    expect(result.stats.classifierCalls).toBe(1);
+    expect(result.stats.classifierErrors).toBe(1);
+    expect(result.stats.classifierBudgetExhausted).toBe(0);
+    expect(result.items[0]?.detail).toBe("not_meaningful:error");
+    expect(result.items[0]?.detail).not.toMatch(/budget_exhausted/);
+    const events = await store.listWatchBotEventsByWatchBot(watchBot.id);
+    expect(
+      events.some(
+        (event) =>
+          event.kind === "normalized" && event.detail === "not_meaningful:error",
+      ),
+    ).toBe(true);
   });
 });
 

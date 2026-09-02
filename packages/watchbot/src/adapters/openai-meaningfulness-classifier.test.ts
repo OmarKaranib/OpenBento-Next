@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
 import { ClassifierCallBudget } from "../classifier-budget";
-import { FAIL_CLOSED_MEANINGFULNESS_JUDGMENT } from "../meaningfulness";
+import { failClosedMeaningfulnessJudgment } from "../meaningfulness";
 import {
   MEANINGFULNESS_CLASSIFIER_INSTRUCTIONS,
   MEANINGFULNESS_JUDGMENT_TEXT_FORMAT,
@@ -171,8 +171,16 @@ describe("OpenAI meaningfulness classifier judgments", () => {
     const developmentJudgment = await development?.classify(
       input({ title: "Canada files a lawsuit over the Lake Ontario rename" }),
     );
-    expect(chatterJudgment).toEqual({ meaningful: false, importanceScore: 0.12 });
-    expect(developmentJudgment).toEqual({ meaningful: true, importanceScore: 0.91 });
+    expect(chatterJudgment).toEqual({
+      meaningful: false,
+      importanceScore: 0.12,
+      classificationStatus: "classified",
+    });
+    expect(developmentJudgment).toEqual({
+      meaningful: true,
+      importanceScore: 0.91,
+      classificationStatus: "classified",
+    });
     expect(development?.telemetry.classifierMeaningful).toBe(1);
     expect(chatter?.telemetry.classifierNotMeaningful).toBe(1);
   });
@@ -188,8 +196,16 @@ describe("OpenAI meaningfulness classifier judgments", () => {
         output_text: JSON.stringify({ meaningful: false, importanceScore: 0.2 }),
       }),
     )?.classify(input());
-    expect(parsed).toEqual({ meaningful: true, importanceScore: 0.77 });
-    expect(convenience).toEqual({ meaningful: false, importanceScore: 0.2 });
+    expect(parsed).toEqual({
+      meaningful: true,
+      importanceScore: 0.77,
+      classificationStatus: "classified",
+    });
+    expect(convenience).toEqual({
+      meaningful: false,
+      importanceScore: 0.2,
+      classificationStatus: "classified",
+    });
   });
 
   it("preserves high vs low importance after clamping", async () => {
@@ -199,8 +215,16 @@ describe("OpenAI meaningfulness classifier judgments", () => {
     const low = await classifierWith(
       mockFetch(envelopeWithJudgment({ meaningful: true, importanceScore: -0.2 })),
     )?.classify(input({ title: "Ontario lake news brief" }));
-    expect(high).toEqual({ meaningful: true, importanceScore: 1 });
-    expect(low).toEqual({ meaningful: true, importanceScore: 0 });
+    expect(high).toEqual({
+      meaningful: true,
+      importanceScore: 1,
+      classificationStatus: "classified",
+    });
+    expect(low).toEqual({
+      meaningful: true,
+      importanceScore: 0,
+      classificationStatus: "classified",
+    });
   });
 
   it("fail-closes on malformed model output", async () => {
@@ -214,7 +238,7 @@ describe("OpenAI meaningfulness classifier judgments", () => {
     for (const body of cases) {
       const classifier = classifierWith(mockFetch(body));
       await expect(classifier?.classify(input())).resolves.toEqual(
-        FAIL_CLOSED_MEANINGFULNESS_JUDGMENT,
+        failClosedMeaningfulnessJudgment("error"),
       );
       expect(classifier?.telemetry.classifierErrors).toBe(1);
       expect(classifier?.telemetry.classifierBudgetExhausted).toBe(0);
@@ -227,7 +251,7 @@ describe("OpenAI meaningfulness classifier judgments", () => {
       mockFetch({ error: "nope" }, { status: 500 }),
     );
     await expect(classifier?.classify(input())).resolves.toEqual(
-      FAIL_CLOSED_MEANINGFULNESS_JUDGMENT,
+      failClosedMeaningfulnessJudgment("error"),
     );
     expect(classifier?.telemetry.classifierCalls).toBe(1);
     expect(classifier?.telemetry.classifierErrors).toBe(1);
@@ -242,7 +266,7 @@ describe("OpenAI meaningfulness classifier judgments", () => {
       { timeoutMs: 20 },
     );
     await expect(classifier?.classify(input())).resolves.toEqual(
-      FAIL_CLOSED_MEANINGFULNESS_JUDGMENT,
+      failClosedMeaningfulnessJudgment("error"),
     );
     expect(classifier?.telemetry.classifierErrors).toBe(1);
     expect(classifier?.telemetry.classifierCalls).toBe(1);
@@ -254,7 +278,7 @@ describe("OpenAI meaningfulness classifier judgments", () => {
       throw new Error("ECONNRESET");
     }) as typeof fetch);
     await expect(classifier?.classify(input())).resolves.toEqual(
-      FAIL_CLOSED_MEANINGFULNESS_JUDGMENT,
+      failClosedMeaningfulnessJudgment("error"),
     );
     expect(classifier?.telemetry.classifierErrors).toBe(1);
     expect(classifier?.telemetry.classifierCalls).toBe(1);
@@ -300,7 +324,11 @@ describe("OpenAI meaningfulness classifier judgments", () => {
     const judgment = await classifier?.classify(
       input({ title: injection, snippet: planted }),
     );
-    expect(judgment).toEqual({ meaningful: false, importanceScore: 0.1 });
+    expect(judgment).toEqual({
+      meaningful: false,
+      importanceScore: 0.1,
+      classificationStatus: "classified",
+    });
     expect(capturedUrl).toBe(`${OPENAI_API_BASE_URL_DEFAULT}/responses`);
     const body = JSON.parse(captured) as {
       model: string;
@@ -337,7 +365,8 @@ describe("OpenAI meaningfulness classifier judgments", () => {
       input({ title: "New York lawmakers schedule Lake America hearings" }),
     );
     expect(first?.meaningful).toBe(true);
-    expect(second).toEqual(FAIL_CLOSED_MEANINGFULNESS_JUDGMENT);
+    expect(first?.classificationStatus).toBe("classified");
+    expect(second).toEqual(failClosedMeaningfulnessJudgment("budget_exhausted"));
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(classifier?.telemetry.classifierCalls).toBe(1);
     expect(classifier?.telemetry.classifierErrors).toBe(0);
@@ -360,12 +389,19 @@ describe("OpenAI meaningfulness classifier judgments", () => {
       );
     }
     expect(fetchImpl).toHaveBeenCalledTimes(3);
-    expect(judgments.slice(0, 3).every((item) => item?.meaningful === false)).toBe(
-      true,
-    );
-    expect(judgments.slice(3).every((item) => item?.meaningful === false)).toBe(
-      true,
-    );
+    expect(
+      judgments.slice(0, 3).every(
+        (item) =>
+          item?.meaningful === false && item.classificationStatus === "classified",
+      ),
+    ).toBe(true);
+    expect(
+      judgments.slice(3).every(
+        (item) =>
+          item?.meaningful === false &&
+          item.classificationStatus === "budget_exhausted",
+      ),
+    ).toBe(true);
     expect(classifier?.telemetry.classifierCalls).toBe(3);
     expect(classifier?.telemetry.classifierNotMeaningful).toBe(3);
     expect(classifier?.telemetry.classifierBudgetExhausted).toBe(6);
@@ -378,7 +414,7 @@ describe("OpenAI meaningfulness classifier judgments", () => {
       budget: new ClassifierCallBudget(5, 5),
     });
     await expect(classifier?.classify(input())).resolves.toEqual(
-      FAIL_CLOSED_MEANINGFULNESS_JUDGMENT,
+      failClosedMeaningfulnessJudgment("error"),
     );
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     expect(classifier?.telemetry.classifierCalls).toBe(1);
@@ -409,6 +445,18 @@ describe("OpenAI classifier output / prompt / telemetry contract", () => {
         snippet: JSON.stringify(planted),
       }),
     ).toBeNull();
+  });
+
+  it("does not copy classificationStatus from model JSON", () => {
+    expect(
+      parseMeaningfulnessJudgment(
+        envelopeWithJudgment({
+          meaningful: false,
+          importanceScore: 0.2,
+          classificationStatus: "budget_exhausted",
+        }),
+      ),
+    ).toEqual({ meaningful: false, importanceScore: 0.2 });
   });
 
   it("telemetry includes only provider/model identifiers and counts", async () => {
@@ -446,7 +494,7 @@ describe("OpenAI classifier output / prompt / telemetry contract", () => {
     expect(src).not.toMatch(/OPENAI_API_KEY\s*=\s*["'][^"']+["']/);
     expect(src).not.toMatch(/XAI_API_KEY|GROK_API_KEY|api\.x\.ai/);
     expect(src).toMatch(/WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED/);
-    expect(src).toMatch(/FAIL_CLOSED_MEANINGFULNESS_JUDGMENT/);
+    expect(src).toMatch(/failClosedMeaningfulnessJudgment/);
     expect(src).toMatch(/gpt-5\.6-luna/);
     expect(src).toMatch(/api\.openai\.com\/v1/);
   });
