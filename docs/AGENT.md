@@ -16,21 +16,31 @@ User message
   → Agent panel (reply + tool activity)
 ```
 
-No parallel mutation API. No browser access to `OPENAI_API_KEY`.
+No parallel mutation API. No browser access to OpenAI secrets.
+
+## Credential boundary
+
+| Env | Where | Purpose |
+|-----|-------|---------|
+| `OPENAI_AGENT_API_KEY` | Railway **web** server-only | Interactive Agent only |
+| `OPENAI_AGENT_MODEL` | web (optional) | Default `gpt-5.6-terra` |
+| `OPENAI_API_KEY` | Railway **worker** only | WatchBot classifier / web-news provider |
+
+Never put `OPENAI_API_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `X_BEARER_TOKEN`, or
+xAI/Grok keys on the web service. Never use `NEXT_PUBLIC_` for any of them.
+The Agent must **not** fall back to worker `OPENAI_API_KEY`.
 
 ## Local / hosted enablement
 
-1. Set **server-only** on the Railway **web** service (not worker-only, not
-   `NEXT_PUBLIC_`):
+1. Set **server-only** on the Railway **web** service:
 
-   - `OPENAI_API_KEY` — required for live turns
+   - `OPENAI_AGENT_API_KEY` — required for live turns
    - `OPENAI_AGENT_MODEL=gpt-5.6-terra` (default if unset)
-   - optional `OPENAI_API_BASE_URL=https://api.openai.com/v1`
+   - optional `OPENAI_API_BASE_URL=https://api.openai.com/v1` (endpoint only; not a secret)
 
-2. Redeploy web. Missing key fails closed with a clear panel error.
+2. Redeploy web. Missing `OPENAI_AGENT_API_KEY` fails closed with a clear panel error.
 
-3. Do not put the key in client bundles, `.env.local` committed files, or
-   public env.
+3. Do not put the key in client bundles, committed `.env` files, or public env.
 
 ## Safety
 
