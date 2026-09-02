@@ -90,12 +90,16 @@ Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web servic
 | `X_MAX_REQUESTS_PER_CYCLE` | `1` |
 | `X_MAX_REQUESTS_PER_WORKER_TICK` | `1` (shared across all WatchBots in one tick; hard ceiling `10`) |
 | `X_PROVIDER_TIMEOUT_MS` | `10000` |
-| `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED` | **`false`** initially. Independent meaning-classifier gate. Defaults off even when the global worker and X lane are enabled. Missing this gate **or** missing `XAI_API_KEY` → passthrough (no paid classifier calls) |
+| `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED` | **`false`** initially. Independent meaning-classifier gate. Defaults off even when the global worker and X lane are enabled. Missing this gate → passthrough (no paid classifier calls) |
+| `WATCHBOT_MEANINGFULNESS_PROVIDER` | **`none`** initially. Explicit selector: `openai` \| `xai` \| `none`. Missing/empty/unknown → `none` (passthrough). Never auto-picks from which API key is present |
+| `OPENAI_API_KEY` | **Worker-only.** Required only when the classifier gate is on **and** `WATCHBOT_MEANINGFULNESS_PROVIDER=openai`. Never on web. Never `NEXT_PUBLIC_` |
+| `OPENAI_MEANINGFULNESS_MODEL` | `gpt-5.6-luna` (override to compare Luna vs Terra without domain changes) |
+| `OPENAI_API_BASE_URL` | `https://api.openai.com/v1` |
 | `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_TICK` | `5` (shared across WatchBots in one tick; hard ceiling `20`) |
 | `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_CYCLE` | `5` (per WatchBot pipeline cycle; hard ceiling `10`) |
 | `WATCHBOT_MEANINGFULNESS_TIMEOUT_MS` | `8000` (ceiling `15000`) |
 
-**Secret separation:** `SUPABASE_SERVICE_ROLE_KEY` and `X_BEARER_TOKEN` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path. `XAI_API_KEY` is also worker-only when the classifier or Grok discovery adapter is used.
+**Secret separation:** `SUPABASE_SERVICE_ROLE_KEY` and `X_BEARER_TOKEN` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path. `XAI_API_KEY` and `OPENAI_API_KEY` are also worker-only when the classifier or Grok discovery adapter is used. Never log or commit either key.
 
 **Gate order (do not weaken):**
 

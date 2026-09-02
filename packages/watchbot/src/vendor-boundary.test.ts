@@ -17,7 +17,7 @@ function walkTs(dir: string): string[] {
 }
 
 describe("vendor boundary", () => {
-  it("keeps @openbento/domain free of Grok/xAI/X provider imports and credentials", () => {
+  it("keeps @openbento/domain free of Grok/xAI/OpenAI/X provider imports and credentials", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const domainSrc = join(here, "../../domain/src");
     const files = walkTs(domainSrc);
@@ -25,11 +25,11 @@ describe("vendor boundary", () => {
     for (const file of files) {
       const text = readFileSync(file, "utf8");
       expect(text).not.toMatch(
-        /from\s+["'][^"']*(?:xai|grok|adapters\/x)[^"']*["']|XAI_API_KEY|GROK_API_KEY|X_BEARER_TOKEN|api\.x\.com/i,
+        /from\s+["'][^"']*(?:xai|grok|openai|adapters\/x)[^"']*["']|XAI_API_KEY|GROK_API_KEY|OPENAI_API_KEY|X_BEARER_TOKEN|api\.x\.com|api\.openai\.com/i,
       );
       expect(text).not.toMatch(/MeaningfulnessClassifier|createFixtureMeaningfulnessClassifier/);
       expect(text).not.toMatch(
-        /createModelMeaningfulnessClassifier|WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED/,
+        /createModelMeaningfulnessClassifier|createOpenAIMeaningfulnessClassifier|createConfiguredMeaningfulnessClassifier|WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED|WATCHBOT_MEANINGFULNESS_PROVIDER/,
       );
     }
   });

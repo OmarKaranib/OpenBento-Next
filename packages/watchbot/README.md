@@ -26,20 +26,29 @@ web/news/X behavior is unchanged. When a classifier is injected,
 Ranking after clustering is `importance → relevance → novelty → arrivalIndex`.
 Adapters stay out of `@openbento/domain`.
 
-## Meaningfulness model adapter (Slice D)
+## Meaningfulness model adapters (Slice D + Slice E)
 
-`packages/watchbot/src/adapters/meaningfulness-classifier.ts` is a **bounded
-xAI/Grok Responses adapter** for the Slice C port. It is constructed only
-when `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true` **and**
-`XAI_API_KEY` / `GROK_API_KEY` is set. Missing gate or credentials → the
-worker keeps passthrough (no paid calls). Output is strictly
-`{ meaningful: boolean, importanceScore: number }` with the score clamped
-to `[0, 1]`; malformed, timeout, provider error, or call-budget exhaustion
-fail-closes that representative (`meaningful: false`). Classification is
-capped per worker tick and per WatchBot cycle and runs on clustered
-representatives only. Telemetry may include `classifierCalls` /
+Provider-independent contract stays in `meaningfulness.ts`. Adapters:
+
+- xAI/Grok: `adapters/meaningfulness-classifier.ts` (`createModelMeaningfulnessClassifier`)
+- OpenAI: `adapters/openai-meaningfulness-classifier.ts` (`createOpenAIMeaningfulnessClassifier`, default model `gpt-5.6-luna`)
+- Selector: `adapters/meaningfulness-classifier-factory.ts` (`createConfiguredMeaningfulnessClassifier`)
+
+Worker composition uses the selector. Paid calls require
+`WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true` **and** an explicit
+`WATCHBOT_MEANINGFULNESS_PROVIDER=openai|xai` **and** the matching vendor
+key. Missing/empty/`none`/unknown provider → passthrough. Missing key for
+the selected provider → passthrough (never silent fallback to the other
+vendor). Credentials never choose the vendor.
+
+Output is strictly `{ meaningful: boolean, importanceScore: number }` with
+the score clamped to `[0, 1]`; malformed, timeout, provider error, or
+call-budget exhaustion fail-closes that representative (`meaningful: false`).
+Classification is capped per worker tick and per WatchBot cycle and runs on
+clustered representatives only. Telemetry may include
+`classifierProvider` / `classifierModel` plus `classifierCalls` /
 `classifierMeaningful` / `classifierNotMeaningful` / `classifierErrors`
-— never source text, instructions, or secrets.
+— never source text, instructions, keys, or raw model output.
 
 ## SourceProvider
 

@@ -27,6 +27,8 @@ export interface WorkerTickTelemetry {
   classifierMeaningful: number;
   classifierNotMeaningful: number;
   classifierErrors: number;
+  classifierProvider?: string;
+  classifierModel?: string;
   watchBots?: WorkerWatchBotTelemetry[];
 }
 
@@ -56,6 +58,9 @@ const FORBIDDEN_TELEMETRY_SUBSTRINGS = [
   "owner_id",
   "x_bearer_token",
   "supabase_service_role_key",
+  "openai_api_key",
+  "xai_api_key",
+  "grok_api_key",
 ] as const;
 
 export function buildWorkerTickTelemetry(input: {
@@ -93,6 +98,12 @@ export function buildWorkerTickTelemetry(input: {
     classifierMeaningful: input.result.classifierMeaningful,
     classifierNotMeaningful: input.result.classifierNotMeaningful,
     classifierErrors: input.result.classifierErrors,
+    ...(input.result.classifierProvider
+      ? { classifierProvider: input.result.classifierProvider }
+      : {}),
+    ...(input.result.classifierModel
+      ? { classifierModel: input.result.classifierModel }
+      : {}),
   };
 
   if (input.includeWatchBots) {

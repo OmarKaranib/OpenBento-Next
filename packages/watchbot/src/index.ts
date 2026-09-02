@@ -105,6 +105,8 @@ export {
   CLASSIFIER_TIMEOUT_MS_CEILING,
   CLASSIFIER_TIMEOUT_MS_DEFAULT,
   MEANINGFULNESS_CLASSIFIER_INSTRUCTIONS,
+  MEANINGFULNESS_JUDGMENT_JSON_SCHEMA,
+  MEANINGFULNESS_JUDGMENT_TEXT_FORMAT,
   createModelMeaningfulnessClassifier,
   formatClassifierUserPayload,
   isMeaningfulnessClassifierEnabled,
@@ -112,6 +114,20 @@ export {
   classifierTimeoutMs,
   type ModelMeaningfulnessClassifierOptions,
 } from "./adapters/meaningfulness-classifier";
+export {
+  createConfiguredMeaningfulnessClassifier,
+  resolveMeaningfulnessProvider,
+  type ConfiguredMeaningfulnessClassifierOptions,
+  type MeaningfulnessProviderId,
+} from "./adapters/meaningfulness-classifier-factory";
+export {
+  OPENAI_API_BASE_URL_DEFAULT,
+  OPENAI_MEANINGFULNESS_MODEL_DEFAULT,
+  createOpenAIMeaningfulnessClassifier,
+  openaiEnvApiKey,
+  openaiMeaningfulnessModel,
+  type OpenAIMeaningfulnessClassifierOptions,
+} from "./adapters/openai-meaningfulness-classifier";
 export {
   createXSourceProvider,
   xBearerToken,

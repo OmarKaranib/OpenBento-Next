@@ -6,6 +6,7 @@ import {
 } from "@openbento/domain";
 import {
   createModelMeaningfulnessClassifier,
+  createOpenAIMeaningfulnessClassifier,
   createXSourceProvider,
   FakeSourceProvider,
 } from "@openbento/watchbot";
@@ -412,6 +413,107 @@ describe("WatchBot intelligence Slice D worker composition", () => {
     });
     expect(result.classifierCalls).toBeGreaterThan(0);
     expect(result.classifierErrors).toBe(0);
+    expect(fetchImpl).toHaveBeenCalled();
+    expect(result.cardsCreated).toBeGreaterThan(0);
+  });
+});
+
+describe("WatchBot intelligence Slice E OpenAI worker composition", () => {
+  it("keeps passthrough and makes no OpenAI fetches when the classifier gate is off", async () => {
+    const { store, provider } = await seedFixtureStore();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const result = await runWorkerCycle({
+      store,
+      provider,
+      env: {
+        WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED: "false",
+        WATCHBOT_MEANINGFULNESS_PROVIDER: "openai",
+        OPENAI_API_KEY: "test-not-a-secret",
+        XAI_API_KEY: "test-not-a-secret",
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+    expect(result.classifierCalls).toBe(0);
+    expect(result.classifierProvider).toBeUndefined();
+    expect(result.notMeaningful).toBe(0);
+    expect(result.cardsCreated).toBeGreaterThan(0);
+  });
+
+  it("does not fall back to xAI when OpenAI is selected but OPENAI_API_KEY is missing", async () => {
+    const { store, provider } = await seedFixtureStore();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const result = await runWorkerCycle({
+      store,
+      provider,
+      env: {
+        WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED: "true",
+        WATCHBOT_MEANINGFULNESS_PROVIDER: "openai",
+        XAI_API_KEY: "test-not-a-secret",
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+    expect(result.classifierCalls).toBe(0);
+    expect(result.notMeaningful).toBe(0);
+    expect(result.cardsCreated).toBeGreaterThan(0);
+  });
+
+  it("does not auto-pick a vendor when both keys exist and provider is unset", async () => {
+    const { store, provider } = await seedFixtureStore();
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const result = await runWorkerCycle({
+      store,
+      provider,
+      env: {
+        WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED: "true",
+        OPENAI_API_KEY: "test-not-a-secret",
+        XAI_API_KEY: "test-not-a-secret",
+      },
+    });
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+    expect(result.classifierCalls).toBe(0);
+    expect(result.cardsCreated).toBeGreaterThan(0);
+  });
+
+  it("aggregates OpenAI classifier counters when a mock adapter is injected", async () => {
+    const { store, provider } = await seedFixtureStore();
+    const fetchImpl = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          output: [
+            {
+              type: "message",
+              content: [
+                {
+                  type: "output_text",
+                  text: JSON.stringify({
+                    meaningful: true,
+                    importanceScore: 0.8,
+                  }),
+                },
+              ],
+            },
+          ],
+        }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const classifier = createOpenAIMeaningfulnessClassifier({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: fetchImpl as typeof fetch,
+    });
+    const result = await runWorkerCycle({
+      store,
+      provider,
+      meaningfulnessClassifier: classifier,
+    });
+    expect(result.classifierCalls).toBeGreaterThan(0);
+    expect(result.classifierErrors).toBe(0);
+    expect(result.classifierProvider).toBe("openai");
+    expect(result.classifierModel).toBe("gpt-5.6-luna");
     expect(fetchImpl).toHaveBeenCalled();
     expect(result.cardsCreated).toBeGreaterThan(0);
   });
