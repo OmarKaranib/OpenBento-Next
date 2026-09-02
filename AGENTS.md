@@ -26,7 +26,10 @@ Human UI, WatchBot, and WebMCP use `@openbento/domain` (`ACTION_NAMES`, 20 actio
 
 ## Observability / infra
 
-Recorded in docs only. No Sentry/PostHog/Resend SDKs or keys. Planned: Supabase us-east-1; Railway US East / Virginia.
+Sentry error monitoring is allowed for web and worker with service-scoped DSNs,
+default PII disabled, and no auth token in runtime services. Do not add broad
+analytics/product tracking or PostHog/Resend SDKs or keys. Planned: Supabase
+us-east-1; Railway US East / Virginia.
 
 ## Merge bar
 
