@@ -12,6 +12,7 @@ import {
   type WatchBotEvent,
   type WatchBotEventKind,
 } from "@openbento/domain";
+import { clusterCandidates } from "./cluster-candidates";
 import { buildDedupKey } from "./dedup";
 import {
   asSourceType,
@@ -50,6 +51,8 @@ export interface PipelineItemResult {
   passedNovelty?: boolean;
   /** Passed normalize/dedup/novelty/relevance and entered the selection pool. */
   candidateEligible?: boolean;
+  /** Eligible but collapsed into another same-story representative. */
+  clustered?: boolean;
   /** Chosen by selectCandidates for Card creation in this cycle. */
   selected?: boolean;
 }
@@ -63,6 +66,8 @@ export interface PipelineCycleStats {
   errors: number;
   cardsCreated: number;
   candidatesEligible: number;
+  clustered: number;
+  representatives: number;
   selected: number;
 }
 
@@ -183,6 +188,10 @@ export function computePipelineCycleStats(
   const candidatesEligible = items.filter(
     (item) => item.candidateEligible === true,
   ).length;
+  const clustered = items.filter((item) => item.clustered === true).length;
+  const representatives = items.filter(
+    (item) => item.candidateEligible === true && item.clustered !== true,
+  ).length;
   const selected = items.filter((item) => item.selected === true).length;
 
   return {
@@ -194,6 +203,8 @@ export function computePipelineCycleStats(
     errors,
     cardsCreated,
     candidatesEligible,
+    clustered,
+    representatives,
     selected,
   };
 }
@@ -369,8 +380,18 @@ export async function runWatchBotPipeline(
     const eligible = evaluations.flatMap((evaluation) =>
       evaluation.status === "eligible" ? [evaluation.candidate] : [],
     );
-    const selected = selectCandidates(eligible, MAX_SELECTED_PER_CYCLE);
+    const clustered = clusterCandidates(
+      eligible,
+      (candidate) => candidate.normalized.title,
+    );
+    const selected = selectCandidates(
+      clustered.representatives,
+      MAX_SELECTED_PER_CYCLE,
+    );
     const selectedKeys = new Set(selected.map((item) => item.dedupKey));
+    const representativeKeys = new Set(
+      clustered.representatives.map((item) => item.dedupKey),
+    );
 
     await persistStageEvent(store, {
       id: id(),
@@ -380,7 +401,7 @@ export async function runWatchBotPipeline(
       sourceUrl: `watchbot://${watchBot.id}/cycle-select`,
       dedupKey: `cycle-select:${watchBot.id}:${now()}:${id()}`,
       discoveredAt: now(),
-      detail: `candidates_eligible=${eligible.length} selected=${selected.length}`,
+      detail: `candidates_eligible=${eligible.length} clustered=${clustered.clusteredCount} representatives=${clustered.representatives.length} selected=${selected.length}`,
     });
 
     for (const evaluation of evaluations) {
@@ -391,27 +412,30 @@ export async function runWatchBotPipeline(
 
       const { candidate } = evaluation;
       if (!selectedKeys.has(candidate.dedupKey)) {
+        const clusteredOut = !representativeKeys.has(candidate.dedupKey);
+        const detail = clusteredOut ? "clustered" : "not_selected";
         await persistStageEvent(store, {
           id: id(),
           watchBotId: watchBot.id,
           canvasId: watchBot.canvasId,
           kind: "normalized",
           sourceUrl: candidate.normalized.canonicalUrl,
-          dedupKey: stageDedupKey(candidate.dedupKey, "not_selected", id()),
+          dedupKey: stageDedupKey(candidate.dedupKey, detail, id()),
           noveltyScore: candidate.noveltyScore,
           discoveredAt: now(),
           title: candidate.normalized.title,
           publishedAt: candidate.normalized.publishedAt,
           sourceType: asSourceType(candidate.normalized.sourceType),
-          detail: "not_selected",
+          detail,
         });
         results.push({
           kind: "normalized",
           dedupKey: candidate.dedupKey,
           noveltyScore: candidate.noveltyScore,
-          detail: "not_selected",
+          detail,
           passedNovelty: true,
           candidateEligible: true,
+          ...(clusteredOut ? { clustered: true } : {}),
         });
         continue;
       }
@@ -503,6 +527,8 @@ function emptyPipelineStats(): PipelineCycleStats {
     errors: 0,
     cardsCreated: 0,
     candidatesEligible: 0,
+    clustered: 0,
+    representatives: 0,
     selected: 0,
   };
 }

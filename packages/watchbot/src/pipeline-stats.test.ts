@@ -75,6 +75,8 @@ describe("computePipelineCycleStats novel counting", () => {
     expect(stats.novel).toBe(0);
     expect(stats.normalized).toBe(0);
     expect(stats.candidatesEligible).toBe(0);
+    expect(stats.clustered).toBe(0);
+    expect(stats.representatives).toBe(0);
     expect(stats.selected).toBe(0);
   });
 
@@ -104,9 +106,44 @@ describe("computePipelineCycleStats novel counting", () => {
     ];
     const stats = computePipelineCycleStats(4, items, 1);
     expect(stats.candidatesEligible).toBe(2);
+    expect(stats.clustered).toBe(0);
+    expect(stats.representatives).toBe(2);
     expect(stats.selected).toBe(1);
     expect(stats.cardsCreated).toBe(1);
     expect(stats.duplicates).toBe(1);
     expect(stats.rejectedRelevance).toBe(1);
+  });
+
+  it("counts clustered members separately from representatives", () => {
+    const items: PipelineItemResult[] = [
+      {
+        kind: "card_created",
+        dedupKey: "kept",
+        cardId: "card-1",
+        passedNovelty: true,
+        candidateEligible: true,
+        selected: true,
+      },
+      {
+        kind: "normalized",
+        dedupKey: "paraphrase",
+        detail: "clustered",
+        passedNovelty: true,
+        candidateEligible: true,
+        clustered: true,
+      },
+      {
+        kind: "normalized",
+        dedupKey: "skipped-rep",
+        detail: "not_selected",
+        passedNovelty: true,
+        candidateEligible: true,
+      },
+    ];
+    const stats = computePipelineCycleStats(3, items, 1);
+    expect(stats.candidatesEligible).toBe(3);
+    expect(stats.clustered).toBe(1);
+    expect(stats.representatives).toBe(2);
+    expect(stats.selected).toBe(1);
   });
 });

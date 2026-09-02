@@ -43,6 +43,8 @@ const EMPTY_CYCLE: WorkerCycleResult = {
   errors: 0,
   xHttpRequests: 0,
   candidatesEligible: 0,
+  clustered: 0,
+  representatives: 0,
   selected: 0,
   cycles: [],
 };
@@ -371,6 +373,8 @@ describe("worker tick telemetry", () => {
               errors: 0,
               cardsCreated: 0,
               candidatesEligible: 0,
+              clustered: 0,
+              representatives: 0,
               selected: 0,
             },
             topOutcome: "rejected_relevance",

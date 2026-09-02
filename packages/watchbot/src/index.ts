@@ -53,6 +53,16 @@ export {
   type RankableCandidate,
 } from "./select-candidates";
 export {
+  SAME_STORY_EXACT_MIN_SHARED,
+  SAME_STORY_JACCARD,
+  SAME_STORY_MIN_SHARED,
+  areSameStory,
+  clusterCandidates,
+  tokenizeForClustering,
+  type ClusteredCandidates,
+  type StoryCluster,
+} from "./cluster-candidates";
+export {
   XHttpBudget,
   xMaxRequestsPerWorkerTick,
   X_MAX_REQUESTS_PER_WORKER_TICK_CEILING,

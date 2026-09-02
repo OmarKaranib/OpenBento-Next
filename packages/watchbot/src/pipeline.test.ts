@@ -974,8 +974,8 @@ function newsAbout(id: string, title: string): DiscoveredItem {
   };
 }
 
-describe("WatchBot intelligence Slice A collect-then-select", () => {
-  it("lets a later stronger candidate outrank an earlier weaker one before Cards", async () => {
+describe("WatchBot intelligence Slice B same-story clustering", () => {
+  it("collapses obvious paraphrases to one representative before Cards", async () => {
     const { store, executor, watchBot, provider } = await seed([
       newsAbout("early-weak", "Ontario lake news brief"),
       newsAbout(
@@ -996,9 +996,11 @@ describe("WatchBot intelligence Slice A collect-then-select", () => {
     });
 
     expect(result.stats.candidatesEligible).toBe(6);
-    expect(result.stats.selected).toBe(5);
-    expect(result.cardsCreated).toBe(5);
-    expect(spies.createCard).toHaveBeenCalledTimes(5);
+    expect(result.stats.clustered).toBeGreaterThanOrEqual(4);
+    expect(result.stats.representatives).toBeLessThanOrEqual(2);
+    expect(result.stats.selected).toBe(result.stats.representatives);
+    expect(result.cardsCreated).toBe(result.stats.selected);
+    expect(spies.createCard).toHaveBeenCalledTimes(result.cardsCreated);
 
     const createdUrls = spies.createCard.mock.calls.map((call) => {
       const input = call[0] as CreateCardInput;
@@ -1006,41 +1008,38 @@ describe("WatchBot intelligence Slice A collect-then-select", () => {
         ? input.payload.provenance.sourceUrl
         : "";
     });
-    expect(createdUrls).toContain(
-      "https://news.example.com/late-strong",
-    );
-    expect(createdUrls).not.toContain(
-      "https://news.example.com/early-weak",
-    );
+    expect(createdUrls).toContain("https://news.example.com/late-strong");
+    expect(createdUrls).not.toContain("https://news.example.com/mid-1");
+    expect(createdUrls).not.toContain("https://news.example.com/mid-2");
+    expect(createdUrls).not.toContain("https://news.example.com/mid-3");
+    expect(createdUrls).not.toContain("https://news.example.com/mid-4");
 
-    const skipped = result.items.find(
-      (item) => item.detail === "not_selected",
+    const clusteredItems = result.items.filter(
+      (item) => item.detail === "clustered",
     );
-    expect(skipped).toMatchObject({
-      kind: "normalized",
-      detail: "not_selected",
-      candidateEligible: true,
-    });
-    expect(skipped?.selected).not.toBe(true);
+    expect(clusteredItems.length).toBe(result.stats.clustered);
+    expect(
+      clusteredItems.every(
+        (item) => item.candidateEligible === true && item.clustered === true,
+      ),
+    ).toBe(true);
 
     const events = await store.listWatchBotEventsByWatchBot(watchBot.id);
     expect(
       events.some(
         (event) =>
           event.sourceUrl === `watchbot://${watchBot.id}/cycle-select` &&
-          event.detail === "candidates_eligible=6 selected=5",
+          event.detail ===
+            `candidates_eligible=6 clustered=${result.stats.clustered} representatives=${result.stats.representatives} selected=${result.stats.selected}`,
       ),
     ).toBe(true);
   });
 
-  it("keeps bounded selection deterministic when eligible scores tie", async () => {
+  it("breaks representative ties by earlier arrival", async () => {
     const tied = [
       newsAbout("tie-0", "Officials debate renaming Lake Ontario"),
       newsAbout("tie-1", "Officials debate renaming Lake Ontario"),
       newsAbout("tie-2", "Officials debate renaming Lake Ontario"),
-      newsAbout("tie-3", "Officials debate renaming Lake Ontario"),
-      newsAbout("tie-4", "Officials debate renaming Lake Ontario"),
-      newsAbout("tie-5", "Officials debate renaming Lake Ontario"),
     ];
     const { store, executor, watchBot, provider } = await seed(tied);
     const result = await runWatchBotPipeline({
@@ -1049,28 +1048,174 @@ describe("WatchBot intelligence Slice A collect-then-select", () => {
       store,
       provider,
     });
-    expect(result.stats.candidatesEligible).toBe(6);
-    expect(result.stats.selected).toBe(5);
-    expect(result.cardsCreated).toBe(5);
+    expect(result.stats.candidatesEligible).toBe(3);
+    expect(result.stats.clustered).toBe(2);
+    expect(result.stats.representatives).toBe(1);
+    expect(result.stats.selected).toBe(1);
+    expect(result.cardsCreated).toBe(1);
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    const urls = state.cards.map((card) =>
+      "provenance" in card.payload ? card.payload.provenance.sourceUrl : "",
+    );
+    expect(urls).toEqual(["https://news.example.com/tie-0"]);
+    expect(result.items.slice(1).every((item) => item.detail === "clustered")).toBe(
+      true,
+    );
+  });
 
+  it("does not cluster materially different developments", async () => {
+    const { store, executor, watchBot, provider } = await seed([
+      newsAbout(
+        "debate",
+        "Officials debate renaming Lake Ontario to Lake America",
+      ),
+      newsAbout(
+        "lawsuit",
+        "Canada files a lawsuit over the Lake Ontario rename",
+      ),
+      newsAbout(
+        "hearings",
+        "New York lawmakers schedule Lake America hearings",
+      ),
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.stats.candidatesEligible).toBe(3);
+    expect(result.stats.clustered).toBe(0);
+    expect(result.stats.representatives).toBe(3);
+    expect(result.stats.selected).toBe(3);
+    expect(result.cardsCreated).toBe(3);
     const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
     const urls = state.cards.map((card) =>
       "provenance" in card.payload ? card.payload.provenance.sourceUrl : "",
     );
     expect(urls).toEqual([
-      "https://news.example.com/tie-0",
-      "https://news.example.com/tie-1",
-      "https://news.example.com/tie-2",
-      "https://news.example.com/tie-3",
-      "https://news.example.com/tie-4",
+      "https://news.example.com/debate",
+      "https://news.example.com/lawsuit",
+      "https://news.example.com/hearings",
     ]);
-    expect(result.items[5]).toMatchObject({
-      kind: "normalized",
-      detail: "not_selected",
-    });
   });
 
-  it("never puts duplicate or irrelevant items in the selection pool", async () => {
+  it("picks a deterministic representative and keeps its provenance", async () => {
+    const laterStronger: DiscoveredItem = {
+      sourceUrl: "https://news.example.com/keeper?utm_source=rss",
+      title: "Officials debate renaming Lake Ontario to Lake America",
+      publishedAt: "2026-08-28T15:00:00.000Z",
+      sourceType: "news",
+      rawExcerpt: "A fuller report of the Lake America rename debate.",
+      author: "desk",
+      externalId: "keeper-1",
+    };
+    const earlierWeaker = newsAbout(
+      "paraphrase",
+      "Officials debate renaming Lake Ontario to Lake America today",
+    );
+    const { store, executor, watchBot, provider } = await seed([
+      earlierWeaker,
+      laterStronger,
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.stats.candidatesEligible).toBe(2);
+    expect(result.stats.clustered).toBe(1);
+    expect(result.stats.representatives).toBe(1);
+    expect(result.stats.selected).toBe(1);
+    expect(result.items[0]).toMatchObject({
+      kind: "normalized",
+      detail: "clustered",
+      candidateEligible: true,
+      clustered: true,
+    });
+    expect(result.items[1]).toMatchObject({
+      kind: "card_created",
+      candidateEligible: true,
+      selected: true,
+    });
+
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    expect(state.cards).toHaveLength(1);
+    const card = state.cards[0];
+    expect(card?.type).toBe("news");
+    if (card && "provenance" in card.payload) {
+      expect(card.payload.provenance).toMatchObject({
+        sourceUrl: "https://news.example.com/keeper",
+        title: laterStronger.title,
+        publishedAt: "2026-08-28T15:00:00.000Z",
+        sourceType: "news",
+        watchBotId: watchBot.id,
+        author: "desk",
+        externalId: "keeper-1",
+      });
+    }
+  });
+
+  it("applies the per-cycle cap to representatives, not raw same-story candidates", async () => {
+    const distinct = [
+      newsAbout(
+        "debate",
+        "Officials debate renaming Lake Ontario to Lake America",
+      ),
+      newsAbout(
+        "lawsuit",
+        "Canada files a lawsuit over the Lake Ontario rename",
+      ),
+      newsAbout(
+        "hearings",
+        "New York lawmakers schedule Lake America hearings",
+      ),
+      newsAbout(
+        "protest",
+        "Environmental groups protest Lake Ontario rename plan",
+      ),
+      newsAbout(
+        "tourism",
+        "Tourism boards warn about Lake America branding costs",
+      ),
+      newsAbout(
+        "historians",
+        "Historians publish Lake Ontario name timeline research",
+      ),
+      newsAbout("debate-today", "Officials debate renaming Lake Ontario to Lake America today"),
+      newsAbout("debate-update", "Officials debate renaming Lake Ontario to Lake America update"),
+    ];
+    const { store, executor, watchBot, provider } = await seed(distinct);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.stats.candidatesEligible).toBe(8);
+    expect(result.stats.clustered).toBe(2);
+    expect(result.stats.representatives).toBe(6);
+    expect(result.stats.selected).toBe(5);
+    expect(result.cardsCreated).toBe(5);
+    expect(result.items.filter((item) => item.detail === "clustered")).toHaveLength(
+      2,
+    );
+    expect(result.items.filter((item) => item.detail === "not_selected")).toHaveLength(
+      1,
+    );
+
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    const urls = state.cards.map((card) =>
+      "provenance" in card.payload ? card.payload.provenance.sourceUrl : "",
+    );
+    expect(urls).toContain("https://news.example.com/debate");
+    expect(urls).not.toContain("https://news.example.com/debate-today");
+    expect(urls).not.toContain("https://news.example.com/debate-update");
+    expect(urls).toHaveLength(5);
+  });
+
+  it("clusters only after duplicate and irrelevant filtering", async () => {
     const { store, executor, watchBot, provider } = await seed([
       newsItem,
       {
@@ -1088,6 +1233,10 @@ describe("WatchBot intelligence Slice A collect-then-select", () => {
         rawExcerpt: "Final score and highlights from an unrelated game.",
       },
       newsAbout(
+        "paraphrase",
+        "Officials debate renaming Lake Ontario today",
+      ),
+      newsAbout(
         "honest",
         "Canadian reaction to the Lake Ontario proposal",
       ),
@@ -1103,17 +1252,28 @@ describe("WatchBot intelligence Slice A collect-then-select", () => {
       "card_created",
       "duplicate",
       "rejected_relevance",
+      "normalized",
       "card_created",
     ]);
-    expect(
-      result.items.every((item) => {
-        if (item.kind === "duplicate" || item.kind === "rejected_relevance") {
-          return item.candidateEligible !== true;
-        }
-        return item.candidateEligible === true && item.selected === true;
-      }),
-    ).toBe(true);
-    expect(result.stats.candidatesEligible).toBe(2);
+    expect(result.items[1]).toMatchObject({
+      kind: "duplicate",
+    });
+    expect(result.items[1]?.candidateEligible).not.toBe(true);
+    expect(result.items[1]?.clustered).not.toBe(true);
+    expect(result.items[2]).toMatchObject({
+      kind: "rejected_relevance",
+    });
+    expect(result.items[2]?.candidateEligible).not.toBe(true);
+    expect(result.items[2]?.clustered).not.toBe(true);
+    expect(result.items[3]).toMatchObject({
+      kind: "normalized",
+      detail: "clustered",
+      candidateEligible: true,
+      clustered: true,
+    });
+    expect(result.stats.candidatesEligible).toBe(3);
+    expect(result.stats.clustered).toBe(1);
+    expect(result.stats.representatives).toBe(2);
     expect(result.stats.selected).toBe(2);
     expect(result.stats.duplicates).toBe(1);
     expect(result.stats.rejectedRelevance).toBe(1);
@@ -1136,6 +1296,8 @@ describe("WatchBot intelligence Slice A collect-then-select", () => {
       provider,
     });
     expect(result.stats.candidatesEligible).toBe(6);
+    expect(result.stats.clustered).toBe(0);
+    expect(result.stats.representatives).toBe(6);
     expect(result.stats.selected).toBe(5);
     expect(result.cardsCreated).toBe(5);
 
@@ -1147,9 +1309,40 @@ describe("WatchBot intelligence Slice A collect-then-select", () => {
     expect(titles).not.toContain("WebMCP ping two");
   });
 
+  it("clusters non-ASCII paraphrases and keeps the chosen Card source-equivalent", async () => {
+    const { store, executor, watchBot, provider } = await seedXWatchBot([
+      xPost("70", "OpenAIとWebMCPの公式発表"),
+      xPost("71", "OpenAIとWebMCPの公式発表です"),
+    ]);
+    const result = await runWatchBotPipeline({
+      watchBot,
+      executor,
+      store,
+      provider,
+    });
+    expect(result.stats.candidatesEligible).toBe(2);
+    expect(result.stats.clustered).toBe(1);
+    expect(result.stats.representatives).toBe(1);
+    expect(result.stats.selected).toBe(1);
+    expect(result.cardsCreated).toBe(1);
+    const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });
+    const card = state.cards[0];
+    expect(card?.type).toBe("x");
+    if (card && "provenance" in card.payload) {
+      expect(card.payload.provenance).toMatchObject({
+        sourceType: "x",
+        sourceUrl: "https://x.com/someone/status/70",
+        title: "OpenAIとWebMCPの公式発表",
+        watchBotId: watchBot.id,
+        author: "someone",
+        externalId: "70",
+      });
+    }
+  });
+
   it("keeps selected Card provenance identical to the source item", async () => {
     const item: DiscoveredItem = {
-      sourceUrl: "https://news.example.com/provenance-slice-a?utm_source=rss",
+      sourceUrl: "https://news.example.com/provenance-slice-b?utm_source=rss",
       title: "Officials debate renaming Lake Ontario to Lake America",
       publishedAt: "2026-08-28T12:00:00.000Z",
       sourceType: "news",
@@ -1175,7 +1368,7 @@ describe("WatchBot intelligence Slice A collect-then-select", () => {
     expect(card?.type).toBe("news");
     if (card && "provenance" in card.payload) {
       expect(card.payload.provenance).toMatchObject({
-        sourceUrl: "https://news.example.com/provenance-slice-a",
+        sourceUrl: "https://news.example.com/provenance-slice-b",
         title: item.title,
         publishedAt: "2026-08-28T12:00:00.000Z",
         sourceType: "news",
@@ -1211,6 +1404,8 @@ describe("WatchBot intelligence Slice A collect-then-select", () => {
       "rejected_relevance",
     ]);
     expect(result.stats.candidatesEligible).toBe(2);
+    expect(result.stats.clustered).toBe(0);
+    expect(result.stats.representatives).toBe(2);
     expect(result.stats.selected).toBe(2);
     expect(result.cardsCreated).toBe(2);
     const state = await executor.getCanvasState({ canvasId: watchBot.canvasId });

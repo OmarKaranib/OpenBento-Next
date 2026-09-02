@@ -28,6 +28,8 @@ export interface WorkerCycleResult {
   errors: number;
   xHttpRequests: number;
   candidatesEligible: number;
+  clustered: number;
+  representatives: number;
   selected: number;
   cycles: PipelineCycleResult[];
 }
@@ -57,6 +59,8 @@ function aggregateCycleStats(
   result.rejectedRelevance += cycle.stats.rejectedRelevance;
   result.errors += cycle.stats.errors;
   result.candidatesEligible += cycle.stats.candidatesEligible;
+  result.clustered += cycle.stats.clustered;
+  result.representatives += cycle.stats.representatives;
   result.selected += cycle.stats.selected;
 }
 
@@ -95,6 +99,8 @@ export async function runWorkerCycle(
     errors: 0,
     xHttpRequests: 0,
     candidatesEligible: 0,
+    clustered: 0,
+    representatives: 0,
     selected: 0,
     cycles: [],
   };
