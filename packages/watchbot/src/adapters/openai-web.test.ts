@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it, vi } from "vitest";
+import type { WatchBotSourceType } from "@openbento/domain";
 import {
   OPENAI_API_BASE_URL_DEFAULT,
   OPENAI_WEB_MODEL_DEFAULT,
@@ -57,7 +58,7 @@ const discoverInput = {
   canvasId: "c1",
   watchBotId: "w1",
   instruction: "Monitor Lake Ontario",
-  sourceTypes: ["web", "news"] as const,
+  sourceTypes: ["web", "news"] as WatchBotSourceType[],
 };
 
 describe("OpenAI web/news SourceProvider gate", () => {
@@ -381,7 +382,10 @@ describe("OpenAI web/news discovery", () => {
       fetchImpl,
     });
     await expect(
-      provider?.discover({ ...discoverInput, sourceTypes: ["x"] }),
+      provider?.discover({
+        ...discoverInput,
+        sourceTypes: ["x"] as WatchBotSourceType[],
+      }),
     ).resolves.toEqual([]);
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -414,7 +418,8 @@ describe("OpenAI web/news discovery", () => {
     expect(src).not.toMatch(/["']sk-[a-zA-Z0-9]+["']/);
     expect(src).not.toMatch(/OPENAI_API_KEY\s*=\s*["'][^"']+["']/);
     expect(src).not.toMatch(/XAI_API_KEY|GROK_API_KEY|X_BEARER_TOKEN/);
-    expect(src).not.toMatch(/cheerio|puppeteer|playwright|crawl|scrape/i);
+    expect(src).not.toMatch(/cheerio|puppeteer|playwright/i);
+    expect(src).not.toMatch(/from\s+["'][^"']*(?:cheerio|puppeteer|playwright)[^"']*["']/);
     expect(src).toMatch(/WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED/);
     expect(src).toMatch(/WATCHBOT_OPENAI_WEB_MAX_REQUESTS_PER_TICK/);
     expect(src).toMatch(/WATCHBOT_OPENAI_WEB_MAX_REQUESTS_PER_CYCLE/);

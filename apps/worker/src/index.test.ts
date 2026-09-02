@@ -476,8 +476,14 @@ describe("OpenAI web/news provider selection", () => {
       main(["--once", "--fixture", "--provider=openai-web"], { runCycle }),
     ).resolves.toBeUndefined();
     expect(runCycle).toHaveBeenCalledTimes(1);
-    expect(runCycle.mock.calls[0]?.[0]?.provider.id).toBe("openai-web");
-    expect(runCycle.mock.calls[0]?.[0]?.provider.vendor).toBe("openai");
+    expect(runCycle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: expect.objectContaining({
+          id: "openai-web",
+          vendor: "openai",
+        }),
+      }),
+    );
     expect(fetchSpy).not.toHaveBeenCalled();
     fetchSpy.mockRestore();
   });

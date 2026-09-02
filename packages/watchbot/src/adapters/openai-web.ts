@@ -18,17 +18,19 @@
  * Title / URL / body / instruction never enter telemetry.
  */
 
-import type { DiscoveredItem, SourceProvider } from "../provider";
+import type {
+  DiscoveredItem,
+  SourceProvider,
+  SourceProviderDiscoverInput,
+} from "../provider";
 import { sanitizeUntrustedText } from "../untrusted";
-import {
-  OPENAI_API_BASE_URL_DEFAULT,
-  openaiEnvApiKey,
-} from "./openai-meaningfulness-classifier";
+import { openaiEnvApiKey } from "./openai-meaningfulness-classifier";
 import {
   extractDiscoveredItems,
   isWebNewsSourceType,
 } from "./web-news-items";
 
+export const OPENAI_API_BASE_URL_DEFAULT = "https://api.openai.com/v1";
 export const OPENAI_WEB_MODEL_DEFAULT = "gpt-5.6-luna";
 export const OPENAI_WEB_MAX_REQUESTS_PER_TICK_DEFAULT = 1;
 export const OPENAI_WEB_MAX_REQUESTS_PER_TICK_CEILING = 5;
@@ -194,12 +196,7 @@ class OpenAIWebSourceProvider
     this.tickUsed = 0;
   }
 
-  async discover(input: {
-    canvasId: string;
-    watchBotId: string;
-    instruction: string;
-    sourceTypes: readonly string[];
-  }): Promise<DiscoveredItem[]> {
+  async discover(input: SourceProviderDiscoverInput): Promise<DiscoveredItem[]> {
     const allowed = input.sourceTypes.filter(isWebNewsSourceType);
     if (allowed.length === 0) {
       return [];
@@ -226,7 +223,11 @@ class OpenAIWebSourceProvider
       if (items.length >= this.options.maxResultsPerCycle) {
         break;
       }
-      if (!allowed.includes(item.sourceType) || seen.has(item.sourceUrl)) {
+      if (
+        !isWebNewsSourceType(item.sourceType) ||
+        !allowed.includes(item.sourceType) ||
+        seen.has(item.sourceUrl)
+      ) {
         continue;
       }
       seen.add(item.sourceUrl);

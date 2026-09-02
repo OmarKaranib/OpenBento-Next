@@ -148,9 +148,7 @@ export async function main(
         "OpenAI web adapter requested but WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED is off or OPENAI_API_KEY is unset",
       );
     }
-    const provider = useX
-      ? createXSourceProvider(undefined, env)
-      : openaiWeb ?? grok ?? null;
+    const provider = useX ? createXSourceProvider(undefined, env) : openaiWeb ?? grok ?? null;
     const seeded = useFixture ? await seedFixtureStore() : null;
     if (stopped) {
       return;
