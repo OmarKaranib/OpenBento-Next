@@ -1,19 +1,18 @@
-# WEBMCP_SPEC — OpenBento-Next
+# OpenBento WebMCP
 
-Canonical: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.md) §13 and [Issue #1](https://github.com/OmarKaranib/OpenBento-Next/issues/1).
+**Live judge reference:** [web-production-4d6c9e.up.railway.app/webmcp](https://web-production-4d6c9e.up.railway.app/webmcp)
 
-Status: **Phase 2 (isolated PR)**. Tools are registered. No SQL apply. No deploy.
+WebMCP lets an external agent work in the same durable OpenBento workspace as a
+person. It creates and organizes persistent Canvases, Cards, Frames, and
+WatchBots through the same shared `ACTION_CATALOG` and domain executor used by
+the human UI and WatchBot pipeline—never a parallel demo store.
 
-WebMCP tool names are **snake_case**. Domain actions are **camelCase**. This is the **only** tool map. Tools not listed here are out of scope. No demo-only tools. No second camelCase tool list.
+> **AI organizes the story. Sources remain the story.**
 
-```ts
-document.modelContext.registerTool({
-  name,          // snake_case tool name from this map
-  description,
-  inputSchema,   // schema of the mapped domain action
-  execute,       // runBoundAction + requireOwnerIdFromRequest → createActionExecutor
-});
-```
+## Registered tools
+
+The 13 snake_case tools are the complete WebMCP surface. Each maps one-to-one
+to a camelCase domain action; no unlisted or demo-only tools are registered.
 
 | WebMCP tool | Domain action |
 | --- | --- |
@@ -31,30 +30,49 @@ document.modelContext.registerTool({
 | `resume_watchbot` | `resumeWatchBot` |
 | `get_watchbot_status` | `getWatchBotStatus` |
 
-`ownerId` is request-scoped via `requireOwnerIdFromRequest` (Supabase Auth `getUser()` / `auth.uid()`). It is never accepted on tool arguments. Tools use `getDomainStore()` — the same `SupabaseDomainStore` as Canvas and the worker. An unset session fails closed (`unauthenticated`).
+## Shared, persistent, and safe by design
 
-`create_card` is bounds-only (`frameId` on tool input is rejected). After `create_card`, `move_card`, and `resize_card`, `invoke` / `runWebMcpTool` runs a follow-up `setCardFrame` from `selectSmallestContainingFrame` through the same `runBoundAction` execute. Membership is not folded into `createCard`. `fullscreen_frame` is view-only and must not rewrite stored geometry.
+- WebMCP calls use the shared `ACTION_CATALOG` / `createActionExecutor` path
+  through authenticated `runBoundAction` execution.
+- `ownerId` comes only from the verified Supabase request/session. It is never
+  accepted from tool input, a browser, or a model.
+- `create_card` rejects direct `frameId` input. After `create_card`,
+  `move_card`, or `resize_card`, Frame membership is recalculated from geometry
+  through the same bound executor. The smallest containing Frame wins;
+  `fullscreen_frame` is view-only.
+- Tools fail closed for missing authentication, unknown tools, schema-invalid
+  input, and cross-owner resources.
+- WebMCP tool calls act on the same persisted Canvas seen by the human UI, so
+  agent work remains visible, inspectable, and source-aware.
 
-## How to run
+## Judge testing
+
+1. Open the [hosted Canvas](https://web-production-4d6c9e.up.railway.app) and
+   authenticate.
+2. Use ChatGPT’s in-app browser or Chrome 149+ with
+   `chrome://flags/#enable-webmcp-testing`.
+3. Ask the host agent to create a Canvas, add a Note Card, move it into a
+   Frame, fullscreen the Frame, or create/manage a WatchBot.
+4. Verify every change appears in the same Canvas and survives normal refresh
+   and authenticated persistence behavior.
+
+The Canvas registers tools only when the WebMCP API is available. It remains a
+fully usable human workspace in ordinary browsers.
+
+## Local testing
+
+Use Node 22.23.2 and pnpm 10.33.3:
 
 ```bash
-pnpm install
+pnpm install --frozen-lockfile
 pnpm --filter web dev
-```
-
-- Canvas (registers tools when `document.modelContext` exists): `/`
-- Judge notes + tool table: `/webmcp`
-
-Judges: ChatGPT in-app browser or Chrome 149+ with `chrome://flags/#enable-webmcp-testing`.
-
-## How to eval
-
-```bash
 pnpm test
 ```
 
-Tests use `requestAuthFromVerifiedUser` and invoke tools through `createBoundWebMcpRuntime` (`apps/web/src/webmcp/bound-runtime.ts`). That function always calls `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })`. `createActionExecutor` runs inside `runBoundAction`.
+Open `/` for the Canvas and `/webmcp` for the live tool table. For the complete
+repository suite, run `pnpm lint`, `pnpm typecheck`, `pnpm test`, and
+`pnpm --filter web build`.
 
-`ob.webmcp.tool` analytics: `toolName` (snake_case) + `success`/`fail` only. No input bodies. Not wired to PostHog in this phase.
-
-Deadline: **3 September 2026, 1:00pm PDT**. No live deploy from this PR.
+No provider, worker, or service-role secret belongs in browser code. See
+[README.md](./README.md) and [HACKATHON.md](./HACKATHON.md) for product and
+judge context.
