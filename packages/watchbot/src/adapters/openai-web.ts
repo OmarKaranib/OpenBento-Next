@@ -48,6 +48,31 @@ export const OPENAI_WEB_SOURCE_PROVIDER_LIMITS = {
   timeoutMs: OPENAI_WEB_TIMEOUT_MS_CEILING,
 } as const;
 
+export type OpenAIWebSourceProviderErrorCode =
+  | "timeout"
+  | "network"
+  | "rate_limited"
+  | "transient_server"
+  | "unauthorized"
+  | "malformed_response";
+
+/** Classified adapter failure. The adapter never retries automatically. */
+export class OpenAIWebSourceProviderError extends Error {
+  readonly code: OpenAIWebSourceProviderErrorCode;
+  readonly retryable: boolean;
+
+  constructor(
+    code: OpenAIWebSourceProviderErrorCode,
+    message: string,
+    options?: { retryable?: boolean },
+  ) {
+    super(message);
+    this.name = "OpenAIWebSourceProviderError";
+    this.code = code;
+    this.retryable = options?.retryable ?? false;
+  }
+}
+
 export interface OpenAIWebSourceProviderOptions {
   /** Explicit construction (tests). Production uses the env gate. */
   enabled?: boolean;
@@ -263,14 +288,17 @@ class OpenAIWebSourceProvider
     );
 
     if (!response.ok) {
-      throw new Error(`openai_web_http_${response.status}`);
+      throw openaiWebHttpError(response.status);
     }
 
     let body: unknown;
     try {
       body = await response.json();
     } catch {
-      throw new Error("openai_web_malformed");
+      throw new OpenAIWebSourceProviderError(
+        "malformed_response",
+        "openai_web_malformed",
+      );
     }
 
     return extractDiscoveredItems(body).filter((item) =>
@@ -294,6 +322,33 @@ export function buildDiscoveryPrompt(topic: string): string {
   ].join(" ");
 }
 
+function openaiWebHttpError(status: number): OpenAIWebSourceProviderError {
+  if (status === 401 || status === 403) {
+    return new OpenAIWebSourceProviderError(
+      "unauthorized",
+      `openai_web_http_${status}`,
+    );
+  }
+  if (status === 429) {
+    return new OpenAIWebSourceProviderError(
+      "rate_limited",
+      `openai_web_http_${status}`,
+      { retryable: true },
+    );
+  }
+  if (status >= 500 && status <= 599) {
+    return new OpenAIWebSourceProviderError(
+      "transient_server",
+      `openai_web_http_${status}`,
+      { retryable: true },
+    );
+  }
+  return new OpenAIWebSourceProviderError(
+    "malformed_response",
+    `openai_web_http_${status}`,
+  );
+}
+
 async function fetchWithTimeout(
   fetchImpl: typeof fetch,
   url: string,
@@ -304,11 +359,15 @@ async function fetchWithTimeout(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetchImpl(url, { ...init, signal: controller.signal });
-  } catch (error) {
+  } catch {
     if (controller.signal.aborted) {
-      throw new Error("openai_web_timeout");
+      throw new OpenAIWebSourceProviderError("timeout", "openai_web_timeout", {
+        retryable: true,
+      });
     }
-    throw error instanceof Error ? error : new Error("openai_web_network");
+    throw new OpenAIWebSourceProviderError("network", "openai_web_network", {
+      retryable: true,
+    });
   } finally {
     clearTimeout(timeout);
   }
