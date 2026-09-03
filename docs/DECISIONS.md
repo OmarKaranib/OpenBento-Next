@@ -40,7 +40,7 @@ One catalog in `packages/domain` (23 actions):
 - WatchBot: `createWatchBot` (requires `instruction`), `updateWatchBot`, `pauseWatchBot`, `resumeWatchBot`
 - Read/view: `getCanvasState`, `getWatchBotStatus`, `fullscreenFrame`
 
-`moveCard`, `resizeCard`, `updateCanvasViewport` are first-class. Destructive actions are human-UI-only and are excluded from WebMCP and the Interactive Agent. WebMCP tools use the Issue #1 snake_case → camelCase map only (`WEBMCP_SPEC.md`).
+`moveCard`, `resizeCard`, `updateCanvasViewport` are first-class. Destructive actions are human-UI-only and are excluded from WebMCP and the Interactive Agent. WebMCP tools use the safe snake_case → camelCase map only (`WEBMCP_SPEC.md`).
 
 ## D-008 — MIT for WebMCP detectability
 

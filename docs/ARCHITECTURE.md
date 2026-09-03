@@ -52,7 +52,7 @@ Locked rules:
 - WatchBot status: **`running` \| `paused` \| `error`** only.
 - `listWatchBots` is a store/worker scan, **not** an `ACTION_CATALOG` name. The worker stamps `ownerId` from the WatchBot record.
 
-WebMCP registers the Issue #1 snake_case map via `document.modelContext.registerTool`. `execute` is `runWebMcpTool` → `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })`. ownerId is never taken from tool arguments.
+WebMCP registers the safe snake_case map via `document.modelContext.registerTool`. `execute` is `runWebMcpTool` → `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })`. ownerId is never taken from tool arguments. Delete actions and direct `setCardFrame` remain unregistered.
 
 ## Shared executor and persist
 

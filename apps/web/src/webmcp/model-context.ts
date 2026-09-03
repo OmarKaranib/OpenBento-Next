@@ -1,3 +1,5 @@
+import type { WebMcpToolAnnotations } from "@openbento/domain";
+
 /**
  * Minimal WebMCP `document.modelContext` types.
  * Feature-detect at runtime. Do not assume the API is present.
@@ -6,7 +8,7 @@ export type WebMcpRegisterTool = {
   name: string;
   description: string;
   inputSchema: object;
-  annotations?: { readOnlyHint: boolean };
+  annotations?: WebMcpToolAnnotations;
   execute: (args: Record<string, unknown>) => Promise<unknown> | unknown;
 };
 

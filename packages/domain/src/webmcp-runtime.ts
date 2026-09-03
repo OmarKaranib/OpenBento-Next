@@ -211,7 +211,7 @@ export function createWebMcpRuntime(deps: {
 /**
  * Frame membership is a follow-up `setCardFrame` from geometry.
  * Never fold this into `createCard`. Not a registered WebMCP tool —
- * `set_card_frame` is not on the Issue #1 map. Callers must pass the
+ * `set_card_frame` is not on the safe public map. Callers must pass the
  * same session-bound execute as the tools (runBoundAction).
  */
 export async function applyCardFrameFromGeometry(

@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { WEBMCP_TOOL_NAMES, type ActionName, type WebMcpToolEvent } from "@openbento/domain";
-import { InMemoryDomainStore } from "@openbento/domain";
+import {
+  InMemoryDomainStore,
+  WEBMCP_TOOL_NAMES,
+  type ActionName,
+  type WebMcpToolEvent,
+} from "@openbento/domain";
 import { requestAuthFromVerifiedUser } from "../server/session";
 import { getDomainStore, resetDomainStore, setDomainStore } from "../server/store";
 import { createBoundWebMcpRuntime } from "./bound-runtime";
@@ -68,6 +72,10 @@ describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
     expect(runtime.toolNames).toEqual([...WEBMCP_TOOL_NAMES]);
     expect(runtime.toolNames).not.toContain("echo");
     expect(runtime.toolNames).not.toContain("hello_world");
+    expect(runtime.toolNames).not.toContain("delete_canvas");
+    expect(runtime.toolNames).not.toContain("delete_card");
+    expect(runtime.toolNames).not.toContain("delete_frame");
+    expect(runtime.toolNames).not.toContain("set_card_frame");
   });
 
   it("invokes every registered tool through the session-bound executor", async () => {
@@ -75,7 +83,15 @@ describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
     const canvas = await runtime.invoke("create_canvas", { name: "Story" });
     expect(canvas.ownerId).toBe("session-user");
 
+    await runtime.invoke("rename_canvas", {
+      canvasId: canvas.id,
+      name: "Renamed Story",
+    });
     await runtime.invoke("switch_canvas", { canvasId: canvas.id });
+    await runtime.invoke("update_canvas_viewport", {
+      canvasId: canvas.id,
+      viewport: { x: 120, y: -40, zoom: 1.25 },
+    });
 
     const card = await runtime.invoke("create_card", {
       canvasId: canvas.id,
@@ -85,6 +101,12 @@ describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
       size: { width: 80, height: 60 },
     });
     expect(card.frameId).toBeNull();
+
+    await runtime.invoke("update_card", {
+      cardId: card.id,
+      type: "note",
+      payload: { text: "updated bounds only" },
+    });
 
     await runtime.invoke("move_card", {
       cardId: card.id,
@@ -99,6 +121,18 @@ describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
       canvasId: canvas.id,
       bounds: { x: 0, y: 0, width: 400, height: 300 },
       name: "Main",
+    });
+    await runtime.invoke("update_frame", {
+      frameId: frame.id,
+      name: "Main evidence",
+    });
+    await runtime.invoke("move_frame", {
+      frameId: frame.id,
+      position: { x: 10, y: 15 },
+    });
+    await runtime.invoke("resize_frame", {
+      frameId: frame.id,
+      size: { width: 420, height: 320 },
     });
 
     const bot = await runtime.invoke("create_watchbot", {
@@ -151,6 +185,63 @@ describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
     ).rejects.toMatchObject({ code: "invalid_input" });
     expect(catalog).toEqual([]);
     expect(await store.listCardsByCanvas(canvas.id)).toEqual([]);
+  });
+
+  it("routes safe parity actions through the authoritative executor without geometry follow-up", async () => {
+    const { runtime, catalog } = sessionRuntime();
+    const canvas = await runtime.invoke("create_canvas", { name: "Original" });
+    const card = await runtime.invoke("create_card", {
+      canvasId: canvas.id,
+      type: "note",
+      payload: { text: "Original card" },
+    });
+    const frame = await runtime.invoke("create_frame", {
+      canvasId: canvas.id,
+      bounds: { x: 0, y: 0, width: 300, height: 200 },
+      name: "Original frame",
+    });
+    catalog.length = 0;
+
+    const renamed = await runtime.invoke("rename_canvas", {
+      canvasId: canvas.id,
+      name: "Renamed",
+    });
+    const viewport = await runtime.invoke("update_canvas_viewport", {
+      canvasId: canvas.id,
+      viewport: { x: 40, y: 60, zoom: 1.5 },
+    });
+    const updatedCard = await runtime.invoke("update_card", {
+      cardId: card.id,
+      type: "note",
+      payload: { text: "Updated card" },
+    });
+    const updatedFrame = await runtime.invoke("update_frame", {
+      frameId: frame.id,
+      name: "Updated frame",
+    });
+    const movedFrame = await runtime.invoke("move_frame", {
+      frameId: frame.id,
+      position: { x: 80, y: 90 },
+    });
+    const resizedFrame = await runtime.invoke("resize_frame", {
+      frameId: frame.id,
+      size: { width: 500, height: 350 },
+    });
+
+    expect(renamed.name).toBe("Renamed");
+    expect(viewport.viewport).toEqual({ x: 40, y: 60, zoom: 1.5 });
+    expect(updatedCard.payload).toEqual({ text: "Updated card" });
+    expect(updatedFrame.name).toBe("Updated frame");
+    expect(movedFrame.bounds).toMatchObject({ x: 80, y: 90 });
+    expect(resizedFrame.bounds).toMatchObject({ width: 500, height: 350 });
+    expect(catalog).toEqual([
+      "renameCanvas",
+      "updateCanvasViewport",
+      "updateCard",
+      "updateFrame",
+      "moveFrame",
+      "resizeFrame",
+    ]);
   });
 });
 

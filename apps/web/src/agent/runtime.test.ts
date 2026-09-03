@@ -92,6 +92,9 @@ describe("Interactive Agent tools/context", () => {
     expect(tools.some((tool) => tool.name === "createCard")).toBe(true);
     expect(tools.some((tool) => tool.name === "setCardFrame")).toBe(false);
     expect(tools.some((tool) => tool.name === "createCanvas")).toBe(false);
+    expect(tools.some((tool) => tool.name === "deleteCanvas")).toBe(false);
+    expect(tools.some((tool) => tool.name === "deleteCard")).toBe(false);
+    expect(tools.some((tool) => tool.name === "deleteFrame")).toBe(false);
   });
 
   it("marks source content as untrusted data in Canvas context", async () => {

@@ -4,7 +4,7 @@ import { registerOpenBentoWebMcpTools } from "./register-browser";
 import { getModelContext, type ModelContext } from "./model-context";
 
 describe("WebMCP browser registerTool", () => {
-  it("registers only the Issue #1 snake_case tools", async () => {
+  it("registers every safe snake_case tool exactly once", async () => {
     const names: string[] = [];
     const modelContext: ModelContext = {
       registerTool: (tool) => {
@@ -23,8 +23,42 @@ describe("WebMCP browser registerTool", () => {
     );
     expect(registered).toEqual([...WEBMCP_TOOL_NAMES]);
     expect(names).toEqual([...WEBMCP_TOOL_NAMES]);
+    expect(new Set(names).size).toBe(WEBMCP_TOOL_NAMES.length);
     expect(names).not.toContain("echo");
     expect(names).not.toContain("hello_world");
+    expect(names).not.toContain("delete_canvas");
+    expect(names).not.toContain("delete_card");
+    expect(names).not.toContain("delete_frame");
+    expect(names).not.toContain("set_card_frame");
+  });
+
+  it("passes Chrome annotations through unchanged", async () => {
+    const annotations = new Map<string, object | undefined>();
+    const modelContext: ModelContext = {
+      registerTool: (tool) => {
+        annotations.set(tool.name, tool.annotations);
+      },
+    };
+    const runtime = createWebMcpRuntime({
+      execute: async () => {
+        throw new Error("register must not execute");
+      },
+    });
+
+    await registerOpenBentoWebMcpTools(runtime, { modelContext });
+
+    expect(annotations.get("get_canvas_state")).toEqual({
+      readOnlyHint: true,
+      untrustedContentHint: true,
+    });
+    expect(annotations.get("fullscreen_frame")).toEqual({
+      readOnlyHint: true,
+      untrustedContentHint: false,
+    });
+    expect(annotations.get("update_frame")).toEqual({
+      readOnlyHint: false,
+      untrustedContentHint: true,
+    });
   });
 
   it("forwards execute to the provided invoke (session-bound server action)", async () => {

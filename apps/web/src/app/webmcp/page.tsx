@@ -29,11 +29,11 @@ export default function WebMcpJudgePage() {
           <h2 className="text-sm font-medium text-zinc-200">Why WebMCP matters</h2>
           <p className="mt-3 text-sm leading-6 text-zinc-400">
             A human can arrange and inspect the Canvas directly while an agent
-            can create a Canvas, add and position Cards, draw a Frame, enter a
-            focused Frame view, and start or manage a WatchBot. Every tool uses
-            the same domain operation as the human interface, so agent changes
-            appear in the same workspace with the same ownership and geometry
-            rules.
+            can create or rename a Canvas, move its camera, create or edit
+            Cards and Frames, enter a focused Frame view, and start or manage a
+            WatchBot. Every tool uses the same domain operation as the human
+            interface, so agent changes appear in the same workspace with the
+            same ownership and geometry rules.
           </p>
         </section>
 
