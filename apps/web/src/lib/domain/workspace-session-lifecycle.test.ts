@@ -103,6 +103,8 @@ describe("WorkspaceSessionBinder account-switch lifecycle", () => {
     expect(a).toBe(sessions[0]);
     expect(b).toBe(sessions[1]);
     expect(a).not.toBe(b);
+    expect(a.isDisposed()).toBe(true);
+    expect(b.isDisposed()).toBe(false);
     expect(binder.getBoundPrincipalId()).toBe(USER_B);
   });
 
@@ -142,6 +144,7 @@ describe("WorkspaceSessionBinder account-switch lifecycle", () => {
 
     expect(binder.getSession()).toBeUndefined();
     expect(binder.getBoundPrincipalId()).toBeNull();
+    expect(sessionA.isDisposed()).toBe(true);
 
     const sessionAgain = binder.bind(USER_A);
     expect(sessionAgain).not.toBe(sessionA);

@@ -16,11 +16,14 @@ type WorkspaceUiValue = {
   agentOpen: boolean;
   frameToolActive: boolean;
   snapToGrid: boolean;
+  /** Incremented when the Canvas menu asks to open the existing create UI. */
+  watchBotCreateEpoch: number;
   setRailPanel: (panel: RailPanel) => void;
   toggleRailPanel: (panel: Exclude<RailPanel, null>) => void;
   setAgentOpen: (open: boolean) => void;
   setFrameToolActive: (active: boolean) => void;
   setSnapToGrid: (snap: boolean) => void;
+  openWatchBotCreate: () => void;
 };
 
 const WorkspaceUiContext = createContext<WorkspaceUiValue | null>(null);
@@ -30,9 +33,15 @@ export function WorkspaceUiProvider({ children }: { children: ReactNode }) {
   const [agentOpen, setAgentOpen] = useState(false);
   const [frameToolActive, setFrameToolActive] = useState(false);
   const [snapToGrid, setSnapToGrid] = useState(false);
+  const [watchBotCreateEpoch, setWatchBotCreateEpoch] = useState(0);
 
   const toggleRailPanel = useCallback((panel: Exclude<RailPanel, null>) => {
     setRailPanel((current) => (current === panel ? null : panel));
+  }, []);
+
+  const openWatchBotCreate = useCallback(() => {
+    setRailPanel("watchbots");
+    setWatchBotCreateEpoch((current) => current + 1);
   }, []);
 
   const value = useMemo<WorkspaceUiValue>(
@@ -41,13 +50,23 @@ export function WorkspaceUiProvider({ children }: { children: ReactNode }) {
       agentOpen,
       frameToolActive,
       snapToGrid,
+      watchBotCreateEpoch,
       setRailPanel,
       toggleRailPanel,
       setAgentOpen,
       setFrameToolActive,
       setSnapToGrid,
+      openWatchBotCreate,
     }),
-    [railPanel, agentOpen, frameToolActive, snapToGrid, toggleRailPanel],
+    [
+      railPanel,
+      agentOpen,
+      frameToolActive,
+      snapToGrid,
+      watchBotCreateEpoch,
+      toggleRailPanel,
+      openWatchBotCreate,
+    ],
   );
 
   return (

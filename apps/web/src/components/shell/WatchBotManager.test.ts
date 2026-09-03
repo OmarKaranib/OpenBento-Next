@@ -21,6 +21,8 @@ vi.mock("@/components/workspace/WorkspaceProvider", () => ({
 vi.mock("@/components/workspace/workspace-ui", () => ({
   useWorkspaceUi: () => ({
     setRailPanel: vi.fn(),
+    watchBotCreateEpoch: 0,
+    openWatchBotCreate: vi.fn(),
   }),
 }));
 

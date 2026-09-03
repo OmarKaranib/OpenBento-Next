@@ -27,7 +27,7 @@ export function SourceCardChrome({
   minWidth: number;
   minHeight: number;
 }) {
-  const { snapshot } = useWorkspace();
+  const { session, snapshot } = useWorkspace();
   const { persistCardGeometry } = useCanvasCommands();
   const monitor = useCanvasMonitorOptional();
   const readOnly = Boolean(snapshot.fullscreen?.active);
@@ -48,10 +48,15 @@ export function SourceCardChrome({
         minWidth={minWidth}
         minHeight={minHeight}
         color="#64748b"
+        onResizeStart={() => {
+          session.beginInteraction();
+        }}
         onResizeEnd={(_event, params) => {
-          persistCardGeometry(card, {
+          void persistCardGeometry(card, {
             position: { x: params.x, y: params.y },
             size: { width: params.width, height: params.height },
+          }).finally(() => {
+            void session.endInteraction();
           });
         }}
       />

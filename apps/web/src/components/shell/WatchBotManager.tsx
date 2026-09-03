@@ -4,6 +4,7 @@ import { useState, type FormEvent } from "react";
 import type { WatchBot, WatchBotSourceType } from "@openbento/domain";
 import { UntrustedText } from "@/components/cards/UntrustedText";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
+import { useWorkspaceUi } from "@/components/workspace/workspace-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,6 +37,7 @@ export function WatchBotCanvasPanel({
   className?: string;
 }) {
   const { snapshot, execute } = useWorkspace();
+  const { watchBotCreateEpoch } = useWorkspaceUi();
   const canvasId = snapshot.currentCanvasId;
   const watchBots = snapshot.watchBots;
   const cards = snapshot.cards;
@@ -56,6 +58,17 @@ export function WatchBotCanvasPanel({
     setError(null);
     setEditing(null);
     setMode("list");
+  }
+
+  const [seenCreateEpoch, setSeenCreateEpoch] = useState(0);
+  if (watchBotCreateEpoch > seenCreateEpoch) {
+    setSeenCreateEpoch(watchBotCreateEpoch);
+    setName("");
+    setInstruction("");
+    setSourceTypes([...DEFAULT_CREATE_SOURCE_TYPES]);
+    setError(null);
+    setEditing(null);
+    setMode("create");
   }
 
   function startCreate() {

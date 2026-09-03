@@ -64,6 +64,7 @@ export class WorkspaceSessionBinder {
     ) {
       return this.session;
     }
+    this.session?.dispose();
     this.session = this.create();
     this.boundPrincipalId = principalId;
     return this.session;
@@ -71,6 +72,7 @@ export class WorkspaceSessionBinder {
 
   /** Drop any cached session so prior Canvas state cannot resurface. */
   retire(): void {
+    this.session?.dispose();
     this.session = undefined;
     this.boundPrincipalId = null;
   }

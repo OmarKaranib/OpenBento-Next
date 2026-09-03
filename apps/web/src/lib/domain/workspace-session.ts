@@ -111,9 +111,15 @@ export class WorkspaceSession {
   private past: CatalogCall[][] = [];
   private future: CatalogCall[][] = [];
   private listeners = new Set<() => void>();
+  private disposeListeners = new Set<() => void>();
   private snapshot: SessionSnapshot;
   private revision = 0;
   private bootPromise: Promise<void> | null = null;
+  private disposed = false;
+  private interactionDepth = 0;
+  private localMutationDepth = 0;
+  private pendingExternalSync = false;
+  private externalSyncInFlight = false;
   readonly ready: Promise<void>;
   private readonly resolveReady: () => void;
 
@@ -178,6 +184,129 @@ export class WorkspaceSession {
 
   getSnapshot = (): SessionSnapshot => this.snapshot;
 
+  /** True after {@link dispose} — binder retire / principal change. */
+  isDisposed(): boolean {
+    return this.disposed;
+  }
+
+  /**
+   * Stop I/O for this instance. Binder retire / principal replacement must
+   * call this so pollers cannot keep reading a retired session.
+   */
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    this.pendingExternalSync = false;
+    this.listeners.clear();
+    for (const listener of this.disposeListeners) {
+      listener();
+    }
+    this.disposeListeners.clear();
+  }
+
+  onDispose(listener: () => void): () => void {
+    if (this.disposed) {
+      listener();
+      return () => undefined;
+    }
+    this.disposeListeners.add(listener);
+    return () => {
+      this.disposeListeners.delete(listener);
+    };
+  }
+
+  beginInteraction(): void {
+    this.interactionDepth += 1;
+  }
+
+  isInteracting(): boolean {
+    return this.interactionDepth > 0;
+  }
+
+  /**
+   * End a local drag/resize/edit. Applies a deferred external merge after
+   * the last nested interaction finishes. Does not append undo history.
+   */
+  async endInteraction(): Promise<void> {
+    this.interactionDepth = Math.max(0, this.interactionDepth - 1);
+    if (this.interactionDepth === 0 && this.pendingExternalSync) {
+      this.pendingExternalSync = false;
+      try {
+        await this.syncExternalState();
+      } catch {
+        // Keep the current snapshot; the bounded poller will try again later.
+      }
+    }
+  }
+
+  /**
+   * Re-read the current Canvas via catalog `getCanvasState` (user-JWT path)
+   * and publish to subscribers. Does not append the undo log, does not issue
+   * geometry writes, and leaves `canUndo` / `canRedo` unchanged.
+   *
+   * Skips while a local interaction is in flight and applies after
+   * {@link endInteraction}. Concurrent calls collapse to one in-flight read.
+   */
+  async syncExternalState(): Promise<boolean> {
+    if (this.disposed) {
+      return false;
+    }
+    if (this.interactionDepth > 0 || this.localMutationDepth > 0) {
+      this.pendingExternalSync = true;
+      return false;
+    }
+    if (this.externalSyncInFlight) {
+      this.pendingExternalSync = true;
+      return false;
+    }
+    this.externalSyncInFlight = true;
+    this.pendingExternalSync = false;
+    const canvasId = this.currentCanvasId;
+    if (!canvasId) {
+      this.externalSyncInFlight = false;
+      return false;
+    }
+    const startedRevision = this.revision;
+    const previousViewport = this.canvases.get(canvasId)?.viewport;
+    try {
+      const state = await this.runAction("getCanvasState", { canvasId });
+      if (this.disposed) {
+        return false;
+      }
+      if (
+        this.currentCanvasId !== canvasId ||
+        this.revision !== startedRevision ||
+        this.interactionDepth > 0 ||
+        this.localMutationDepth > 0
+      ) {
+        this.pendingExternalSync = true;
+        return false;
+      }
+      this.canvases.set(state.canvas.id, {
+        ...state.canvas,
+        viewport: previousViewport ?? state.canvas.viewport,
+      });
+      this.cards = state.cards;
+      this.frames = state.frames;
+      this.watchBots = state.watchBots;
+      this.notify();
+      return true;
+    } finally {
+      this.externalSyncInFlight = false;
+      if (
+        this.pendingExternalSync &&
+        this.interactionDepth === 0 &&
+        this.localMutationDepth === 0 &&
+        !this.disposed
+      ) {
+        this.pendingExternalSync = false;
+        await this.syncExternalState();
+      }
+    }
+  }
+
   async execute<N extends ActionName>(
     name: N,
     input: ActionInputMap[N],
@@ -197,48 +326,64 @@ export class WorkspaceSession {
     if (calls.length === 0) {
       return [];
     }
-    const recordHistory =
-      options?.history !== false && calls.some((call) => UNDOABLE.has(call.name));
-    const results: unknown[] = [];
-    for (const call of calls) {
-      results.push(await this.apply(call));
-      if (isMutating(call.name)) {
-        this.fullLog.push(call);
+    return this.withLocalMutation(async () => {
+      const recordHistory =
+        options?.history !== false &&
+        calls.some((call) => UNDOABLE.has(call.name));
+      const results: unknown[] = [];
+      for (const call of calls) {
+        results.push(await this.apply(call));
+        if (isMutating(call.name)) {
+          this.fullLog.push(call);
+        }
       }
-    }
-    if (recordHistory) {
-      this.past.push(calls.filter((call) => UNDOABLE.has(call.name)));
-      this.future = [];
-    }
-    await this.publish();
-    return results;
+      if (recordHistory) {
+        this.past.push(calls.filter((call) => UNDOABLE.has(call.name)));
+        this.future = [];
+      }
+      await this.publish();
+      return results;
+    });
   }
 
   async undo(): Promise<boolean> {
-    const batch = this.past.pop();
-    if (!batch || batch.length === 0) {
-      return false;
-    }
-    this.fullLog = removeLastBatch(this.fullLog, batch);
-    this.future.push(batch);
-    await this.rebuild();
-    return true;
+    return this.withLocalMutation(async () => {
+      const batch = this.past.pop();
+      if (!batch || batch.length === 0) {
+        return false;
+      }
+      this.fullLog = removeLastBatch(this.fullLog, batch);
+      this.future.push(batch);
+      await this.rebuild();
+      return true;
+    });
   }
 
   async redo(): Promise<boolean> {
-    const batch = this.future.pop();
-    if (!batch || batch.length === 0) {
-      return false;
-    }
-    for (const call of batch) {
-      await this.apply(call);
-      if (isMutating(call.name)) {
-        this.fullLog.push(call);
+    return this.withLocalMutation(async () => {
+      const batch = this.future.pop();
+      if (!batch || batch.length === 0) {
+        return false;
       }
+      for (const call of batch) {
+        await this.apply(call);
+        if (isMutating(call.name)) {
+          this.fullLog.push(call);
+        }
+      }
+      this.past.push(batch);
+      await this.publish();
+      return true;
+    });
+  }
+
+  private async withLocalMutation<T>(operation: () => Promise<T>): Promise<T> {
+    this.localMutationDepth += 1;
+    try {
+      return await operation();
+    } finally {
+      this.localMutationDepth = Math.max(0, this.localMutationDepth - 1);
     }
-    this.past.push(batch);
-    await this.publish();
-    return true;
   }
 
   private async apply(call: CatalogCall): Promise<unknown> {
@@ -259,6 +404,8 @@ export class WorkspaceSession {
       if (name === "createCanvas" || name === "switchCanvas") {
         this.currentCanvasId = canvas.id;
         this.fullscreen = null;
+        // A Canvas switch unmounts the old target's editors/drag surface.
+        this.interactionDepth = 0;
       }
     }
     if (name === "fullscreenFrame") {
@@ -327,6 +474,10 @@ export class WorkspaceSession {
 
   private async publish(): Promise<void> {
     await this.refreshCurrentCanvas();
+    this.notify();
+  }
+
+  private notify(): void {
     this.revision += 1;
     this.snapshot = this.buildSnapshot();
     for (const listener of this.listeners) {

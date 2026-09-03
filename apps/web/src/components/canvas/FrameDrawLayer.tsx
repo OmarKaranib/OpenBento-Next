@@ -1,7 +1,7 @@
 "use client";
 
 import { useReactFlow } from "@xyflow/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { useWorkspaceUi } from "@/components/workspace/workspace-ui";
 import { useCanvasCommands } from "./use-canvas-commands";
@@ -32,13 +32,23 @@ function screenRect(draft: Draft): {
 }
 
 export function FrameDrawLayer() {
-  const { snapshot } = useWorkspace();
+  const { session, snapshot } = useWorkspace();
   const { setFrameToolActive } = useWorkspaceUi();
   const { persistCreatedFrame } = useCanvasCommands();
   const { screenToFlowPosition } = useReactFlow();
   const [draft, setDraft] = useState<Draft | null>(null);
   const draftRef = useRef<Draft | null>(null);
   const canvasId = snapshot.currentCanvasId;
+
+  useEffect(
+    () => () => {
+      if (draftRef.current) {
+        draftRef.current = null;
+        void session.endInteraction();
+      }
+    },
+    [session],
+  );
 
   if (!canvasId) {
     return null;
@@ -61,6 +71,7 @@ export function FrameDrawLayer() {
         };
         draftRef.current = next;
         setDraft(next);
+        session.beginInteraction();
       }}
       onPointerMove={(event) => {
         const current = draftRef.current;
@@ -95,8 +106,22 @@ export function FrameDrawLayer() {
         setDraft(null);
         setFrameToolActive(false);
         if (bounds.width >= 48 && bounds.height >= 48) {
-          void persistCreatedFrame(canvasId, bounds, "Frame");
+          void persistCreatedFrame(canvasId, bounds, "Frame").finally(() => {
+            void session.endInteraction();
+          });
+        } else {
+          void session.endInteraction();
         }
+      }}
+      onPointerCancel={() => {
+        if (!draftRef.current) return;
+        draftRef.current = null;
+        setDraft(null);
+        setFrameToolActive(false);
+        void session.endInteraction();
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault();
       }}
     >
       {draft ? (
