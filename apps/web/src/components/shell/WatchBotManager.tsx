@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useState, type FormEvent } from "react";
 import type { WatchBot, WatchBotSourceType } from "@openbento/domain";
 import { UntrustedText } from "@/components/cards/UntrustedText";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
@@ -60,7 +60,9 @@ export function WatchBotCanvasPanel({
     setMode("list");
   }
 
-  function startCreate() {
+  const [seenCreateEpoch, setSeenCreateEpoch] = useState(0);
+  if (watchBotCreateEpoch > seenCreateEpoch) {
+    setSeenCreateEpoch(watchBotCreateEpoch);
     setName("");
     setInstruction("");
     setSourceTypes([...DEFAULT_CREATE_SOURCE_TYPES]);
@@ -69,12 +71,14 @@ export function WatchBotCanvasPanel({
     setMode("create");
   }
 
-  useEffect(() => {
-    if (watchBotCreateEpoch <= 0) {
-      return;
-    }
-    startCreate();
-  }, [watchBotCreateEpoch]);
+  function startCreate() {
+    setName("");
+    setInstruction("");
+    setSourceTypes([...DEFAULT_CREATE_SOURCE_TYPES]);
+    setError(null);
+    setEditing(null);
+    setMode("create");
+  }
 
   function startEdit(bot: WatchBot) {
     setEditing(bot);

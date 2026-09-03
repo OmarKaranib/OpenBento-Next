@@ -484,7 +484,7 @@ function CanvasSurface() {
         onAction={onContextMenuAction}
       />
       {readOnly ? (
-        <button>
+        <button
           type="button"
           className="absolute right-3 top-3 z-30 rounded-md border border-zinc-700 bg-[#141820]/95 px-3 py-1.5 text-xs text-zinc-200 shadow-lg hover:bg-zinc-800"
           onClick={() => {
