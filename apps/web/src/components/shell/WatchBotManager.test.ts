@@ -1,10 +1,10 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import type { WatchBot } from "@openbento/domain";
+import type { Card, WatchBot } from "@openbento/domain";
 import { describe, expect, it, vi } from "vitest";
 
 const { box } = vi.hoisted(() => ({
-  box: { watchBots: [] as WatchBot[] },
+  box: { watchBots: [] as WatchBot[], cards: [] as Card[] },
 }));
 
 vi.mock("@/components/workspace/WorkspaceProvider", () => ({
@@ -12,6 +12,7 @@ vi.mock("@/components/workspace/WorkspaceProvider", () => ({
     snapshot: {
       currentCanvasId: "c1",
       watchBots: box.watchBots,
+      cards: box.cards,
     },
     execute: vi.fn(),
   }),
@@ -27,6 +28,7 @@ import { WatchBotCanvasPanel } from "./WatchBotManager";
 import { WatchBotStatus } from "./WatchBotStatus";
 
 const XSS_ERROR = `<img src=x onerror="alert(1)"><script>alert("xss")</script>`;
+const XSS_TITLE = `<img src=x onerror="alert(1)"><script>alert("xss")</script>`;
 
 function fixture(partial: Partial<WatchBot> & Pick<WatchBot, "id">): WatchBot {
   return {
@@ -44,6 +46,7 @@ function fixture(partial: Partial<WatchBot> & Pick<WatchBot, "id">): WatchBot {
 
 describe("WatchBot list last-activity and error markup", () => {
   it("renders formatted lastActivityAt and sanitized lastError as text", () => {
+    box.cards = [];
     box.watchBots = [
       fixture({
         id: "wb-error",
@@ -65,6 +68,7 @@ describe("WatchBot list last-activity and error markup", () => {
   });
 
   it("omits last-activity and error lines when fields are missing or invalid", () => {
+    box.cards = [];
     box.watchBots = [
       fixture({
         id: "wb-running",
@@ -77,6 +81,56 @@ describe("WatchBot list last-activity and error markup", () => {
     expect(html).not.toContain("Last activity");
     expect(html).not.toContain('role="status"');
     expect(html).toContain("configured · running");
+    expect(html).toContain("0 cards on this Canvas");
+    expect(html).not.toContain("Latest:");
+  });
+
+  it("shows snapshot Card count and sanitized latest title for this WatchBot", () => {
+    box.watchBots = [fixture({ id: "wb-1" })];
+    box.cards = [
+      {
+        id: "card-old",
+        canvasId: "c1",
+        position: { x: 0, y: 0 },
+        size: { width: 280, height: 180 },
+        createdAt: "2026-01-01T00:00:00.000Z",
+        updatedAt: "2026-01-01T00:00:00.000Z",
+        type: "article",
+        payload: {
+          provenance: {
+            sourceUrl: "https://example.com/old",
+            title: "Older",
+            publishedAt: "",
+            sourceType: "web",
+            watchBotId: "wb-1",
+          },
+        },
+      },
+      {
+        id: "card-new",
+        canvasId: "c1",
+        position: { x: 0, y: 0 },
+        size: { width: 280, height: 180 },
+        createdAt: "2026-01-03T00:00:00.000Z",
+        updatedAt: "2026-01-03T00:00:00.000Z",
+        type: "web",
+        payload: {
+          provenance: {
+            sourceUrl: "https://example.com/new",
+            title: XSS_TITLE,
+            publishedAt: "",
+            sourceType: "web",
+            watchBotId: "wb-1",
+          },
+        },
+      },
+    ] as Card[];
+    const html = renderToStaticMarkup(createElement(WatchBotCanvasPanel));
+    expect(html).toContain("2 cards on this Canvas");
+    expect(html).toContain("Latest:");
+    expect(html).toContain("alert(&quot;xss&quot;)");
+    expect(html).not.toContain("<script");
+    expect(html).not.toContain("<img");
   });
 });
 
