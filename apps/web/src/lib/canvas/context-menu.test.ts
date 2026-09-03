@@ -3,10 +3,15 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { ACTION_NAMES, type Card } from "@openbento/domain";
+import {
+  ACTION_NAMES,
+  WEBMCP_TOOL_TO_ACTION,
+  type Card,
+} from "@openbento/domain";
 import { describe, expect, it } from "vitest";
 import { CanvasContextMenu } from "@/components/canvas/CanvasContextMenu";
 import { cardNodeId, frameNodeId } from "@/components/canvas/flow-ids";
+import { AGENT_ACTION_NAMES } from "@/agent/types";
 import {
   cardSourceHref,
   clampMenuPosition,
@@ -15,8 +20,10 @@ import {
   contextMenuItems,
   frameBoundsAtPoint,
   isKnownActionName,
+  isTypingTarget,
   preventBrowserContextMenu,
   resolveContextMenuTarget,
+  selectedCardIds,
   shouldCloseContextMenu,
 } from "./context-menu";
 
@@ -114,7 +121,10 @@ describe("canvas context menu", () => {
       canRedo: false,
       sourceHref: cardSourceHref(sourceCard("https://example.com/story")),
     });
-    expect(safe.map((item) => item.id)).toEqual(["open-source"]);
+    expect(safe.map((item) => item.id)).toEqual([
+      "open-source",
+      "delete-card",
+    ]);
 
     const unsafe = contextMenuItems({
       target: { variant: "card", cardId: "card-1" },
@@ -123,6 +133,7 @@ describe("canvas context menu", () => {
       sourceHref: cardSourceHref(sourceCard("javascript:alert(1)")),
     });
     expect(unsafe.some((item) => item.id === "open-source")).toBe(false);
+    expect(unsafe.map((item) => item.id)).toEqual(["delete-card"]);
   });
 
   it("exposes Fullscreen Frame on the Frame variant", () => {
@@ -131,8 +142,12 @@ describe("canvas context menu", () => {
       canUndo: false,
       canRedo: false,
     });
-    expect(items.map((item) => item.id)).toEqual(["fullscreen-frame"]);
+    expect(items.map((item) => item.id)).toEqual([
+      "fullscreen-frame",
+      "delete-frame",
+    ]);
     expect(items[0]?.actionName).toBe("fullscreenFrame");
+    expect(items[1]?.actionName).toBe("deleteFrame");
   });
 
   it("converts pointer coords under pan and zoom", () => {
@@ -201,15 +216,22 @@ describe("canvas context menu", () => {
     expect(html).not.toContain("Delete");
   });
 
-  it("does not invent ACTION_NAMES", () => {
-    expect(ACTION_NAMES).toHaveLength(20);
-    expect(ACTION_NAMES).not.toContain("deleteCard");
-    expect(ACTION_NAMES).not.toContain("deleteFrame");
+  it("uses catalog delete actions without exposing them through WebMCP", () => {
+    expect(ACTION_NAMES).toHaveLength(23);
+    expect(ACTION_NAMES).toContain("deleteCard");
+    expect(ACTION_NAMES).toContain("deleteFrame");
+    expect(ACTION_NAMES).toContain("deleteCanvas");
     for (const name of contextMenuCatalogActions()) {
       expect(isKnownActionName(name)).toBe(true);
     }
+    expect(Object.values(WEBMCP_TOOL_TO_ACTION)).not.toContain("deleteCard");
+    expect(Object.values(WEBMCP_TOOL_TO_ACTION)).not.toContain("deleteFrame");
+    expect(Object.values(WEBMCP_TOOL_TO_ACTION)).not.toContain("deleteCanvas");
+    expect(AGENT_ACTION_NAMES).not.toContain("deleteCard" as never);
+    expect(AGENT_ACTION_NAMES).not.toContain("deleteFrame" as never);
+    expect(AGENT_ACTION_NAMES).not.toContain("deleteCanvas" as never);
     const source = readFileSync(join(here, "context-menu.ts"), "utf8");
-    expect(source).not.toMatch(/deleteCard|deleteFrame/);
+    expect(source).toMatch(/deleteCard|deleteFrame/);
     const root = readFileSync(
       join(here, "../../components/canvas/CanvasRoot.tsx"),
       "utf8",
@@ -217,7 +239,30 @@ describe("canvas context menu", () => {
     expect(root).toContain("onPaneContextMenu");
     expect(root).toContain("preventBrowserContextMenu");
     expect(root).toContain("openWatchBotCreate");
-    expect(root).not.toMatch(/deleteCard|deleteFrame/);
+    expect(root).toMatch(/deleteCard|deleteFrame/);
+    expect(root).toContain("Cards inside it will stay on the Canvas");
+    expect(root).toContain('deleteKeyCode={null}');
     expect(root).not.toMatch(/supabase\.channel|realtime/i);
+    const switcher = readFileSync(
+      join(here, "../../components/shell/CanvasSwitcher.tsx"),
+      "utf8",
+    );
+    expect(`${root}\n${switcher}`).not.toMatch(/\.from\(["']|supabase\./);
+  });
+
+  it("deletes selected Cards only when keyboard focus is not editing", () => {
+    expect(isTypingTarget({ tagName: "input" })).toBe(true);
+    expect(isTypingTarget({ tagName: "TEXTAREA" })).toBe(true);
+    expect(isTypingTarget({ tagName: "div", isContentEditable: true })).toBe(
+      true,
+    );
+    expect(isTypingTarget({ tagName: "button" })).toBe(false);
+    expect(
+      selectedCardIds([
+        { id: cardNodeId("one"), selected: true },
+        { id: cardNodeId("two"), selected: false },
+        { id: frameNodeId("frame"), selected: true },
+      ]),
+    ).toEqual(["one"]);
   });
 });

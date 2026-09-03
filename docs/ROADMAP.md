@@ -14,13 +14,13 @@ Do not spawn a swarm of extra issues. Track work here and in PRs.
 
 ## Locked contracts
 
-Shared domain catalog in `@openbento/domain` (20 actions — **not** a 5-action stub):
+Shared domain catalog in `@openbento/domain` (23 actions — **not** a 5-action stub):
 
 | Group | Actions |
 | --- | --- |
-| Canvas | `createCanvas`, `renameCanvas`, `switchCanvas`, `updateCanvasViewport` |
-| Card | `createCard`, `updateCard`, `moveCard`, `resizeCard`, `setCardFrame` |
-| Frame | `createFrame`, `updateFrame`, `moveFrame`, `resizeFrame` |
+| Canvas | `createCanvas`, `renameCanvas`, `switchCanvas`, `updateCanvasViewport`, `deleteCanvas` |
+| Card | `createCard`, `updateCard`, `moveCard`, `resizeCard`, `setCardFrame`, `deleteCard` |
+| Frame | `createFrame`, `updateFrame`, `moveFrame`, `resizeFrame`, `deleteFrame` |
 | WatchBot | `createWatchBot` (**requires `instruction`**), `updateWatchBot`, `pauseWatchBot`, `resumeWatchBot` |
 | Read/view | `getCanvasState`, `getWatchBotStatus`, `fullscreenFrame` (view-only; must not rewrite stored geometry) |
 
@@ -51,7 +51,7 @@ Omar assigned. PR #2. Do not merge until owner validation.
 
 - [x] Fresh public MIT repo
 - [x] Master context on `main`
-- [x] Full domain catalog (20 actions) + provenance/containment helpers + tests
+- [x] Full domain catalog (23 actions) + provenance/containment helpers + tests
 - [x] Workspace `lint` / `typecheck` / `test` / `web build`
 - [x] Specs rewritten from master context
 - [x] Infra + observability recorded in docs

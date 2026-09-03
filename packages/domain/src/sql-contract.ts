@@ -101,6 +101,34 @@ export class SqlContractEngine {
     this.tables.canvases.set(row.id, clone(row));
   }
 
+  deleteCanvas(id: string): void {
+    const canvas = this.tables.canvases.get(id);
+    if (!canvas || !this.canSeeCanvas(canvas)) {
+      throw new DomainError("not_found", "Canvas not found");
+    }
+    for (const [eventId, event] of this.tables.watchBotEvents) {
+      if (event.canvas_id === id) {
+        this.tables.watchBotEvents.delete(eventId);
+      }
+    }
+    for (const [watchBotId, watchBot] of this.tables.watchBots) {
+      if (watchBot.canvas_id === id) {
+        this.tables.watchBots.delete(watchBotId);
+      }
+    }
+    for (const [cardId, card] of this.tables.cards) {
+      if (card.canvas_id === id) {
+        this.tables.cards.delete(cardId);
+      }
+    }
+    for (const [frameId, frame] of this.tables.frames) {
+      if (frame.canvas_id === id) {
+        this.tables.frames.delete(frameId);
+      }
+    }
+    this.tables.canvases.delete(id);
+  }
+
   getCard(id: string): CardRecord | null {
     const row = this.tables.cards.get(id);
     if (!row || !this.canSeeCanvasId(row.canvas_id)) {
@@ -125,6 +153,19 @@ export class SqlContractEngine {
     this.tables.cards.set(row.id, clone(row));
   }
 
+  deleteCard(id: string): void {
+    const card = this.tables.cards.get(id);
+    if (!card || (!this.canSeeCanvasId(card.canvas_id) && !this.session.bypassRls)) {
+      throw new DomainError("not_found", "Card not found");
+    }
+    this.tables.cards.delete(id);
+    for (const [eventId, event] of this.tables.watchBotEvents) {
+      if (event.card_id === id) {
+        this.tables.watchBotEvents.set(eventId, { ...event, card_id: null });
+      }
+    }
+  }
+
   listCardsByCanvas(canvasId: string): CardRecord[] {
     if (!this.canSeeCanvasId(canvasId) && !this.session.bypassRls) {
       return [];
@@ -147,6 +188,20 @@ export class SqlContractEngine {
       throw new DomainError("not_found", "Frame canvas not found");
     }
     this.tables.frames.set(row.id, clone(row));
+  }
+
+  deleteFrame(id: string): void {
+    const frame = this.tables.frames.get(id);
+    if (!frame || (!this.canSeeCanvasId(frame.canvas_id) && !this.session.bypassRls)) {
+      throw new DomainError("not_found", "Frame not found");
+    }
+    if ([...this.tables.cards.values()].some((card) => card.frame_id === id)) {
+      throw new DomainError(
+        "invalid_input",
+        "Frame cannot be deleted while Cards still reference it",
+      );
+    }
+    this.tables.frames.delete(id);
   }
 
   listFramesByCanvas(canvasId: string): FrameRecord[] {

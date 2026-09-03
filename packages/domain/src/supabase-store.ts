@@ -51,6 +51,10 @@ export class SupabaseDomainStore implements DomainStore {
     await this.adapter.upsertCanvas(op.row);
   }
 
+  async deleteCanvas(id: string): Promise<void> {
+    await this.adapter.deleteCanvas(id);
+  }
+
   async listCanvasesByOwner(ownerId: OwnerId): Promise<Canvas[]> {
     const rows = await this.adapter.listCanvasesByOwner(ownerId);
     const byId = new Map(rows.map((row) => [row.id, canvasFromRecord(row)]));
@@ -81,6 +85,10 @@ export class SupabaseDomainStore implements DomainStore {
     await this.adapter.upsertCard(op.row);
   }
 
+  async deleteCard(id: string): Promise<void> {
+    await this.adapter.deleteCard(id);
+  }
+
   async listCardsByCanvas(canvasId: string): Promise<Card[]> {
     const rows = await this.adapter.listCardsByCanvas(canvasId);
     const byId = new Map(rows.map((row) => [row.id, cardFromRecord(row)]));
@@ -109,6 +117,10 @@ export class SupabaseDomainStore implements DomainStore {
       return;
     }
     await this.adapter.upsertFrame(op.row);
+  }
+
+  async deleteFrame(id: string): Promise<void> {
+    await this.adapter.deleteFrame(id);
   }
 
   async listFramesByCanvas(canvasId: string): Promise<Frame[]> {

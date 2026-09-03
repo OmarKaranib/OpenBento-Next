@@ -165,6 +165,15 @@ function createAdapter(
         mapPgError(error);
       }
     },
+    async deleteCanvas(id) {
+      const { error } = await (await client())
+        .from("canvases")
+        .delete()
+        .eq("id", id);
+      if (error) {
+        mapPgError(error);
+      }
+    },
     async listCanvasesByOwner(ownerId) {
       const { data, error } = await (await client())
         .from("canvases")
@@ -192,6 +201,15 @@ function createAdapter(
         mapPgError(error);
       }
     },
+    async deleteCard(id) {
+      const { error } = await (await client())
+        .from("cards")
+        .delete()
+        .eq("id", id);
+      if (error) {
+        mapPgError(error);
+      }
+    },
     async listCardsByCanvas(canvasId) {
       const { data, error } = await (await client())
         .from("cards")
@@ -215,6 +233,15 @@ function createAdapter(
     },
     async upsertFrame(row) {
       const { error } = await (await client()).from("frames").upsert(row);
+      if (error) {
+        mapPgError(error);
+      }
+    },
+    async deleteFrame(id) {
+      const { error } = await (await client())
+        .from("frames")
+        .delete()
+        .eq("id", id);
       if (error) {
         mapPgError(error);
       }

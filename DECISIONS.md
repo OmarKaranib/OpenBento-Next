@@ -32,15 +32,15 @@ Frames are persisted bordered regions. Fullscreen is **view-only** (`fullscreenF
 
 ## D-007 — Full shared domain catalog
 
-One catalog in `packages/domain` (20 actions):
+One catalog in `packages/domain` (23 actions):
 
-- Canvas: `createCanvas`, `renameCanvas`, `switchCanvas`, `updateCanvasViewport`
-- Card: `createCard`, `updateCard`, `moveCard`, `resizeCard`, `setCardFrame`
-- Frame: `createFrame`, `updateFrame`, `moveFrame`, `resizeFrame`
+- Canvas: `createCanvas`, `renameCanvas`, `switchCanvas`, `updateCanvasViewport`, `deleteCanvas`
+- Card: `createCard`, `updateCard`, `moveCard`, `resizeCard`, `setCardFrame`, `deleteCard`
+- Frame: `createFrame`, `updateFrame`, `moveFrame`, `resizeFrame`, `deleteFrame`
 - WatchBot: `createWatchBot` (requires `instruction`), `updateWatchBot`, `pauseWatchBot`, `resumeWatchBot`
 - Read/view: `getCanvasState`, `getWatchBotStatus`, `fullscreenFrame`
 
-`moveCard`, `resizeCard`, `updateCanvasViewport` are first-class. WebMCP tools use the Issue #1 snake_case → camelCase map only (`WEBMCP_SPEC.md`).
+`moveCard`, `resizeCard`, `updateCanvasViewport` are first-class. Destructive actions are human-UI-only and are excluded from WebMCP and the Interactive Agent. WebMCP tools use the Issue #1 snake_case → camelCase map only (`WEBMCP_SPEC.md`).
 
 ## D-008 — MIT for WebMCP detectability
 

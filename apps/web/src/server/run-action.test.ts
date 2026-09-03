@@ -83,7 +83,7 @@ describe("session-bound server wrappers", () => {
   });
 
   it("covers every catalog action through the same runner", async () => {
-    expect(ACTION_NAMES).toHaveLength(20);
+    expect(ACTION_NAMES).toHaveLength(23);
     const store = new InMemoryDomainStore();
     const deps = { getOwnerId: async () => "session-user", store };
     const canvas = await runBoundAction(deps, "createCanvas", { name: "N" });
@@ -155,5 +155,8 @@ describe("session-bound server wrappers", () => {
       active: true,
     });
     expect(view.active).toBe(true);
+    await runBoundAction(deps, "deleteFrame", { frameId: frame.id });
+    await runBoundAction(deps, "deleteCard", { cardId: card.id });
+    await runBoundAction(deps, "deleteCanvas", { canvasId: canvas.id });
   });
 });

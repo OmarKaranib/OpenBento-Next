@@ -20,8 +20,10 @@ import {
   cardSourceHref,
   contextMenuItems,
   frameBoundsAtPoint,
+  isTypingTarget,
   preventBrowserContextMenu,
   resolveContextMenuTarget,
+  selectedCardIds,
   type ContextMenuItemId,
   type ContextMenuTarget,
 } from "@/lib/canvas/context-menu";
@@ -44,7 +46,7 @@ const NODE_TYPES = {
 };
 
 function CanvasSurface() {
-  const { session, snapshot, execute, undo, redo } = useWorkspace();
+  const { session, snapshot, execute, commit, undo, redo } = useWorkspace();
   const {
     frameToolActive,
     setFrameToolActive,
@@ -145,10 +147,9 @@ function CanvasSurface() {
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
-      const target = event.target;
-      const typing =
-        target instanceof HTMLElement &&
-        (target.tagName === "INPUT" || target.tagName === "TEXTAREA");
+      const target =
+        event.target instanceof HTMLElement ? event.target : null;
+      const typing = isTypingTarget(target);
       const meta = event.metaKey || event.ctrlKey;
       if (meta && event.key.toLowerCase() === "z" && !typing) {
         event.preventDefault();
@@ -158,6 +159,24 @@ function CanvasSurface() {
           void undo();
         }
         return;
+      }
+      if (
+        !readOnly &&
+        !typing &&
+        (event.key === "Delete" || event.key === "Backspace")
+      ) {
+        const cardIds = selectedCardIds(nodes);
+        if (cardIds.length > 0) {
+          event.preventDefault();
+          void commit(
+            cardIds.map((cardId) => ({
+              name: "deleteCard" as const,
+              input: { cardId },
+            })),
+            { history: false },
+          );
+          return;
+        }
       }
       if (event.key === "Escape") {
         setFrameToolActive(false);
@@ -172,7 +191,7 @@ function CanvasSurface() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [execute, fullscreen, redo, setFrameToolActive, undo]);
+  }, [commit, execute, fullscreen, nodes, readOnly, redo, setFrameToolActive, undo]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -342,12 +361,34 @@ function CanvasSurface() {
         }
         return;
       }
+      if (id === "delete-card" && target.variant === "card") {
+        void execute(
+          "deleteCard",
+          { cardId: target.cardId },
+          { history: false },
+        );
+        return;
+      }
       if (id === "fullscreen-frame" && target.variant === "frame") {
         void execute(
           "fullscreenFrame",
           { frameId: target.frameId, active: true },
           { history: false },
         );
+        return;
+      }
+      if (id === "delete-frame" && target.variant === "frame") {
+        if (
+          window.confirm(
+            "Delete this Frame? Cards inside it will stay on the Canvas.",
+          )
+        ) {
+          void execute(
+            "deleteFrame",
+            { frameId: target.frameId },
+            { history: false },
+          );
+        }
       }
     },
     [

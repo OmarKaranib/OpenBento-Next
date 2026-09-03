@@ -10,15 +10,18 @@ import type { Canvas, Card, Frame, OwnerId, WatchBot, WatchBotEvent } from "./ty
 export interface DomainStore {
   getCanvas(id: string): Promise<Canvas | null>;
   saveCanvas(canvas: Canvas): Promise<void>;
+  deleteCanvas(id: string): Promise<void>;
   /** Reload/login restore. Not an ACTION_CATALOG name. */
   listCanvasesByOwner(ownerId: OwnerId): Promise<Canvas[]>;
 
   getCard(id: string): Promise<Card | null>;
   saveCard(card: Card): Promise<void>;
+  deleteCard(id: string): Promise<void>;
   listCardsByCanvas(canvasId: string): Promise<Card[]>;
 
   getFrame(id: string): Promise<Frame | null>;
   saveFrame(frame: Frame): Promise<void>;
+  deleteFrame(id: string): Promise<void>;
   listFramesByCanvas(canvasId: string): Promise<Frame[]>;
 
   getWatchBot(id: string): Promise<WatchBot | null>;
@@ -85,6 +88,32 @@ export class InMemoryDomainStore implements DomainStore {
     this.canvases.set(canvas.id, clone(canvas));
   }
 
+  async deleteCanvas(id: string): Promise<void> {
+    this.canvases.delete(id);
+    for (const [cardId, card] of this.cards) {
+      if (card.canvasId === id) {
+        this.cards.delete(cardId);
+      }
+    }
+    for (const [frameId, frame] of this.frames) {
+      if (frame.canvasId === id) {
+        this.frames.delete(frameId);
+      }
+    }
+    const deletedBots = new Set<string>();
+    for (const [watchBotId, watchBot] of this.watchBots) {
+      if (watchBot.canvasId === id) {
+        deletedBots.add(watchBotId);
+        this.watchBots.delete(watchBotId);
+      }
+    }
+    for (const [eventId, event] of this.watchBotEvents) {
+      if (event.canvasId === id || deletedBots.has(event.watchBotId)) {
+        this.watchBotEvents.delete(eventId);
+      }
+    }
+  }
+
   async listCanvasesByOwner(ownerId: OwnerId): Promise<Canvas[]> {
     return [...this.canvases.values()]
       .filter((canvas) => canvas.ownerId === ownerId)
@@ -100,6 +129,15 @@ export class InMemoryDomainStore implements DomainStore {
     this.cards.set(card.id, clone(card));
   }
 
+  async deleteCard(id: string): Promise<void> {
+    this.cards.delete(id);
+    for (const [eventId, event] of this.watchBotEvents) {
+      if (event.cardId === id) {
+        this.watchBotEvents.set(eventId, { ...event, cardId: undefined });
+      }
+    }
+  }
+
   async listCardsByCanvas(canvasId: string): Promise<Card[]> {
     return [...this.cards.values()]
       .filter((card) => card.canvasId === canvasId)
@@ -113,6 +151,17 @@ export class InMemoryDomainStore implements DomainStore {
 
   async saveFrame(frame: Frame): Promise<void> {
     this.frames.set(frame.id, clone(frame));
+  }
+
+  async deleteFrame(id: string): Promise<void> {
+    const linked = [...this.cards.values()].some((card) => card.frameId === id);
+    if (linked) {
+      throw new DomainError(
+        "invalid_input",
+        "Frame cannot be deleted while Cards still reference it",
+      );
+    }
+    this.frames.delete(id);
   }
 
   async listFramesByCanvas(canvasId: string): Promise<Frame[]> {

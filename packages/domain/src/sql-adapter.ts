@@ -15,14 +15,17 @@ import { SqlContractEngine, type SharedSqlTables, type SqlContractSession } from
 export interface DomainSqlAdapter {
   getCanvas(id: string): Promise<CanvasRecord | null>;
   upsertCanvas(row: CanvasRecord): Promise<void>;
+  deleteCanvas(id: string): Promise<void>;
   listCanvasesByOwner(ownerId: string): Promise<CanvasRecord[]>;
 
   getCard(id: string): Promise<CardRecord | null>;
   upsertCard(row: CardRecord): Promise<void>;
+  deleteCard(id: string): Promise<void>;
   listCardsByCanvas(canvasId: string): Promise<CardRecord[]>;
 
   getFrame(id: string): Promise<FrameRecord | null>;
   upsertFrame(row: FrameRecord): Promise<void>;
+  deleteFrame(id: string): Promise<void>;
   listFramesByCanvas(canvasId: string): Promise<FrameRecord[]>;
 
   getWatchBot(id: string): Promise<WatchBotRecord | null>;
@@ -48,6 +51,9 @@ export function createSqlContractAdapter(
     async upsertCanvas(row) {
       engine.upsertCanvas(row);
     },
+    async deleteCanvas(id) {
+      engine.deleteCanvas(id);
+    },
     async listCanvasesByOwner(ownerId) {
       return engine.listCanvases().filter((row) => row.owner_id === ownerId);
     },
@@ -57,6 +63,9 @@ export function createSqlContractAdapter(
     async upsertCard(row) {
       engine.upsertCard(row);
     },
+    async deleteCard(id) {
+      engine.deleteCard(id);
+    },
     async listCardsByCanvas(canvasId) {
       return engine.listCardsByCanvas(canvasId);
     },
@@ -65,6 +74,9 @@ export function createSqlContractAdapter(
     },
     async upsertFrame(row) {
       engine.upsertFrame(row);
+    },
+    async deleteFrame(id) {
+      engine.deleteFrame(id);
     },
     async listFramesByCanvas(canvasId) {
       return engine.listFramesByCanvas(canvasId);

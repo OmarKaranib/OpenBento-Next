@@ -8,6 +8,12 @@ import {
   type CreateCardInput,
   type CreateFrameInput,
   type CreateWatchBotInput,
+  type DeleteCanvasInput,
+  type DeleteCanvasResult,
+  type DeleteCardInput,
+  type DeleteCardResult,
+  type DeleteFrameInput,
+  type DeleteFrameResult,
   type FullscreenFrameInput,
   type GetCanvasStateInput,
   type GetWatchBotStatusInput,
@@ -141,6 +147,17 @@ export class ActionExecutor {
     return next;
   }
 
+  async deleteCanvas(input: DeleteCanvasInput): Promise<DeleteCanvasResult> {
+    this.validate("deleteCanvas", input);
+    await this.requireOwnedCanvas(input.canvasId);
+    await this.store.deleteCanvas(input.canvasId);
+    const remaining = await this.store.listCanvasesByOwner(this.ownerId);
+    return {
+      deletedCanvasId: input.canvasId,
+      nextCanvasId: pickNextCanvas(remaining)?.id ?? null,
+    };
+  }
+
   async createCard(input: CreateCardInput): Promise<Card> {
     this.validate("createCard", input);
     const content = cardContentOf(input.type, input.payload);
@@ -227,6 +244,13 @@ export class ActionExecutor {
     return next;
   }
 
+  async deleteCard(input: DeleteCardInput): Promise<DeleteCardResult> {
+    this.validate("deleteCard", input);
+    await this.requireOwnedCard(input.cardId);
+    await this.store.deleteCard(input.cardId);
+    return { deletedCardId: input.cardId };
+  }
+
   async createFrame(input: CreateFrameInput): Promise<Frame> {
     this.validate("createFrame", input);
     this.assertPositiveSize(input.bounds);
@@ -287,6 +311,22 @@ export class ActionExecutor {
     };
     await this.store.saveFrame(next);
     return next;
+  }
+
+  async deleteFrame(input: DeleteFrameInput): Promise<DeleteFrameResult> {
+    this.validate("deleteFrame", input);
+    const frame = await this.requireOwnedFrame(input.frameId);
+    const cards = await this.store.listCardsByCanvas(frame.canvasId);
+    const detachedCardIds: string[] = [];
+    for (const card of cards) {
+      if (card.frameId !== frame.id) {
+        continue;
+      }
+      await this.setCardFrame({ cardId: card.id, frameId: null });
+      detachedCardIds.push(card.id);
+    }
+    await this.store.deleteFrame(frame.id);
+    return { deletedFrameId: frame.id, detachedCardIds };
   }
 
   async createWatchBot(input: CreateWatchBotInput): Promise<WatchBot> {
@@ -446,6 +486,14 @@ export class ActionExecutor {
     await this.requireOwnedCanvas(watchBot.canvasId);
     return watchBot;
   }
+}
+
+function pickNextCanvas(canvases: Canvas[]): Canvas | undefined {
+  return [...canvases].sort((a, b) => {
+    const aOpened = a.lastOpenedAt ?? a.updatedAt;
+    const bOpened = b.lastOpenedAt ?? b.updatedAt;
+    return bOpened.localeCompare(aOpened) || a.id.localeCompare(b.id);
+  })[0];
 }
 
 export function createActionExecutor(deps: ActionExecutorDeps): ActionExecutor {

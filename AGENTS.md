@@ -12,7 +12,7 @@ Read [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.md) be
 
 ## Shared domain catalog (mandatory)
 
-Human UI, WatchBot, and WebMCP use `@openbento/domain` (`ACTION_NAMES`, 20 actions) via `createActionExecutor`. Do not invent a second catalog.
+Human UI, WatchBot, and WebMCP use `@openbento/domain` (`ACTION_NAMES`, 23 actions) via `createActionExecutor`. Do not invent a second catalog. Destructive actions are human-UI-only unless separately authorized.
 
 - `ownerId` is server-derived. Never put it on action inputs.
 - `createWatchBot` requires `instruction`.

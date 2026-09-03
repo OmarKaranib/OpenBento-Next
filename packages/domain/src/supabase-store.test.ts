@@ -65,6 +65,15 @@ describe("SupabaseDomainStore SQL-contract double", () => {
     await expect(
       b.moveCard({ cardId: card.id, position: { x: 9, y: 9 } }),
     ).rejects.toMatchObject({ code: "not_found" });
+    await expect(b.deleteCard({ cardId: card.id })).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await expect(b.deleteFrame({ frameId: frame.id })).rejects.toMatchObject({
+      code: "not_found",
+    });
+    await expect(
+      b.deleteCanvas({ canvasId: canvas.id }),
+    ).rejects.toMatchObject({ code: "not_found" });
 
     const still = await storeA.getCanvas(canvas.id);
     expect(still?.name).toBe("Alpha");
@@ -226,6 +235,57 @@ describe("SupabaseDomainStore SQL-contract double", () => {
         cardId: foreign.id,
       }),
     ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("mirrors Card SET NULL, Frame restrict/cleanup, and Canvas cascades", async () => {
+    const { tables, storeA, a } = pair();
+    const canvas = await a.createCanvas({ name: "Delete contract" });
+    const card = await a.createCard({
+      canvasId: canvas.id,
+      type: "news",
+      payload: { provenance },
+      position: { x: 30, y: 40 },
+      size: { width: 300, height: 190 },
+    });
+    const frame = await a.createFrame({
+      canvasId: canvas.id,
+      bounds: { x: 0, y: 0, width: 400, height: 300 },
+    });
+    const bot = await a.createWatchBot({
+      canvasId: canvas.id,
+      instruction: "Watch",
+    });
+    await a.setCardFrame({ cardId: card.id, frameId: frame.id });
+    await storeA.saveWatchBotEvent({
+      id: "event-delete",
+      watchBotId: bot.id,
+      canvasId: canvas.id,
+      kind: "card_created",
+      sourceUrl: provenance.sourceUrl,
+      dedupKey: "news:delete",
+      discoveredAt: STAMP,
+      cardId: card.id,
+    });
+
+    await expect(storeA.deleteFrame(frame.id)).rejects.toMatchObject({
+      code: "invalid_input",
+    });
+    const geometry = { position: card.position, size: card.size };
+    await a.deleteFrame({ frameId: frame.id });
+    expect(await storeA.getFrame(frame.id)).toBeNull();
+    const detached = await storeA.getCard(card.id);
+    expect(detached?.frameId ?? null).toBeNull();
+    expect(detached?.position).toEqual(geometry.position);
+    expect(detached?.size).toEqual(geometry.size);
+
+    await a.deleteCard({ cardId: card.id });
+    expect(tables.watchBotEvents.get("event-delete")?.card_id).toBeNull();
+    expect(await storeA.listWatchBotEventsByWatchBot(bot.id)).toHaveLength(1);
+
+    await a.deleteCanvas({ canvasId: canvas.id });
+    expect(tables.canvases.has(canvas.id)).toBe(false);
+    expect(tables.watchBots.has(bot.id)).toBe(false);
+    expect(tables.watchBotEvents.has("event-delete")).toBe(false);
   });
 
   it("restores canvas state after reload against the same store", async () => {
