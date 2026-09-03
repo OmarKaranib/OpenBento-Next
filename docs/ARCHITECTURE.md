@@ -14,7 +14,7 @@ apps/web              Next.js 16 App Router. Railway-inspired workspace + login.
 apps/worker           WatchBot worker. createWorkerDomainStore(); --fixture is tests only.
 packages/domain       Catalog + handlers (`ActionExecutor`) + DomainStore port
                       + SupabaseDomainStore.
-packages/watchbot     SourceProvider + pipeline. Optional Grok / OpenAI web adapters behind env.
+packages/watchbot     SourceProvider + pipeline. Optional X, YouTube, Grok, and OpenAI web adapters behind env.
 packages/ui           Shared visual tokens for the workspace chrome.
 supabase/migrations   Dev SQL + RLS matching schema.ts. Do not apply from this agent.
 docs/                 Maintained specs + OPENBENTO_MASTER_CONTEXT.md
@@ -103,4 +103,4 @@ Event taxonomy: [`docs/ANALYTICS.md`](./docs/ANALYTICS.md). No secrets, instruct
 
 ## Non-goals (this phase)
 
-No X/YouTube discovery, billing/Stripe, production Supabase, Railway services, or deploy. Do not modify `OmarKaranib/OpenBento`. Do not apply migrations to any hosted database from this agent. The Canvas UI must not reimplement the store. WebMCP must not mint a second session owner. Domain must not import Grok/xAI.
+No billing/Stripe, infrastructure mutation, or deploy in ordinary implementation work. X and YouTube discovery are official-API, worker-only, opt-in lanes with independent gates and hard request bounds. Do not modify `OmarKaranib/OpenBento`. Do not apply migrations to any hosted database from this agent. The Canvas UI must not reimplement the store. WebMCP must not mint a second session owner. Domain must not import provider adapters.

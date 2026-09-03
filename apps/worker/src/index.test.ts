@@ -67,6 +67,11 @@ function clearPersistEnv(): void {
   delete process.env.X_PROVIDER_ENABLED;
   delete process.env.X_BEARER_TOKEN;
   delete process.env.X_MAX_REQUESTS_PER_WORKER_TICK;
+  delete process.env.YOUTUBE_PROVIDER_ENABLED;
+  delete process.env.YOUTUBE_API_KEY;
+  delete process.env.YOUTUBE_MAX_REQUESTS_PER_TICK;
+  delete process.env.YOUTUBE_MAX_RESULTS_PER_CYCLE;
+  delete process.env.YOUTUBE_TIMEOUT_MS;
   delete process.env.WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED;
   delete process.env.WATCHBOT_MEANINGFULNESS_PROVIDER;
   delete process.env.XAI_API_KEY;
@@ -226,7 +231,7 @@ describe("OPENBENTO_WORKER_ENABLED fail closed", () => {
     expect(createStore).not.toHaveBeenCalled();
     expect(runCycle).not.toHaveBeenCalled();
     const gateIdx = source.indexOf("if (!isWorkerEnabled(env))");
-    const xIdx = source.indexOf("useX ? createXSourceProvider");
+    const xIdx = source.indexOf("createXSourceProvider(undefined, env)");
     const storeIdx = source.indexOf("options.createStore ?? createWorkerDomainStore");
     expect(gateIdx).toBeGreaterThan(-1);
     expect(xIdx).toBeGreaterThan(gateIdx);
@@ -506,10 +511,85 @@ describe("OpenAI web/news provider selection", () => {
   });
 });
 
+describe("YouTube provider selection", () => {
+  it("selects the isolated --provider=youtube adapter without changing other commands", () => {
+    expect(source).toMatch(/argv\.includes\("--provider=youtube"\)/);
+    expect(source).toMatch(/createYouTubeSourceProvider/);
+    expect(source).toMatch(/argv\.includes\("--provider=openai-web"\)/);
+    expect(source).toMatch(/argv\.includes\("--provider=x"\)/);
+    expect(source).toMatch(/argv\.includes\("--provider=grok"\)/);
+  });
+
+  it("rejects combining youtube with another provider", async () => {
+    process.env.OPENBENTO_WORKER_ENABLED = "true";
+    await expect(
+      main(["--once", "--fixture", "--provider=youtube", "--provider=x"]),
+    ).rejects.toThrow(/Select only one WatchBot provider/);
+    await expect(
+      main([
+        "--once",
+        "--fixture",
+        "--provider=youtube",
+        "--provider=openai-web",
+      ]),
+    ).rejects.toThrow(/Select only one WatchBot provider/);
+    await expect(
+      main(["--once", "--fixture", "--provider=youtube", "--provider=grok"]),
+    ).rejects.toThrow(/Select only one WatchBot provider/);
+  });
+
+  it("keeps a selected but disabled YouTube lane at zero HTTP", async () => {
+    process.env.OPENBENTO_WORKER_ENABLED = "true";
+    process.env.YOUTUBE_PROVIDER_ENABLED = "false";
+    process.env.YOUTUBE_API_KEY = "present-but-gate-is-off";
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const runCycle = vi.fn(async () => EMPTY_CYCLE);
+
+    await expect(
+      main(["--once", "--fixture", "--provider=youtube"], { runCycle }),
+    ).resolves.toBeUndefined();
+    expect(runCycle).toHaveBeenCalledWith(
+      expect.objectContaining({
+        provider: expect.objectContaining({
+          id: "youtube-data-api-v3",
+          vendor: "youtube-api",
+        }),
+      }),
+    );
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+
+  it("fails closed before a cycle when YouTube is enabled without its key", async () => {
+    process.env.OPENBENTO_WORKER_ENABLED = "true";
+    process.env.YOUTUBE_PROVIDER_ENABLED = "true";
+
+    await expect(
+      main(["--once", "--fixture", "--provider=youtube"]),
+    ).rejects.toMatchObject({ code: "credential_missing" });
+  });
+
+  it("constructs the enabled adapter without making a live request", async () => {
+    process.env.OPENBENTO_WORKER_ENABLED = "true";
+    process.env.YOUTUBE_PROVIDER_ENABLED = "true";
+    process.env.YOUTUBE_API_KEY = "test-not-a-secret";
+    const fetchSpy = vi.spyOn(globalThis, "fetch");
+    const runCycle = vi.fn(async () => EMPTY_CYCLE);
+
+    await expect(
+      main(["--once", "--fixture", "--provider=youtube"], { runCycle }),
+    ).resolves.toBeUndefined();
+    expect(runCycle).toHaveBeenCalledTimes(1);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    fetchSpy.mockRestore();
+  });
+});
+
 describe("worker secret separation", () => {
   it("does not place worker secrets on NEXT_PUBLIC code paths", () => {
     expect(source).not.toMatch(/NEXT_PUBLIC_.*X_BEARER|X_BEARER_TOKEN.*NEXT_PUBLIC/);
     expect(source).not.toMatch(/NEXT_PUBLIC_SUPABASE_SERVICE_ROLE/);
+    expect(source).not.toMatch(/NEXT_PUBLIC_.*YOUTUBE|YOUTUBE_API_KEY.*NEXT_PUBLIC/);
     expect(source).toMatch(/createWorkerDomainStore/);
   });
 });

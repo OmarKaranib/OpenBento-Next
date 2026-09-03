@@ -2,7 +2,12 @@ import type { SourceType } from "@openbento/domain";
 import type { DiscoveredItem } from "./provider";
 import { sanitizeUntrustedText } from "./untrusted";
 
-export const WATCHBOT_V0_SOURCE_TYPES = ["web", "news", "x"] as const;
+export const WATCHBOT_V0_SOURCE_TYPES = [
+  "web",
+  "news",
+  "youtube",
+  "x",
+] as const;
 export type WatchBotV0SourceType = (typeof WATCHBOT_V0_SOURCE_TYPES)[number];
 
 const TRACKING_PARAMS = new Set([
@@ -50,7 +55,7 @@ const BLOCKED_V0_HOSTS = [
 
 const X_HOSTS = ["x.com", "twitter.com"] as const;
 
-/** YouTube remains out of this slice. X is valid only when explicitly typed. */
+/** Provider-owned hosts cannot be accepted as generic web/news sources. */
 export function isBlockedWatchBotV0Host(hostname: string): boolean {
   const host = hostname.toLowerCase();
   return BLOCKED_V0_HOSTS.some(
@@ -77,6 +82,35 @@ function isXUrl(raw: string): boolean {
   } catch {
     return false;
   }
+}
+
+const YOUTUBE_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
+
+/** Accept only the official canonical watch-page shape used by the adapter. */
+export function youtubeVideoIdFromWatchUrl(raw: string): string | null {
+  try {
+    const url = new URL(raw);
+    if (
+      url.protocol !== "https:" ||
+      url.hostname.toLowerCase() !== "www.youtube.com" ||
+      url.username !== "" ||
+      url.password !== "" ||
+      url.port !== "" ||
+      url.pathname !== "/watch"
+    ) {
+      return null;
+    }
+    const videoId = url.searchParams.get("v") ?? "";
+    return YOUTUBE_VIDEO_ID.test(videoId) ? videoId : null;
+  } catch {
+    return null;
+  }
+}
+
+export function canonicalYouTubeWatchUrl(videoId: string): string | null {
+  return YOUTUBE_VIDEO_ID.test(videoId)
+    ? `https://www.youtube.com/watch?v=${videoId}`
+    : null;
 }
 
 /** Canonical URL: lowercase host, drop hash, drop tracking params, drop trailing slash. */
@@ -129,9 +163,10 @@ export function parsePublishedAt(value: unknown): string {
 }
 
 /**
- * Normalize a discovered item. X stays X: it must have an X URL and a source
- * type of `x`; X URLs labelled web/news are rejected rather than coerced.
- * Source text is data only.
+ * Normalize a discovered item. Provider-owned sources stay correctly typed:
+ * X and YouTube URLs labelled web/news are rejected rather than coerced.
+ * YouTube is reduced to the canonical official watch URL. Source text is data
+ * only.
  */
 export function normalizeDiscoveredItem(
   item: DiscoveredItem,
@@ -140,18 +175,31 @@ export function normalizeDiscoveredItem(
   if (!isWatchBotV0SourceType(item.sourceType)) {
     return null;
   }
+  const youtubeVideoId =
+    item.sourceType === "youtube"
+      ? youtubeVideoIdFromWatchUrl(item.sourceUrl)
+      : null;
   if (
     (item.sourceType === "x" && !isXUrl(item.sourceUrl)) ||
     (item.sourceType !== "x" && isXUrl(item.sourceUrl)) ||
-    (item.sourceType !== "x" && isBlockedWatchBotV0Url(item.sourceUrl))
+    (item.sourceType === "youtube" && !youtubeVideoId) ||
+    (item.sourceType !== "youtube" &&
+      item.sourceType !== "x" &&
+      isBlockedWatchBotV0Url(item.sourceUrl))
   ) {
     return null;
   }
-  const canonicalUrl = canonicalizeUrl(item.sourceUrl);
+  const canonicalUrl = youtubeVideoId
+    ? canonicalYouTubeWatchUrl(youtubeVideoId)
+    : canonicalizeUrl(item.sourceUrl);
   if (
     !canonicalUrl ||
     (item.sourceType === "x" && !isXUrl(canonicalUrl)) ||
-    (item.sourceType !== "x" && isBlockedWatchBotV0Url(canonicalUrl))
+    (item.sourceType === "youtube" &&
+      !youtubeVideoIdFromWatchUrl(canonicalUrl)) ||
+    (item.sourceType !== "youtube" &&
+      item.sourceType !== "x" &&
+      isBlockedWatchBotV0Url(canonicalUrl))
   ) {
     return null;
   }
@@ -178,12 +226,15 @@ export function normalizeDiscoveredItem(
 
 export function sourceTypeToCardType(
   sourceType: WatchBotV0SourceType,
-): "web" | "news" | "x" {
+): "web" | "news" | "youtube" | "x" {
   if (sourceType === "news") {
     return "news";
   }
   if (sourceType === "x") {
     return "x";
+  }
+  if (sourceType === "youtube") {
+    return "youtube";
   }
   return "web";
 }

@@ -75,7 +75,8 @@ Names only. Set real values in the Railway dashboard (and never commit them). Do
 | `NEXT_PUBLIC_SENTRY_DSN` | Optional browser error-ingestion DSN; public by design. Default PII and tracing are disabled |
 | `SENTRY_DSN` | Optional web server/edge error-ingestion DSN; service-scoped |
 
-Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web service.
+Do **not** set `SUPABASE_SERVICE_ROLE_KEY`, `X_BEARER_TOKEN`, or
+`YOUTUBE_API_KEY` on the web service.
 
 ### Worker only (exact names for a future X-only service)
 
@@ -100,6 +101,11 @@ Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web servic
 | `WATCHBOT_MEANINGFULNESS_PROVIDER` | **`none`** initially. Explicit selector: `openai` \| `xai` \| `none`. Missing/empty/unknown → `none` (passthrough). Never auto-picks from which API key is present |
 | `OPENAI_API_KEY` | **Worker-only.** Required when the classifier gate is on **and** `WATCHBOT_MEANINGFULNESS_PROVIDER=openai`, and/or when OpenAI web/news discovery is enabled. Never on web. Never `NEXT_PUBLIC_` |
 | `WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED` | **`false`** initially. Independent OpenAI web/news discovery gate. Worker selects the adapter with `--provider=openai-web`. Missing gate or key → fail closed (null / composition error) |
+| `YOUTUBE_PROVIDER_ENABLED` | **`false`** initially. Independent YouTube discovery gate. A key alone does not enable the provider; select it with `--provider=youtube` |
+| `YOUTUBE_API_KEY` | Worker-only YouTube Data API v3 credential. Never web, browser, `NEXT_PUBLIC_*`, logs, or repository |
+| `YOUTUBE_MAX_REQUESTS_PER_TICK` | Shared request cap across YouTube WatchBots. Default `2`, hard ceiling `10` |
+| `YOUTUBE_MAX_RESULTS_PER_CYCLE` | Per-WatchBot YouTube result cap. Default `10`, hard ceiling `20` |
+| `YOUTUBE_TIMEOUT_MS` | Request timeout. Default `10000`, hard ceiling `15000` |
 | `OPENAI_WEB_MODEL` | `gpt-5.6-luna` |
 | `WATCHBOT_OPENAI_WEB_MAX_REQUESTS_PER_TICK` | `1` (shared across WatchBots in one tick; hard ceiling `5`) |
 | `WATCHBOT_OPENAI_WEB_MAX_REQUESTS_PER_CYCLE` | `1` (per WatchBot cycle; hard ceiling `2`) |
@@ -113,7 +119,7 @@ Do **not** set `SUPABASE_SERVICE_ROLE_KEY` or `X_BEARER_TOKEN` on the web servic
 | `WATCHBOT_MEANINGFULNESS_MAX_CALLS_PER_CYCLE` | `5` (per WatchBot pipeline cycle; hard ceiling `10`) |
 | `WATCHBOT_MEANINGFULNESS_TIMEOUT_MS` | `8000` (ceiling `15000`) |
 
-**Secret separation:** `SUPABASE_SERVICE_ROLE_KEY` and `X_BEARER_TOKEN` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path. `XAI_API_KEY` and `OPENAI_API_KEY` are also worker-only when the classifier, Grok discovery, or OpenAI web/news adapter is used. The Interactive Agent uses a dedicated web server-only `OPENAI_AGENT_API_KEY` and must not fall back to worker `OPENAI_API_KEY`. Never log or commit these keys.
+**Secret separation:** `SUPABASE_SERVICE_ROLE_KEY`, `X_BEARER_TOKEN`, and `YOUTUBE_API_KEY` remain worker-only and must never be added to the web service or any `NEXT_PUBLIC_*` path. `XAI_API_KEY` and `OPENAI_API_KEY` are also worker-only when the classifier, Grok discovery, or OpenAI web/news adapter is used. The Interactive Agent uses a dedicated web server-only `OPENAI_AGENT_API_KEY` and must not fall back to worker `OPENAI_API_KEY`. Never log or commit these keys.
 
 Sentry is error monitoring only: no product analytics, replay, performance
 tracing, or default PII collection. Do not place `SENTRY_AUTH_TOKEN` on either

@@ -41,8 +41,8 @@ view of what matters.
   unread claim
 - Interactive Agent with a dedicated web-server-only
   `OPENAI_AGENT_API_KEY`
-- Official X provider and opt-in OpenAI web/news provider for WatchBot
-  discovery
+- Official X and YouTube Data API v3 providers, plus an opt-in OpenAI web/news
+  provider, for WatchBot discovery
 - Meaningfulness classification defaults to `gpt-5.6-luna`; the pipeline also
   preserves bounded deduplication, novelty, relevance, clustering, and
   selection stages
@@ -51,8 +51,8 @@ view of what matters.
 - MIT licensed
 
 The worker is intentionally fail-closed outside controlled validation. Provider
-gates and request budgets keep X, web/news, and classifier activity bounded;
-this repository does not claim always-on production monitoring.
+gates and request budgets keep X, YouTube, web/news, and classifier activity
+bounded; this repository does not claim always-on production monitoring.
 
 ## Why WebMCP matters
 

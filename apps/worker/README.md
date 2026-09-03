@@ -22,6 +22,7 @@ stamps `ownerId` from the WatchBot record.
 pnpm --filter worker start          # one durable cycle (createWorkerDomainStore)
 pnpm --filter worker start:loop     # durable loop
 pnpm --filter worker start:loop -- --provider=x   # Railway-intended X adapter path
+pnpm --filter worker start:loop -- --provider=youtube # official YouTube adapter path
 pnpm --filter worker start:fixture  # isolated InMemory fixture (tests only)
 ```
 
@@ -115,7 +116,11 @@ fallback. Optional `--provider=grok` uses the env-gated adapter when
 `WATCHBOT_OPENAI_WEB_PROVIDER_ENABLED=true`, and worker-only `OPENAI_API_KEY`
 is set. `--provider=x` uses the read-only official X API v2 adapter only when
 the global worker is enabled, `X_PROVIDER_ENABLED=true`, and the worker-only
-`X_BEARER_TOKEN` is set. Select only one `--provider` per process. The X lane
-is unchanged: separate query/request/page/result/timeout caps and no X mutations.
+`X_BEARER_TOKEN` is set. `--provider=youtube` uses the read-only official
+YouTube Data API v3 adapter only when the global worker is enabled,
+`YOUTUBE_PROVIDER_ENABLED=true`, and worker-only `YOUTUBE_API_KEY` is set.
+Select only one `--provider` per process. Concurrent source services require
+separate worker processes. The X lane is unchanged: separate
+query/request/page/result/timeout caps and no X mutations.
 
 Do not apply Supabase migrations from this app.
