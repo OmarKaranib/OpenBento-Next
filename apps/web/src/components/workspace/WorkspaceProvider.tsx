@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -17,8 +18,10 @@ import {
   type SessionSnapshot,
 } from "@/lib/domain/workspace-session";
 import {
+  AuthVerificationSequencer,
   WorkspaceSessionBinder,
   principalIdFromAuthUser,
+  runVerifiedAuthBind,
 } from "@/lib/domain/workspace-session-lifecycle";
 import {
   listOwnedCanvases,
@@ -110,15 +113,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   );
   const [isGuest, setIsGuest] = useState(false);
   const [session, setSession] = useState<WorkspaceSession | null>(null);
+  const verificationSequencerRef = useRef(new AuthVerificationSequencer());
 
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
-    let cancelled = false;
+    const sequencer = verificationSequencerRef.current;
 
     function applyUser(user: AuthUserLike | null) {
-      if (cancelled) {
-        return;
-      }
       const next = bindSessionForUser(user);
       setAuth(next.auth);
       setIsGuest(next.isGuest);
@@ -128,17 +129,26 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       }
     }
 
-    void supabase.auth.getUser().then(({ data }) => {
-      applyUser(data.user ?? null);
-    });
-    const { data } = supabase.auth.onAuthStateChange(() => {
-      // Re-verify via getUser on every auth event — never bind from JWT alone.
-      void supabase.auth.getUser().then(({ data: verified }) => {
-        applyUser(verified.user ?? null);
+    function startVerifiedPrincipalCheck() {
+      // Always derive identity from verified getUser() — never bind from the
+      // onAuthStateChange JWT/session payload. Only the latest started check
+      // may apply/bind when multiple verifications overlap.
+      void runVerifiedAuthBind({
+        sequencer,
+        getUser: async () => {
+          const { data } = await supabase.auth.getUser();
+          return data.user ?? null;
+        },
+        apply: applyUser,
       });
+    }
+
+    startVerifiedPrincipalCheck();
+    const { data } = supabase.auth.onAuthStateChange(() => {
+      startVerifiedPrincipalCheck();
     });
     return () => {
-      cancelled = true;
+      sequencer.invalidate();
       data.subscription.unsubscribe();
     };
   }, []);
@@ -178,14 +188,21 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         <EntryScreen
           onSignedIn={() => {
             const supabase = createBrowserSupabaseClient();
-            void supabase.auth.getUser().then(({ data }) => {
-              const next = bindSessionForUser(data.user ?? null);
-              setAuth(next.auth);
-              setIsGuest(next.isGuest);
-              setSession(next.session);
-              if (next.session) {
-                void next.session.start();
-              }
+            void runVerifiedAuthBind({
+              sequencer: verificationSequencerRef.current,
+              getUser: async () => {
+                const { data } = await supabase.auth.getUser();
+                return data.user ?? null;
+              },
+              apply: (user) => {
+                const next = bindSessionForUser(user);
+                setAuth(next.auth);
+                setIsGuest(next.isGuest);
+                setSession(next.session);
+                if (next.session) {
+                  void next.session.start();
+                }
+              },
             });
           }}
         />

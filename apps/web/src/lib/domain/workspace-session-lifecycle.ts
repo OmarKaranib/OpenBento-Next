@@ -81,3 +81,45 @@ export function createDefaultWorkspaceSession(
 ): WorkspaceSession {
   return new WorkspaceSession(options);
 }
+
+/**
+ * Monotonic generation gate for concurrent auth verifications.
+ * Only the latest-started verification may apply/bind its result.
+ */
+export class AuthVerificationSequencer {
+  private latestGeneration = 0;
+
+  /** Reserve a generation for a verification that is about to start. */
+  begin(): number {
+    this.latestGeneration += 1;
+    return this.latestGeneration;
+  }
+
+  /** True iff `generation` is still the latest started verification. */
+  isLatest(generation: number): boolean {
+    return generation === this.latestGeneration;
+  }
+
+  /** Invalidate in-flight verifications (e.g. on unmount). */
+  invalidate(): void {
+    this.latestGeneration += 1;
+  }
+}
+
+/**
+ * Start a verified getUser() check and apply only if this generation is still
+ * latest when it resolves. Returns false when the result was ignored as stale.
+ */
+export async function runVerifiedAuthBind(options: {
+  sequencer: AuthVerificationSequencer;
+  getUser: () => Promise<AuthUserLike | null>;
+  apply: (user: AuthUserLike | null) => void;
+}): Promise<boolean> {
+  const generation = options.sequencer.begin();
+  const user = await options.getUser();
+  if (!options.sequencer.isLatest(generation)) {
+    return false;
+  }
+  options.apply(user);
+  return true;
+}

@@ -5,8 +5,10 @@ import { runDomainActionFromRequest } from "../../server/run-action";
 import { requestAuthFromVerifiedUser } from "../../server/session";
 import { WorkspaceSession } from "./workspace-session";
 import {
+  AuthVerificationSequencer,
   WorkspaceSessionBinder,
   principalIdFromAuthUser,
+  runVerifiedAuthBind,
   shouldReplaceWorkspaceSession,
 } from "./workspace-session-lifecycle";
 
@@ -175,5 +177,59 @@ describe("WorkspaceSessionBinder account-switch lifecycle", () => {
   it("rejects empty principal ids (never trust blank client identity)", () => {
     const binder = new WorkspaceSessionBinder(() => createUiSession(USER_A));
     expect(() => binder.bind("")).toThrow(/principalId/i);
+  });
+});
+
+describe("AuthVerificationSequencer stale getUser race", () => {
+  it("only the latest-started verification may bind; delayed A is ignored after B", async () => {
+    const sequencer = new AuthVerificationSequencer();
+    let nextOwner = USER_A;
+    const binder = new WorkspaceSessionBinder(() => createUiSession(nextOwner));
+
+    let resolveA!: (user: { id: string } | null) => void;
+    let resolveB!: (user: { id: string } | null) => void;
+    const pendingA = new Promise<{ id: string } | null>((resolve) => {
+      resolveA = resolve;
+    });
+    const pendingB = new Promise<{ id: string } | null>((resolve) => {
+      resolveB = resolve;
+    });
+
+    const apply = (user: { id: string } | null) => {
+      const principalId = principalIdFromAuthUser(user);
+      if (!principalId) {
+        binder.retire();
+        return;
+      }
+      nextOwner = principalId;
+      binder.bind(principalId);
+    };
+
+    // 1. verification A starts
+    const startedA = runVerifiedAuthBind({
+      sequencer,
+      getUser: () => pendingA,
+      apply,
+    });
+    // 2. verification B starts later
+    const startedB = runVerifiedAuthBind({
+      sequencer,
+      getUser: () => pendingB,
+      apply,
+    });
+
+    // 3. B resolves and binds B
+    resolveB({ id: USER_B });
+    expect(await startedB).toBe(true);
+    expect(binder.getBoundPrincipalId()).toBe(USER_B);
+    const sessionB = binder.getSession();
+    expect(sessionB).toBeDefined();
+
+    // 4. delayed A resolves afterward
+    resolveA({ id: USER_A });
+    // 5. A is ignored and B remains the active principal/session
+    expect(await startedA).toBe(false);
+    expect(binder.getBoundPrincipalId()).toBe(USER_B);
+    expect(binder.getSession()).toBe(sessionB);
   });
 });
