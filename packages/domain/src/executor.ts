@@ -339,8 +339,9 @@ export class ActionExecutor {
   async resumeWatchBot(input: ResumeWatchBotInput): Promise<WatchBot> {
     this.validate("resumeWatchBot", input);
     const watchBot = await this.requireOwnedWatchBot(input.watchBotId);
+    const { lastError: _cleared, ...rest } = watchBot;
     const next: WatchBot = {
-      ...watchBot,
+      ...rest,
       status: "running",
       updatedAt: this.now(),
     };
