@@ -234,6 +234,7 @@ describe("official X API v2 SourceProvider", () => {
     );
     await expect(timeoutProvider.discover(discoverInput)).rejects.toMatchObject({
       code: "timeout",
+      retryable: true,
     });
 
     const networkProvider = enabledProvider((async () => {
@@ -241,6 +242,7 @@ describe("official X API v2 SourceProvider", () => {
     }) as typeof fetch);
     await expect(networkProvider.discover(discoverInput)).rejects.toMatchObject({
       code: "network",
+      retryable: true,
     });
 
     const malformedProvider = enabledProvider(async () => new Response("{}", { status: 200 }));
