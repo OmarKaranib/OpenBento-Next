@@ -16,6 +16,7 @@ import {
   buildCreateYoutubeCardInput,
   knownPublishedAtLabel,
   publishedAtForCreate,
+  YOUTUBE_DEFAULT_SIZE,
 } from "./source-card";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -36,6 +37,23 @@ async function commitThrough(
 }
 
 describe("UI youtube/article create uses provenance payloads", () => {
+  it("uses the improved YouTube default without overriding supplied geometry", () => {
+    expect(YOUTUBE_DEFAULT_SIZE).toEqual({ width: 400, height: 340 });
+    expect(
+      buildCreateYoutubeCardInput({
+        canvasId: "canvas-1",
+        sourceUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+      }).size,
+    ).toEqual(YOUTUBE_DEFAULT_SIZE);
+    expect(
+      buildCreateYoutubeCardInput({
+        canvasId: "canvas-1",
+        sourceUrl: "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        size: { width: 517, height: 283 },
+      }).size,
+    ).toEqual({ width: 517, height: 283 });
+  });
+
   it("builds youtube + article + web SourceCardPayload and persists via createCard", async () => {
     const executor = createActionExecutor({
       store: new InMemoryDomainStore(),
@@ -213,6 +231,7 @@ describe("source Card create is two catalog calls", () => {
         sourceUrl: "https://youtu.be/dQw4w9WgXcQ",
         title: "Video",
         position: { x: 24, y: 24 },
+        size: { width: 280, height: 180 },
       }),
       [frame],
     );

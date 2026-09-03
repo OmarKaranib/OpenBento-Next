@@ -12,7 +12,7 @@ import {
   parseYouTubeVideoId,
 } from "../youtube";
 
-export const YOUTUBE_DEFAULT_SIZE: Size = { width: 320, height: 228 };
+export const YOUTUBE_DEFAULT_SIZE: Size = { width: 400, height: 340 };
 export const SOURCE_LINK_DEFAULT_SIZE: Size = { width: 280, height: 180 };
 
 export type CreatableSourceCardType = Extract<CardType, "youtube" | "article" | "web">;
