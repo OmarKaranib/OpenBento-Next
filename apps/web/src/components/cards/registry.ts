@@ -1,5 +1,5 @@
 /**
- * Card type registry. Note, YouTube, Article, Web, and X register here —
+ * Card type registry. Note, YouTube, Article, Web, News, and X register here —
  * do not add a second canvas engine for those types.
  */
 
@@ -14,6 +14,7 @@ import {
 import { NoteCardNode } from "@/components/canvas/nodes/NoteCardNode";
 import {
   ArticleCardNode,
+  NewsCardNode,
   WebCardNode,
   XCardNode,
 } from "@/components/canvas/nodes/ArticleCardNode";
@@ -86,6 +87,15 @@ registerCardType({
   createMode: "source",
   defaultSize: SOURCE_LINK_DEFAULT_SIZE,
   Node: WebCardNode as ComponentType<NodeProps>,
+});
+
+registerCardType({
+  type: "news",
+  label: "News",
+  creatable: false,
+  createMode: "source",
+  defaultSize: SOURCE_LINK_DEFAULT_SIZE,
+  Node: NewsCardNode as ComponentType<NodeProps>,
 });
 
 registerCardType({

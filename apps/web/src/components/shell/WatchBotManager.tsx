@@ -153,7 +153,7 @@ export function WatchBotCanvasPanel({
           {mode === "create" ? "New WatchBot" : "Edit WatchBot"}
         </p>
         <p className="text-[11px] leading-4 text-zinc-500">
-          {WATCHBOT_SCOPE_LABEL} · configuration only until the worker runs
+          {WATCHBOT_SCOPE_LABEL} · monitor configured sources
         </p>
         <form className="flex flex-col gap-2" onSubmit={(e) => void onSubmit(e)}>
           <Input
@@ -204,8 +204,7 @@ export function WatchBotCanvasPanel({
               })}
             </div>
             <p className="text-[10px] leading-4 text-zinc-600">
-              Source types are preferences on the WatchBot record. They do not
-              start live monitoring.
+              Activity and source availability depend on the selected sources.
             </p>
           </fieldset>
           {error ? (

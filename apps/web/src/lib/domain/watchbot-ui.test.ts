@@ -93,10 +93,8 @@ describe("WatchBot UI helpers", () => {
   it("labels domain status as configured, not live worker activity", () => {
     expect(configuredStatusLabel("running")).toBe("configured · running");
     expect(configuredStatusLabel("paused")).toBe("configured · paused");
-    expect(WATCHBOT_EXECUTION_CAVEAT.toLowerCase()).toContain("worker");
-    expect(WATCHBOT_EXECUTION_CAVEAT.toLowerCase()).toContain("not deployed");
-    expect(WATCHBOT_EXECUTION_CAVEAT.toLowerCase()).toContain(
-      "x is not activated",
+    expect(WATCHBOT_EXECUTION_CAVEAT).toBe(
+      "WatchBots monitor configured sources in the background. Activity and source availability depend on the selected sources.",
     );
   });
 });
@@ -115,6 +113,9 @@ describe("WatchBot UI shell copy", () => {
     expect(status).not.toContain("hasRunning");
     expect(manager).toContain("formatWatchBotLastActivity");
     expect(manager).toContain("watchBotErrorDisplay");
+    expect(manager).toContain("monitor configured sources");
+    expect(manager).not.toContain("configuration only until the worker runs");
+    expect(manager).not.toContain("They do not\n              start live monitoring");
     expect(manager).toContain('role="status"');
     expect(manager).not.toContain("dangerouslySetInnerHTML");
     // Must not be the old permanently-disabled control.

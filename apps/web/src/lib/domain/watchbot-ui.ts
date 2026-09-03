@@ -27,7 +27,7 @@ export const WATCHBOT_ZERO_STATE_COPY =
   "No WatchBots on this Canvas yet. Create one to configure a persistent monitor for this Canvas.";
 
 export const WATCHBOT_EXECUTION_CAVEAT =
-  "Status is the saved WatchBot record. Live background source processing needs the WatchBot worker, which is not deployed on this app. Live X is not activated.";
+  "WatchBots monitor configured sources in the background. Activity and source availability depend on the selected sources.";
 
 export const WATCHBOT_SCOPE_LABEL = "This Canvas";
 
@@ -39,11 +39,7 @@ export const WATCHBOT_SOURCE_TYPE_OPTIONS: ReadonlyArray<{
   { value: "web", label: "Web" },
   { value: "news", label: "News" },
   { value: "youtube", label: "YouTube" },
-  {
-    value: "x",
-    label: "X",
-    note: "Not activated — configuration only",
-  },
+  { value: "x", label: "X" },
 ];
 
 /** Domain-permitted source types only (ACTION_CATALOG enum). */
