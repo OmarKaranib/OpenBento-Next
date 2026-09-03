@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   useSyncExternalStore,
   type ReactNode,
@@ -17,6 +18,12 @@ import {
   type SessionSnapshot,
 } from "@/lib/domain/workspace-session";
 import {
+  AuthVerificationSequencer,
+  WorkspaceSessionBinder,
+  principalIdFromAuthUser,
+  runVerifiedAuthBind,
+} from "@/lib/domain/workspace-session-lifecycle";
+import {
   listOwnedCanvases,
   requireAuthenticatedSession,
   resetLocalWorkspace,
@@ -24,7 +31,7 @@ import {
 } from "@/server/actions";
 import { createBrowserSupabaseClient } from "@/server/supabase-browser";
 import { EntryScreen } from "@/components/auth/EntryScreen";
-import { isAnonymousUser } from "@/lib/auth/guest";
+import { isAnonymousUser, type AuthUserLike } from "@/lib/auth/guest";
 
 type WorkspaceContextValue = {
   session: WorkspaceSession;
@@ -45,19 +52,69 @@ type WorkspaceContextValue = {
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
 
-let browserSession: WorkspaceSession | undefined;
+const EMPTY_SNAPSHOT: SessionSnapshot = {
+  canvases: [],
+  currentCanvasId: null,
+  cards: [],
+  frames: [],
+  watchBots: [],
+  fullscreen: null,
+  canUndo: false,
+  canRedo: false,
+  revision: 0,
+};
 
-function getBrowserWorkspaceSession(): WorkspaceSession {
-  if (!browserSession) {
-    browserSession = new WorkspaceSession({
-      runAction: runDomainAction,
-      resetStore: resetLocalWorkspace,
-      prepare: requireAuthenticatedSession,
-      restoreCanvases: listOwnedCanvases,
-      replayOnReset: false,
-    });
+function createBrowserWorkspaceSession(): WorkspaceSession {
+  return new WorkspaceSession({
+    runAction: runDomainAction,
+    resetStore: resetLocalWorkspace,
+    prepare: requireAuthenticatedSession,
+    restoreCanvases: listOwnedCanvases,
+    replayOnReset: false,
+  });
+}
+
+/**
+ * Module-level binder: at most one live WorkspaceSession, keyed by verified
+ * auth.uid(). Principal changes recreate the session so user A's Canvas cache
+ * cannot survive an in-tab switch to user B.
+ */
+const browserSessionBinder = new WorkspaceSessionBinder(
+  createBrowserWorkspaceSession,
+);
+
+function subscribeNone(): () => void {
+  return () => undefined;
+}
+
+function getEmptySnapshot(): SessionSnapshot {
+  return EMPTY_SNAPSHOT;
+}
+
+function bindSessionForUser(user: AuthUserLike | null): {
+  auth: "signed-out" | "signed-in";
+  isGuest: boolean;
+  accountEmail: string | null;
+  session: WorkspaceSession | null;
+} {
+  const nextPrincipalId = principalIdFromAuthUser(user);
+  if (!nextPrincipalId) {
+    browserSessionBinder.retire();
+    return {
+      auth: "signed-out",
+      isGuest: false,
+      accountEmail: null,
+      session: null,
+    };
   }
-  return browserSession;
+  const nextSession = browserSessionBinder.bind(nextPrincipalId);
+  return {
+    auth: "signed-in",
+    isGuest: isAnonymousUser(user),
+    // Same verified getUser() result as bind — never JWT / session.user.
+    accountEmail: user?.email ?? null,
+    session: nextSession,
+  };
 }
 
 export function WorkspaceProvider({ children }: { children: ReactNode }) {
@@ -66,39 +123,59 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
   );
   const [isGuest, setIsGuest] = useState(false);
   const [accountEmail, setAccountEmail] = useState<string | null>(null);
-  const session = useMemo(() => getBrowserWorkspaceSession(), []);
+  const [session, setSession] = useState<WorkspaceSession | null>(null);
+  const verificationSequencerRef = useRef(new AuthVerificationSequencer());
 
   useEffect(() => {
     const supabase = createBrowserSupabaseClient();
-    void supabase.auth.getUser().then(({ data }) => {
-      setAuth(data.user ? "signed-in" : "signed-out");
-      setIsGuest(isAnonymousUser(data.user ?? null));
-      setAccountEmail(data.user?.email ?? null);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => {
-      setAuth(next?.user ? "signed-in" : "signed-out");
-      setIsGuest(isAnonymousUser(next?.user ?? null));
-      setAccountEmail(next?.user?.email ?? null);
+    const sequencer = verificationSequencerRef.current;
+
+    function applyUser(user: AuthUserLike | null) {
+      const next = bindSessionForUser(user);
+      setAuth(next.auth);
+      setIsGuest(next.isGuest);
+      setAccountEmail(next.accountEmail);
+      setSession(next.session);
+      if (next.session) {
+        void next.session.start();
+      }
+    }
+
+    function startVerifiedPrincipalCheck() {
+      // Always derive identity from verified getUser() — never bind from the
+      // onAuthStateChange JWT/session payload. Only the latest started check
+      // may apply/bind when multiple verifications overlap.
+      void runVerifiedAuthBind({
+        sequencer,
+        getUser: async () => {
+          const { data } = await supabase.auth.getUser();
+          return data.user ?? null;
+        },
+        apply: applyUser,
+      });
+    }
+
+    startVerifiedPrincipalCheck();
+    const { data } = supabase.auth.onAuthStateChange(() => {
+      startVerifiedPrincipalCheck();
     });
     return () => {
+      sequencer.invalidate();
       data.subscription.unsubscribe();
     };
   }, []);
 
-  useEffect(() => {
-    if (auth === "signed-in") {
-      void session.start();
-    }
-  }, [auth, session]);
-
   const snapshot = useSyncExternalStore(
-    session.subscribe,
-    session.getSnapshot,
-    session.getSnapshot,
+    session ? session.subscribe : subscribeNone,
+    session ? session.getSnapshot : getEmptySnapshot,
+    getEmptySnapshot,
   );
 
-  const value = useMemo<WorkspaceContextValue>(
-    () => ({
+  const value = useMemo<WorkspaceContextValue | null>(() => {
+    if (!session) {
+      return null;
+    }
+    return {
       session,
       snapshot,
       isGuest,
@@ -107,9 +184,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       commit: (calls, options) => session.commit(calls, options),
       undo: () => session.undo(),
       redo: () => session.redo(),
-    }),
-    [session, snapshot, isGuest, accountEmail],
-  );
+    };
+  }, [session, snapshot, isGuest, accountEmail]);
 
   if (auth === "loading") {
     return (
@@ -119,12 +195,29 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  if (auth === "signed-out") {
+  if (auth === "signed-out" || !value) {
     return (
       <div className="flex h-full items-center justify-center bg-[#0b0d10] px-4">
         <EntryScreen
           onSignedIn={() => {
-            setAuth("signed-in");
+            const supabase = createBrowserSupabaseClient();
+            void runVerifiedAuthBind({
+              sequencer: verificationSequencerRef.current,
+              getUser: async () => {
+                const { data } = await supabase.auth.getUser();
+                return data.user ?? null;
+              },
+              apply: (user) => {
+                const next = bindSessionForUser(user);
+                setAuth(next.auth);
+                setIsGuest(next.isGuest);
+                setAccountEmail(next.accountEmail);
+                setSession(next.session);
+                if (next.session) {
+                  void next.session.start();
+                }
+              },
+            });
           }}
         />
       </div>
