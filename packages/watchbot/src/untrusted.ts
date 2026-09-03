@@ -5,6 +5,43 @@
  */
 
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
+const HTML_ENTITY = /&(#x[0-9a-f]+|#\d+|amp|apos|gt|lt|quot);/gi;
+const NAMED_HTML_ENTITIES: Readonly<Record<string, string>> = {
+  amp: "&",
+  apos: "'",
+  gt: ">",
+  lt: "<",
+  quot: '"',
+};
+
+/**
+ * Decode common named and numeric HTML entities as plain source text. This is
+ * data normalization only; callers must not treat the result as HTML.
+ */
+export function decodeHtmlEntities(value: string): string {
+  return value.replace(HTML_ENTITY, (entity, encoded: string) => {
+    const normalized = encoded.toLowerCase();
+    if (normalized.startsWith("#x")) {
+      return safeCodePoint(Number.parseInt(normalized.slice(2), 16), entity);
+    }
+    if (normalized.startsWith("#")) {
+      return safeCodePoint(Number.parseInt(normalized.slice(1), 10), entity);
+    }
+    return NAMED_HTML_ENTITIES[normalized] ?? entity;
+  });
+}
+
+function safeCodePoint(codePoint: number, fallback: string): string {
+  if (
+    !Number.isInteger(codePoint) ||
+    codePoint < 0 ||
+    codePoint > 0x10ffff ||
+    (codePoint >= 0xd800 && codePoint <= 0xdfff)
+  ) {
+    return fallback;
+  }
+  return String.fromCodePoint(codePoint);
+}
 
 /** Strip control characters and collapse whitespace. Does not interpret commands. */
 export function sanitizeUntrustedText(value: unknown, maxLength = 500): string {

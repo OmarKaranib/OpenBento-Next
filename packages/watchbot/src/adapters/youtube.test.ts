@@ -235,6 +235,20 @@ describe("official YouTube Data API v3 SourceProvider", () => {
     expect(JSON.stringify(discovered)).not.toMatch(/[<>]/);
   });
 
+  it("decodes YouTube metadata entities before persisting plain text", async () => {
+    const item = videoItem(
+      VIDEO_A,
+      "Iran pledges to &#39;DECISIVE&#39; &amp; &quot;calibrated&quot; response &#65; &#x41;",
+    );
+    const provider = enabledProvider(async () => response([item]));
+
+    const [discovered] = await provider.discover(discoverInput);
+
+    expect(discovered?.title).toBe(
+      "Iran pledges to 'DECISIVE' & \"calibrated\" response A A",
+    );
+  });
+
   it("preserves a multilingual topic in the official API query", async () => {
     const instruction = "تابع التطورات المهمة في إيران و مذاکرات هسته‌ای";
     const fetchImpl = vi.fn(async () => response([videoItem(VIDEO_A)]));

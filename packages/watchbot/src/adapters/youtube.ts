@@ -3,7 +3,7 @@ import type {
   SourceProvider,
   SourceProviderDiscoverInput,
 } from "../provider";
-import { sanitizeUntrustedText } from "../untrusted";
+import { decodeHtmlEntities, sanitizeUntrustedText } from "../untrusted";
 
 const YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search";
 const VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -361,7 +361,9 @@ function sanitizedMetadata(value: unknown, maxLength: number): string {
   if (typeof value !== "string") {
     return "";
   }
-  const withoutMarkup = value.replace(/<[^>]*>/g, " ").replace(/[<>]/g, " ");
+  const withoutMarkup = decodeHtmlEntities(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/[<>]/g, " ");
   return sanitizeUntrustedText(withoutMarkup, maxLength);
 }
 

@@ -6,6 +6,7 @@ import { UntrustedText } from "../components/cards/UntrustedText";
 import { SourceProvenanceMeta } from "../components/cards/SourceProvenanceMeta";
 import {
   hostnameFromHttpUrl,
+  decodeHtmlEntities,
   safeHttpUrl,
   sanitizeUntrustedDisplayText,
 } from "./untrusted";
@@ -14,6 +15,18 @@ const XSS_TITLE = `<img src=x onerror="alert(1)"><script>alert("xss")</script>`;
 const XSS_URL = `javascript:alert(1)`;
 
 describe("untrusted source display", () => {
+  it("decodes common named and numeric entities as safe plain text", () => {
+    expect(decodeHtmlEntities("&#39; &quot; &amp; &#65; &#x41;")).toBe(
+      "' \" & A A",
+    );
+    expect(decodeHtmlEntities("&unknown; &#x110000; &#xD800;")).toBe(
+      "&unknown; &#x110000; &#xD800;",
+    );
+    expect(sanitizeUntrustedDisplayText("Iran &#39;update&#39; &amp; &lt;b&gt;safe&lt;/b&gt;")).toBe(
+      "Iran 'update' & safe",
+    );
+  });
+
   it("strips HTML tags and control characters from titles", () => {
     expect(sanitizeUntrustedDisplayText(XSS_TITLE)).toBe('alert("xss")');
     expect(sanitizeUntrustedDisplayText(XSS_TITLE)).not.toContain("<script");
