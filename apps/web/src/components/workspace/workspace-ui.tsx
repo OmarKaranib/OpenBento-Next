@@ -11,6 +11,21 @@ import {
 
 export type RailPanel = "canvases" | "watchbots" | "settings" | null;
 
+/**
+ * Keeps rail section behavior in one place so every trigger has the same
+ * open, switch, and close semantics.
+ */
+export function nextRailPanel(
+  current: RailPanel,
+  requested: RailPanel,
+): RailPanel {
+  if (requested === null || current === requested) {
+    return null;
+  }
+
+  return requested;
+}
+
 type WorkspaceUiValue = {
   railPanel: RailPanel;
   agentOpen: boolean;
@@ -36,7 +51,7 @@ export function WorkspaceUiProvider({ children }: { children: ReactNode }) {
   const [watchBotCreateEpoch, setWatchBotCreateEpoch] = useState(0);
 
   const toggleRailPanel = useCallback((panel: Exclude<RailPanel, null>) => {
-    setRailPanel((current) => (current === panel ? null : panel));
+    setRailPanel((current) => nextRailPanel(current, panel));
   }, []);
 
   const openWatchBotCreate = useCallback(() => {

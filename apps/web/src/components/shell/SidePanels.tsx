@@ -1,6 +1,6 @@
 "use client";
 
-import { X } from "lucide-react";
+import { Pencil, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { UntrustedText } from "@/components/cards/UntrustedText";
@@ -36,27 +36,23 @@ export function SidePanels() {
     <>
       {railPanel ? (
         <section
-          className="absolute bottom-0 left-14 top-0 z-20 w-72 border-r border-zinc-800/80 bg-[#11141a]/95 backdrop-blur-sm"
-          aria-label={railPanel}
+          className="absolute inset-y-0 left-14 z-30 flex w-[min(18rem,calc(100vw-3.5rem))] flex-col border-r border-[#262d38] bg-[#11141a] shadow-[14px_0_28px_rgba(0,0,0,0.14)]"
+          aria-label={`${panelTitle(railPanel)} panel`}
         >
-          <div className="flex h-12 items-center justify-between px-3">
+          <div className="flex h-12 shrink-0 items-center justify-between border-b border-[#262d38] px-3">
             <h2 className="text-sm font-medium text-zinc-100">
-              {railPanel === "canvases"
-                ? "Canvases"
-                : railPanel === "watchbots"
-                  ? "WatchBots · This Canvas"
-                  : "Settings"}
+              {panelTitle(railPanel)}
             </h2>
             <button
               type="button"
-              aria-label="Close panel"
-              className="rounded-md p-1 text-zinc-500 hover:bg-zinc-800 hover:text-zinc-200"
+              aria-label={`Close ${panelTitle(railPanel)} panel`}
+              className="rounded-md p-1 text-zinc-500 transition-colors motion-reduce:transition-none hover:bg-zinc-800 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300/70"
               onClick={() => setRailPanel(null)}
             >
               <X className="h-4 w-4" />
             </button>
           </div>
-          <div className="px-3 pb-4">
+          <div className="min-h-0 flex-1 overflow-y-auto px-3 py-3">
             {railPanel === "canvases" ? <CanvasesPanel /> : null}
             {railPanel === "watchbots" ? <WatchBotCanvasPanel /> : null}
             {railPanel === "settings" ? <SettingsPanel /> : null}
@@ -66,7 +62,7 @@ export function SidePanels() {
 
       {agentOpen ? (
         <aside
-          className="absolute bottom-3 right-3 top-14 z-20 flex w-[22rem] flex-col rounded-xl border border-zinc-800 bg-[#11141a]/95 p-4 shadow-2xl backdrop-blur-sm"
+          className="absolute bottom-3 right-3 top-14 z-30 flex w-[min(22rem,calc(100vw-1.5rem))] flex-col rounded-xl border border-zinc-800 bg-[#11141a]/95 p-4 shadow-2xl backdrop-blur-sm"
           aria-label="Agent"
         >
           <div className="mb-3 flex items-center justify-between">
@@ -89,6 +85,14 @@ export function SidePanels() {
   );
 }
 
+function panelTitle(
+  panel: NonNullable<ReturnType<typeof useWorkspaceUi>["railPanel"]>,
+) {
+  if (panel === "canvases") return "Canvases";
+  if (panel === "watchbots") return "WatchBots · This Canvas";
+  return "Settings";
+}
+
 function SettingsPanel() {
   const router = useRouter();
   const { isGuest, accountEmail } = useWorkspace();
@@ -103,18 +107,18 @@ function SettingsPanel() {
   }
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-4">
       {isGuest ? (
-        <div>
-          <p className="text-xs font-medium text-zinc-300">{GUEST_WORKSPACE_TITLE}</p>
+        <div className="border-b border-zinc-800/80 pb-4">
+          <p className="text-xs font-medium text-zinc-200">{GUEST_WORKSPACE_TITLE}</p>
           <p className="mt-2 text-xs leading-5 text-zinc-500">{GUEST_WORKSPACE_BODY}</p>
           <p className="mt-2 text-xs leading-5 text-zinc-600">
             {GUEST_WORKSPACE_UPGRADE_NOTE}
           </p>
         </div>
       ) : (
-        <div>
-          <p className="text-xs font-medium text-zinc-300">{SIGNED_IN_SETTINGS_TITLE}</p>
+        <div className="border-b border-zinc-800/80 pb-4">
+          <p className="text-xs font-medium text-zinc-200">{SIGNED_IN_SETTINGS_TITLE}</p>
           <p className="mt-2 text-xs leading-5 text-zinc-500">
             <UntrustedText value={signedInAccountLabel(accountEmail)} />
           </p>
@@ -191,7 +195,7 @@ function CanvasesPanel() {
   return (
     <div className="flex flex-col gap-3">
       <form
-        className="flex gap-1"
+        className="flex gap-2"
         onSubmit={(event) => {
           event.preventDefault();
           const name = draft.trim() || "Untitled";
@@ -205,11 +209,11 @@ function CanvasesPanel() {
           placeholder="New Canvas name"
           aria-label="New Canvas name"
         />
-        <Button type="submit" size="sm">
+        <Button type="submit" size="sm" className="shrink-0">
           Create
         </Button>
       </form>
-      <ul className="space-y-1">
+      <ul className="space-y-1" aria-label="Canvases">
         {snapshot.canvases.map((canvas) => {
           const current = canvas.id === snapshot.currentCanvasId;
           return (
@@ -240,12 +244,18 @@ function CanvasesPanel() {
                 <div
                   className={cn(
                     "flex items-center gap-1 rounded-md px-2 py-1.5",
-                    current ? "bg-zinc-800/80" : "hover:bg-zinc-900",
+                    current
+                      ? "bg-[#1d2430] shadow-[inset_0_0_0_1px_rgba(101,116,139,0.28)]"
+                      : "hover:bg-zinc-900",
                   )}
                 >
                   <button
                     type="button"
-                    className="flex-1 truncate text-left text-sm text-zinc-200"
+                    aria-current={current ? "page" : undefined}
+                    className={cn(
+                      "min-w-0 flex-1 truncate text-left text-sm transition-colors motion-reduce:transition-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300/70",
+                      current ? "font-medium text-zinc-50" : "text-zinc-300",
+                    )}
                     onClick={() => {
                       if (!current) {
                         void execute(
@@ -260,13 +270,15 @@ function CanvasesPanel() {
                   </button>
                   <button
                     type="button"
-                    className="text-[11px] text-zinc-500 hover:text-zinc-200"
+                    aria-label={`Rename ${canvas.name}`}
+                    title="Rename Canvas"
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-zinc-500 transition-colors motion-reduce:transition-none hover:bg-zinc-800 hover:text-zinc-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-300/70"
                     onClick={() => {
                       setEditingId(canvas.id);
                       setEditingName(canvas.name);
                     }}
                   >
-                    Rename
+                    <Pencil className="h-3 w-3" aria-hidden />
                   </button>
                 </div>
               )}

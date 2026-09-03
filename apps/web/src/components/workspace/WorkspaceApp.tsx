@@ -15,13 +15,13 @@ function WorkspaceChrome() {
   const fullscreen = Boolean(snapshot.fullscreen?.active);
 
   return (
-    <div className="flex h-full min-h-0 w-full overflow-hidden bg-[#0b0d10]">
+    <div className="relative flex h-full min-h-0 w-full overflow-hidden bg-[#0b0d10]">
       {fullscreen ? null : <LeftRail />}
       <div className="relative min-w-0 flex-1">
         {fullscreen ? null : <TopBar />}
-        {fullscreen ? null : <SidePanels />}
         <CanvasRoot />
       </div>
+      {fullscreen ? null : <SidePanels />}
     </div>
   );
 }
