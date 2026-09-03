@@ -65,8 +65,27 @@ describe("WatchBot list last-activity and error markup", () => {
     expect(html).not.toContain("<script");
     expect(html).not.toContain("<img");
     expect(html).not.toContain("onerror");
-    expect(html).toContain("Pause");
+    expect(html).toContain("Resume / Retry");
+    expect(html).not.toContain(">Pause<");
     expect(html).toContain("Edit");
+  });
+
+  it("renders status-aware running, paused, and error controls", () => {
+    box.cards = [];
+    box.watchBots = [fixture({ id: "wb-running", status: "running" })];
+    const running = renderToStaticMarkup(createElement(WatchBotCanvasPanel));
+    expect(running).toContain(">Pause<");
+    expect(running).not.toContain("Resume / Retry");
+
+    box.watchBots = [fixture({ id: "wb-paused", status: "paused" })];
+    const paused = renderToStaticMarkup(createElement(WatchBotCanvasPanel));
+    expect(paused).toContain(">Resume<");
+    expect(paused).not.toContain(">Pause<");
+
+    box.watchBots = [fixture({ id: "wb-error-control", status: "error" })];
+    const error = renderToStaticMarkup(createElement(WatchBotCanvasPanel));
+    expect(error).toContain("Resume / Retry");
+    expect(error).not.toContain(">Pause<");
   });
 
   it("omits last-activity and error lines when fields are missing or invalid", () => {

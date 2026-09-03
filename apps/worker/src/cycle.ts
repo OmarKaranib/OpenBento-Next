@@ -7,7 +7,9 @@ import {
   createConfiguredMeaningfulnessClassifier,
   isWatchBotProviderEligible,
   runWatchBotPipeline,
+  XSourceProviderError,
   XHttpBudget,
+  YouTubeSourceProviderError,
   xMaxRequestsPerWorkerTick,
   type MeaningfulnessClassifier,
   type PipelineCycleResult,
@@ -215,9 +217,12 @@ export async function runWorkerCycle(
       }
     } catch (error) {
       result.errors += 1;
-      const message =
-        error instanceof Error ? error.message.slice(0, 300) : "WatchBot error";
-      await recordWatchBotError(input.store, bot, message, now());
+      const message = safeWatchBotErrorMessage(error);
+      if (isTransientProviderError(error)) {
+        await recordTransientWatchBotError(input.store, bot, message, now());
+      } else {
+        await recordWatchBotError(input.store, bot, message, now());
+      }
     }
   }
 
@@ -236,6 +241,61 @@ async function stampLastActivity(
   }
   await store.saveWatchBot({
     ...current,
+    lastError: undefined,
+    lastActivityAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
+/**
+ * Typed provider errors own their retry classification. OpenAI web currently
+ * exposes fixed internal machine codes, so match only those exact shapes.
+ * Never infer retryability from arbitrary human-readable error text.
+ */
+export function isTransientProviderError(error: unknown): boolean {
+  if (
+    error instanceof XSourceProviderError ||
+    error instanceof YouTubeSourceProviderError
+  ) {
+    return error.retryable;
+  }
+  if (!(error instanceof Error)) {
+    return false;
+  }
+  if (
+    error.message === "openai_web_timeout" ||
+    error.message === "openai_web_network"
+  ) {
+    return true;
+  }
+  const status = /^openai_web_http_(\d{3})$/.exec(error.message)?.[1];
+  if (!status) {
+    return false;
+  }
+  const code = Number(status);
+  return code === 429 || (code >= 500 && code <= 599);
+}
+
+function safeWatchBotErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : "WatchBot error";
+  const sanitized = raw
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 300);
+  return sanitized || "WatchBot error";
+}
+
+async function recordTransientWatchBotError(
+  store: DomainStore,
+  bot: WatchBot,
+  lastError: string,
+  timestamp: string,
+): Promise<void> {
+  const current = (await store.getWatchBot(bot.id)) ?? bot;
+  await store.saveWatchBot({
+    ...current,
+    lastError,
     lastActivityAt: timestamp,
     updatedAt: timestamp,
   });

@@ -309,16 +309,7 @@ export function WatchBotCanvasPanel({
                   {bot.instruction}
                 </p>
                 <div className="mt-1.5 flex flex-wrap gap-1">
-                  {bot.status === "paused" ? (
-                    <button
-                      type="button"
-                      className="rounded px-1.5 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
-                      disabled={pending}
-                      onClick={() => void onResume(bot.id)}
-                    >
-                      Resume
-                    </button>
-                  ) : (
+                  {bot.status === "running" ? (
                     <button
                       type="button"
                       className="rounded px-1.5 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
@@ -326,6 +317,15 @@ export function WatchBotCanvasPanel({
                       onClick={() => void onPause(bot.id)}
                     >
                       Pause
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      className="rounded px-1.5 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                      disabled={pending}
+                      onClick={() => void onResume(bot.id)}
+                    >
+                      {bot.status === "error" ? "Resume / Retry" : "Resume"}
                     </button>
                   )}
                   <button
