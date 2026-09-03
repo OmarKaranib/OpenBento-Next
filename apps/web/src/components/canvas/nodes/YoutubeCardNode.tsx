@@ -106,7 +106,7 @@ export function YoutubeCardNode({ data, selected }: NodeProps<YoutubeNode>) {
             value={provenance.title}
             className="shrink-0 text-sm font-medium leading-5 text-zinc-100"
           />
-          <div className="relative min-h-[7.5rem] flex-1 overflow-hidden rounded-md bg-zinc-950">
+          <div className="relative aspect-video w-full shrink-0 overflow-hidden rounded-md bg-zinc-950">
             {mounted && embedSrc ? (
               <iframe
                 src={embedSrc}
