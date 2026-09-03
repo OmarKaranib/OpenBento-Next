@@ -4,6 +4,10 @@ export type {
   SourceProviderDiscoverInput,
 } from "./provider";
 export {
+  isRetryableProviderError,
+  sanitizeProviderErrorMessage,
+} from "./provider-error";
+export {
   WATCHBOT_PIPELINE_STAGES,
   type WatchBotPipelineStage,
   type WatchBotRuntimeBinding,
@@ -114,6 +118,7 @@ export {
 export {
   OPENAI_WEB_MODEL_DEFAULT,
   OPENAI_WEB_SOURCE_PROVIDER_LIMITS,
+  OpenAIWebSourceProviderError,
   buildDiscoveryPrompt,
   createOpenAIWebSourceProvider,
   openaiWebMaxRequestsPerCycle,
@@ -121,6 +126,7 @@ export {
   openaiWebMaxResultsPerCycle,
   openaiWebModel,
   openaiWebTimeoutMs,
+  type OpenAIWebSourceProviderErrorCode,
   type OpenAIWebSourceProviderOptions,
 } from "./adapters/openai-web";
 export { isWebNewsSourceType } from "./adapters/web-news-items";

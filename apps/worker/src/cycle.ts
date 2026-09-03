@@ -5,8 +5,10 @@ import {
 } from "@openbento/domain";
 import {
   createConfiguredMeaningfulnessClassifier,
+  isRetryableProviderError,
   isWatchBotProviderEligible,
   runWatchBotPipeline,
+  sanitizeProviderErrorMessage,
   XHttpBudget,
   xMaxRequestsPerWorkerTick,
   type MeaningfulnessClassifier,
@@ -120,6 +122,11 @@ function aggregateCycleStats(
  * Those actions already cover running ↔ paused. There is no catalog action
  * for `error` + `lastError`, so only that failure path writes the WatchBot
  * row directly.
+ *
+ * Transient provider failures (timeout, network, 429, 5xx, typed
+ * `retryable: true`) keep status `running` so the next scheduled tick
+ * retries. Terminal credential/config/malformed failures still become
+ * `error`. There is no in-tick retry loop.
  */
 export async function runWorkerCycle(
   input: RunWorkerCycleInput,
@@ -215,9 +222,12 @@ export async function runWorkerCycle(
       }
     } catch (error) {
       result.errors += 1;
-      const message =
-        error instanceof Error ? error.message.slice(0, 300) : "WatchBot error";
-      await recordWatchBotError(input.store, bot, message, now());
+      const message = sanitizeProviderErrorMessage(error);
+      if (isRetryableProviderError(error)) {
+        await recordTransientWatchBotFailure(input.store, bot, message, now());
+      } else {
+        await recordWatchBotError(input.store, bot, message, now());
+      }
     }
   }
 
@@ -234,8 +244,31 @@ async function stampLastActivity(
   if (current.status !== "running") {
     return;
   }
+  const { lastError: _cleared, ...rest } = current;
+  await store.saveWatchBot({
+    ...rest,
+    lastActivityAt: timestamp,
+    updatedAt: timestamp,
+  });
+}
+
+/**
+ * Transient provider failure: keep monitoring. Next scheduled tick retries.
+ * lastError is a sanitized warning, not a terminal status.
+ */
+async function recordTransientWatchBotFailure(
+  store: DomainStore,
+  bot: WatchBot,
+  lastError: string,
+  timestamp: string,
+): Promise<void> {
+  const current = (await store.getWatchBot(bot.id)) ?? bot;
+  if (current.status !== "running") {
+    return;
+  }
   await store.saveWatchBot({
     ...current,
+    lastError,
     lastActivityAt: timestamp,
     updatedAt: timestamp,
   });
