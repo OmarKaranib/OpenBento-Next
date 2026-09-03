@@ -290,6 +290,21 @@ describe("WatchBot lifecycle and first-class geometry", () => {
     expect(status.watchBotId).toBe(watchBot.id);
   });
 
+  it("resumes a WatchBot from error back to running", async () => {
+    const { store, a, watchBot } = await seedOwned();
+    await store.saveWatchBot({
+      ...watchBot,
+      status: "error",
+      lastError: "openai_web_malformed",
+    });
+    const resumed = await a.resumeWatchBot({ watchBotId: watchBot.id });
+    expect(resumed.status).toBe("running");
+    expect(resumed.lastError).toBeUndefined();
+    const status = await a.getWatchBotStatus({ watchBotId: watchBot.id });
+    expect(status.status).toBe("running");
+    expect(status.lastError).toBeUndefined();
+  });
+
   it("moves and resizes cards without re-requiring provenance", async () => {
     const { a, canvas } = await seedOwned();
     const youtube = await a.createCard({
