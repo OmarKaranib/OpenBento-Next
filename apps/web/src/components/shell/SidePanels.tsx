@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { UntrustedText } from "@/components/cards/UntrustedText";
 import { AgentPanel } from "@/components/shell/AgentPanel";
 import { WatchBotCanvasPanel } from "@/components/shell/WatchBotManager";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
@@ -19,6 +20,12 @@ import {
   GUEST_WORKSPACE_TITLE,
   GUEST_WORKSPACE_UPGRADE_NOTE,
 } from "@/lib/auth/guest";
+import {
+  SIGNED_IN_SETTINGS_BODY,
+  SIGNED_IN_SETTINGS_TITLE,
+  openBentoVersionLabel,
+  signedInAccountLabel,
+} from "@/lib/settings-copy";
 import { signOut } from "@/server/actions";
 import { createBrowserSupabaseClient } from "@/server/supabase-browser";
 
@@ -82,18 +89,9 @@ export function SidePanels() {
   );
 }
 
-function PlaceholderCopy({ title, body }: { title: string; body: string }) {
-  return (
-    <div>
-      <p className="text-xs font-medium text-zinc-300">{title}</p>
-      <p className="mt-2 text-xs leading-5 text-zinc-500">{body}</p>
-    </div>
-  );
-}
-
 function SettingsPanel() {
   const router = useRouter();
-  const { isGuest } = useWorkspace();
+  const { isGuest, accountEmail } = useWorkspace();
   const [confirmGuestExit, setConfirmGuestExit] = useState(false);
   const [exitPending, setExitPending] = useState(false);
 
@@ -115,10 +113,18 @@ function SettingsPanel() {
           </p>
         </div>
       ) : (
-        <PlaceholderCopy
-          title="Settings"
-          body="Canvas writes go through server runDomainAction. ownerId comes from Supabase Auth getUser() / auth.uid(), never from action JSON or the unsigned ob_local_session cookie."
-        />
+        <div>
+          <p className="text-xs font-medium text-zinc-300">{SIGNED_IN_SETTINGS_TITLE}</p>
+          <p className="mt-2 text-xs leading-5 text-zinc-500">
+            <UntrustedText value={signedInAccountLabel(accountEmail)} />
+          </p>
+          <p className="mt-2 text-xs leading-5 text-zinc-500">
+            {SIGNED_IN_SETTINGS_BODY}
+          </p>
+          <p className="mt-2 text-xs leading-5 text-zinc-600">
+            {openBentoVersionLabel()}
+          </p>
+        </div>
       )}
       {isGuest ? (
         confirmGuestExit ? (

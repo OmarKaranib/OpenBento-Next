@@ -106,6 +106,7 @@ describe("guest entry UI source contracts", () => {
     const provider = readSrc("components/workspace/WorkspaceProvider.tsx");
     expect(provider).toContain("EntryScreen");
     expect(provider).toContain("isGuest");
+    expect(provider).toContain("accountEmail");
     expect(provider).toContain("isAnonymousUser");
     expect(provider).not.toMatch(/LoginForm[\s\S]{0,40}signed-out|signed-out[\s\S]{0,80}LoginForm/);
     // Still routes through the existing authenticated session start path.

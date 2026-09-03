@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from "react";
 import type { WatchBot, WatchBotSourceType } from "@openbento/domain";
+import { UntrustedText } from "@/components/cards/UntrustedText";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +21,7 @@ import {
   WATCHBOT_SOURCE_TYPE_OPTIONS,
   WATCHBOT_ZERO_STATE_COPY,
 } from "@/lib/domain/watchbot-ui";
+import { watchBotCanvasActivity } from "@/lib/canvas/watchbot-attribution";
 import { cn } from "@/lib/utils";
 
 type Mode = "list" | "create" | "edit";
@@ -36,6 +38,7 @@ export function WatchBotCanvasPanel({
   const { snapshot, execute } = useWorkspace();
   const canvasId = snapshot.currentCanvasId;
   const watchBots = snapshot.watchBots;
+  const cards = snapshot.cards;
   const [mode, setMode] = useState<Mode>("list");
   const [editing, setEditing] = useState<WatchBot | null>(null);
   const [name, setName] = useState("");
@@ -239,6 +242,7 @@ export function WatchBotCanvasPanel({
           {watchBots.map((bot) => {
             const lastActivity = formatWatchBotLastActivity(bot.lastActivityAt);
             const errorDisplay = watchBotErrorDisplay(bot.lastError);
+            const activity = watchBotCanvasActivity(cards, bot.id, canvasId);
             return (
               <li
                 key={bot.id}
@@ -254,6 +258,14 @@ export function WatchBotCanvasPanel({
                       {" · "}
                       {sourceTypesLabel(bot.sourceTypes)}
                     </p>
+                    <p className="mt-0.5 text-[10px] leading-4 text-zinc-500">
+                      {activity.countLabel}
+                    </p>
+                    {activity.latestTitle ? (
+                      <p className="mt-0.5 truncate text-[10px] leading-4 text-zinc-500">
+                        Latest: <UntrustedText value={activity.latestTitle} />
+                      </p>
+                    ) : null}
                     {lastActivity ? (
                       <p className="mt-0.5 text-[10px] leading-4 text-zinc-500">
                         Last activity {lastActivity}

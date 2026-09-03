@@ -4,8 +4,10 @@ import { NodeResizer } from "@xyflow/react";
 import type { Card } from "@openbento/domain";
 import { useCanvasCommands } from "@/components/canvas/use-canvas-commands";
 import { NewCardBadge } from "@/components/cards/NewCardBadge";
+import { WatchBotAttribution } from "@/components/cards/WatchBotAttribution";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { useCanvasMonitorOptional } from "@/components/workspace/canvas-monitor";
+import { cardWatchBotId } from "@/lib/canvas/watchbot-attribution";
 import { sourceKindLabel } from "@/lib/canvas/provenance-display";
 import { cn } from "@/lib/utils";
 import type { ReactNode } from "react";
@@ -31,6 +33,7 @@ export function SourceCardChrome({
   const readOnly = Boolean(snapshot.fullscreen?.active);
   const isNew = monitor?.isCardNew(card.id) ?? false;
   const kind = label ?? sourceKindLabel(card) ?? "Source";
+  const watchBotId = cardWatchBotId(card);
 
   return (
     <div
@@ -56,6 +59,14 @@ export function SourceCardChrome({
         <span>{kind}</span>
         {isNew ? <NewCardBadge /> : null}
       </div>
+      {watchBotId ? (
+        <div className="shrink-0 px-3 pb-1 normal-case tracking-normal">
+          <WatchBotAttribution
+            watchBotId={watchBotId}
+            watchBots={snapshot.watchBots}
+          />
+        </div>
+      ) : null}
       <div className="min-h-0 flex-1 px-3 pb-3">{children}</div>
     </div>
   );

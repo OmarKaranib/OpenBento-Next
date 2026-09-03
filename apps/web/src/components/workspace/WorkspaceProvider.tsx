@@ -31,6 +31,8 @@ type WorkspaceContextValue = {
   snapshot: SessionSnapshot;
   /** True when the Supabase session is an anonymous (guest) user. */
   isGuest: boolean;
+  /** Signed-in account email when present. Guests typically have none. */
+  accountEmail: string | null;
   execute: <N extends ActionName>(
     name: N,
     input: ActionInputByName[N],
@@ -63,6 +65,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     "loading",
   );
   const [isGuest, setIsGuest] = useState(false);
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
   const session = useMemo(() => getBrowserWorkspaceSession(), []);
 
   useEffect(() => {
@@ -70,10 +73,12 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     void supabase.auth.getUser().then(({ data }) => {
       setAuth(data.user ? "signed-in" : "signed-out");
       setIsGuest(isAnonymousUser(data.user ?? null));
+      setAccountEmail(data.user?.email ?? null);
     });
     const { data } = supabase.auth.onAuthStateChange((_event, next) => {
       setAuth(next?.user ? "signed-in" : "signed-out");
       setIsGuest(isAnonymousUser(next?.user ?? null));
+      setAccountEmail(next?.user?.email ?? null);
     });
     return () => {
       data.subscription.unsubscribe();
@@ -97,12 +102,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       session,
       snapshot,
       isGuest,
+      accountEmail,
       execute: (name, input, options) => session.execute(name, input, options),
       commit: (calls, options) => session.commit(calls, options),
       undo: () => session.undo(),
       redo: () => session.redo(),
     }),
-    [session, snapshot, isGuest],
+    [session, snapshot, isGuest, accountEmail],
   );
 
   if (auth === "loading") {
