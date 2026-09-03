@@ -65,8 +65,23 @@ describe("WatchBot list last-activity and error markup", () => {
     expect(html).not.toContain("<script");
     expect(html).not.toContain("<img");
     expect(html).not.toContain("onerror");
-    expect(html).toContain("Pause");
+    expect(html).toContain("Resume / Retry");
+    expect(html).not.toContain(">Pause<");
     expect(html).toContain("Edit");
+  });
+
+  it("renders Resume on paused WatchBots and Pause on running WatchBots", () => {
+    box.cards = [];
+    box.watchBots = [fixture({ id: "wb-paused", status: "paused" })];
+    const paused = renderToStaticMarkup(createElement(WatchBotCanvasPanel));
+    expect(paused).toContain("Resume");
+    expect(paused).not.toContain("Resume / Retry");
+    expect(paused).not.toContain(">Pause<");
+
+    box.watchBots = [fixture({ id: "wb-running", status: "running" })];
+    const running = renderToStaticMarkup(createElement(WatchBotCanvasPanel));
+    expect(running).toContain("Pause");
+    expect(running).not.toContain("Resume");
   });
 
   it("omits last-activity and error lines when fields are missing or invalid", () => {
@@ -85,6 +100,8 @@ describe("WatchBot list last-activity and error markup", () => {
     expect(html).toContain("configured · running");
     expect(html).toContain("0 cards on this Canvas");
     expect(html).not.toContain("Latest:");
+    expect(html).toContain("Pause");
+    expect(html).not.toContain("Resume / Retry");
   });
 
   it("shows snapshot Card count and sanitized latest title for this WatchBot", () => {
