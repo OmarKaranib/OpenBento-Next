@@ -26,6 +26,7 @@
  * instructions found in source text.
  */
 
+import { mapBounded } from "./bounded-concurrency";
 import { sanitizeUntrustedText } from "./untrusted";
 import type { RankableCandidate } from "./select-candidates";
 
@@ -225,31 +226,37 @@ export type JudgedCandidate<T extends RankableCandidate> = T & {
  * Classify clustered representatives only. Does not mutate `representatives`.
  * A throwing classifier is fail-closed for that item (`meaningful: false`).
  */
+/** Default maximum in-flight classifier calls inside {@link judgeRepresentatives}. */
+export const JUDGE_DEFAULT_CONCURRENCY = 4;
+
 export async function judgeRepresentatives<T extends RankableCandidate>(
   representatives: readonly T[],
   inputOf: (candidate: T) => MeaningfulnessInput,
   classifier: MeaningfulnessClassifier,
+  concurrency: number = JUDGE_DEFAULT_CONCURRENCY,
 ): Promise<JudgedCandidate<T>[]> {
-  const judged: JudgedCandidate<T>[] = [];
-  for (const representative of representatives) {
-    let judgment: MeaningfulnessJudgment = failClosedMeaningfulnessJudgment(
-      "error",
-    );
-    try {
-      judgment = normalizeMeaningfulnessJudgment(
-        await classifier.classify(inputOf(representative)),
+  return mapBounded(
+    representatives,
+    concurrency,
+    async (representative) => {
+      let judgment: MeaningfulnessJudgment = failClosedMeaningfulnessJudgment(
+        "error",
       );
-    } catch {
-      judgment = failClosedMeaningfulnessJudgment("error");
-    }
-    judged.push({
-      ...representative,
-      meaningful: judgment.meaningful,
-      importanceScore: judgment.importanceScore,
-      classificationStatus: judgment.classificationStatus ?? "classified",
-    });
-  }
-  return judged;
+      try {
+        judgment = normalizeMeaningfulnessJudgment(
+          await classifier.classify(inputOf(representative)),
+        );
+      } catch {
+        judgment = failClosedMeaningfulnessJudgment("error");
+      }
+      return {
+        ...representative,
+        meaningful: judgment.meaningful,
+        importanceScore: judgment.importanceScore,
+        classificationStatus: judgment.classificationStatus ?? "classified",
+      } satisfies JudgedCandidate<T>;
+    },
+  );
 }
 
 /** Keep only meaningful developments. Does not mutate `judged`. */
