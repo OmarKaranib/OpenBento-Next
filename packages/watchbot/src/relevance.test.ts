@@ -20,6 +20,12 @@ import {
 const X_QUERY = "(OpenAI OR WebMCP) -is:retweet";
 const NL_INSTRUCTION =
   "Monitor meaningful developments around renaming Lake Ontario to Lake America";
+const IRAN_MONITOR_INSTRUCTION =
+  "Follow important news and meaningful developments about Iran. " +
+  "Focus on Iranian government and leadership, nuclear negotiations, " +
+  "sanctions, military/security developments, relations with the US, " +
+  "Israel, Gulf states and Europe, and major domestic political/economic " +
+  "developments. Avoid travel, entertainment and generic history.";
 
 function emptyCanvas(name = "Watch"): CanvasState {
   return {
@@ -37,7 +43,11 @@ function emptyCanvas(name = "Watch"): CanvasState {
   };
 }
 
-function item(sourceType: NormalizedItem["sourceType"], title: string): NormalizedItem {
+function item(
+  sourceType: NormalizedItem["sourceType"],
+  title: string,
+  snippet = title,
+): NormalizedItem {
   const host = sourceType === "x" ? "https://x.com/someone/status/1" : "https://news.example.com/story";
   return {
     sourceUrl: host,
@@ -45,7 +55,7 @@ function item(sourceType: NormalizedItem["sourceType"], title: string): Normaliz
     title,
     publishedAt: "2026-08-29T12:00:00.000Z",
     sourceType,
-    snippet: title,
+    snippet,
     discoveredAt: "2026-08-29T13:00:00.000Z",
   };
 }
@@ -251,12 +261,12 @@ describe("scoreRelevance for provider-filtered X", () => {
   });
 });
 
-describe("ordinary natural-language relevance is unchanged", () => {
+describe("ordinary natural-language relevance", () => {
   const canvas = emptyCanvas("Ontario Watch");
   const ontario = item("news", "Officials debate renaming Lake Ontario");
   const sports = item("news", "Local team wins on Saturday");
 
-  it("keeps web/news WatchBots on raw-instruction Jaccard scoring", () => {
+  it("keeps web/news WatchBots on the natural-language relevance lane", () => {
     expect(relevanceLaneForSourceType("news")).toBe("natural_language");
     expect(deriveRelevanceIntent(NL_INSTRUCTION, "news")).toEqual({
       lane: "natural_language",
@@ -282,6 +292,79 @@ describe("ordinary natural-language relevance is unchanged", () => {
     expect(isRelevantEnough(scoreRelevance(webOntario, NL_INSTRUCTION, canvas))).toBe(
       true,
     );
+  });
+
+  describe("long focused Iran monitoring instructions", () => {
+    const iranCanvas = emptyCanvas("Iran Monitor");
+
+    it("accepts an Iranian government nuclear development", () => {
+      const candidate = item(
+        "news",
+        "Iranian government signals new nuclear negotiations",
+        "Officials described a new round of negotiations over Iran's nuclear program.",
+      );
+      expect(
+        isRelevantEnough(
+          scoreRelevance(candidate, IRAN_MONITOR_INSTRUCTION, iranCanvas),
+        ),
+      ).toBe(true);
+    });
+
+    it("uses a clearly relevant excerpt when the Iran title is sparse", () => {
+      const candidate = item(
+        "web",
+        "Iran update",
+        "Officials described new nuclear negotiations and sanctions discussions.",
+      );
+      expect(
+        isRelevantEnough(
+          scoreRelevance(candidate, IRAN_MONITOR_INSTRUCTION, iranCanvas),
+        ),
+      ).toBe(true);
+    });
+
+    it("accepts sanctions and security developments", () => {
+      const candidate = item(
+        "news",
+        "New sanctions follow Iran security escalation",
+        "European officials announced sanctions after the regional security development.",
+      );
+      expect(
+        isRelevantEnough(
+          scoreRelevance(candidate, IRAN_MONITOR_INSTRUCTION, iranCanvas),
+        ),
+      ).toBe(true);
+    });
+
+    it.each([
+      ["travel", "Iran travel guide for first-time visitors", "Travel advice for a holiday itinerary."],
+      ["entertainment", "Iran entertainment awards announced", "Entertainment coverage of this year's awards."],
+      ["generic history", "A brief history of ancient Iran", "A generic history overview for students."],
+    ])("rejects %s coverage", (_kind, title, snippet) => {
+      expect(
+        isRelevantEnough(
+          scoreRelevance(item("web", title, snippet), IRAN_MONITOR_INSTRUCTION, iranCanvas),
+        ),
+      ).toBe(false);
+    });
+
+    it("does not dilute a relevant source when valid monitoring clauses are added", () => {
+      const shortInstruction =
+        "Follow meaningful developments about Iran. Focus on nuclear negotiations.";
+      const candidate = item(
+        "news",
+        "Iran nuclear negotiations resume",
+        "Diplomats resumed negotiations about Iran's nuclear program.",
+      );
+      expect(isRelevantEnough(scoreRelevance(candidate, shortInstruction, iranCanvas))).toBe(
+        true,
+      );
+      expect(
+        isRelevantEnough(
+          scoreRelevance(candidate, IRAN_MONITOR_INSTRUCTION, iranCanvas),
+        ),
+      ).toBe(true);
+    });
   });
 
   it("does not dilute a relevant news title after many unrelated Canvas Cards", () => {
