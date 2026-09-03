@@ -17,6 +17,7 @@ import {
   formatWatchBotLastActivity,
   sourceTypesLabel,
   watchBotErrorDisplay,
+  watchBotRunControl,
   WATCHBOT_EXECUTION_CAVEAT,
   WATCHBOT_SCOPE_LABEL,
   WATCHBOT_SOURCE_TYPE_OPTIONS,
@@ -255,6 +256,7 @@ export function WatchBotCanvasPanel({
             const lastActivity = formatWatchBotLastActivity(bot.lastActivityAt);
             const errorDisplay = watchBotErrorDisplay(bot.lastError);
             const activity = watchBotCanvasActivity(cards, bot.id, canvasId);
+            const control = watchBotRunControl(bot.status);
             return (
               <li
                 key={bot.id}
@@ -309,25 +311,18 @@ export function WatchBotCanvasPanel({
                   {bot.instruction}
                 </p>
                 <div className="mt-1.5 flex flex-wrap gap-1">
-                  {bot.status === "paused" ? (
-                    <button
-                      type="button"
-                      className="rounded px-1.5 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
-                      disabled={pending}
-                      onClick={() => void onResume(bot.id)}
-                    >
-                      Resume
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="rounded px-1.5 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
-                      disabled={pending}
-                      onClick={() => void onPause(bot.id)}
-                    >
-                      Pause
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    className="rounded px-1.5 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
+                    disabled={pending}
+                    onClick={() =>
+                      control.action === "resumeWatchBot"
+                        ? void onResume(bot.id)
+                        : void onPause(bot.id)
+                    }
+                  >
+                    {control.label}
+                  </button>
                   <button
                     type="button"
                     className="rounded px-1.5 py-0.5 text-[11px] text-zinc-300 hover:bg-zinc-800"
