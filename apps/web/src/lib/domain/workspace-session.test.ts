@@ -217,16 +217,34 @@ function createSharedSession(ownerId = "session-user") {
   const store = new InMemoryDomainStore();
   const ids = new IdSequence();
   const calls: string[] = [];
+  let blockedGet:
+    | {
+        canvasId?: string;
+        started: () => void;
+        wait: Promise<void>;
+      }
+    | undefined;
   const session = new WorkspaceSession({
     seedDefaultCanvas: false,
-    runAction: (name, input) => {
+    runAction: async (name, input) => {
       calls.push(name);
-      return runDomainActionFromRequest(
+      const result = await runDomainActionFromRequest(
         requestAuthFromVerifiedUser(ownerId),
         name,
         input,
         { store, id: ids.next },
       );
+      if (
+        name === "getCanvasState" &&
+        blockedGet &&
+        (!blockedGet.canvasId || blockedGet.canvasId === input.canvasId)
+      ) {
+        const gate = blockedGet;
+        blockedGet = undefined;
+        gate.started();
+        await gate.wait;
+      }
+      return result;
     },
     resetStore: () => undefined,
   });
@@ -240,7 +258,19 @@ function createSharedSession(ownerId = "session-user") {
       input,
       { store, id: ids.next },
     );
-  return { session, workerRun, store, calls };
+  const blockNextGet = (canvasId?: string) => {
+    let markStarted!: () => void;
+    let release!: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    const wait = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    blockedGet = { canvasId, started: markStarted, wait };
+    return { started, release };
+  };
+  return { session, workerRun, store, calls, blockNextGet };
 }
 
 describe("WorkspaceSession.syncExternalState", () => {
@@ -359,6 +389,109 @@ describe("WorkspaceSession.syncExternalState", () => {
     expect(session.getSnapshot().cards.map((card) => card.id)).toContain(
       external.id,
     );
+  });
+
+  it("discards an in-flight read when a local interaction starts", async () => {
+    const { session, workerRun, blockNextGet } = createSharedSession();
+    const canvas = await session.execute("createCanvas", { name: "Drag" });
+    const gate = blockNextGet(canvas.id);
+    const sync = session.syncExternalState();
+    await gate.started;
+    session.beginInteraction();
+    const external = await workerRun(
+      "createCard",
+      buildCreateNoteCardInput({
+        canvasId: canvas.id,
+        text: "arrived during drag",
+      }),
+    );
+    gate.release();
+
+    expect(await sync).toBe(false);
+    expect(session.getSnapshot().cards.map((card) => card.id)).not.toContain(
+      external.id,
+    );
+    await session.endInteraction();
+    expect(session.getSnapshot().cards.map((card) => card.id)).toContain(
+      external.id,
+    );
+  });
+
+  it("does not apply the old Canvas response after a Canvas switch", async () => {
+    const { session, blockNextGet } = createSharedSession();
+    const first = await session.execute("createCanvas", { name: "First" });
+    const firstCard = await session.execute(
+      "createCard",
+      buildCreateNoteCardInput({ canvasId: first.id, text: "first" }),
+    );
+    const second = await session.execute("createCanvas", { name: "Second" });
+    const secondCard = await session.execute(
+      "createCard",
+      buildCreateNoteCardInput({ canvasId: second.id, text: "second" }),
+    );
+    await session.execute("switchCanvas", { canvasId: first.id });
+
+    const gate = blockNextGet(first.id);
+    const staleSync = session.syncExternalState();
+    await gate.started;
+    await session.execute("switchCanvas", { canvasId: second.id });
+    gate.release();
+    expect(await staleSync).toBe(false);
+
+    const snapshot = session.getSnapshot();
+    expect(snapshot.currentCanvasId).toBe(second.id);
+    expect(snapshot.cards.map((card) => card.id)).toContain(secondCard.id);
+    expect(snapshot.cards.map((card) => card.id)).not.toContain(firstCard.id);
+  });
+
+  it("does not clobber a local mutation that completes during a poll", async () => {
+    const { session, blockNextGet } = createSharedSession();
+    const canvas = await session.execute("createCanvas", { name: "Local" });
+    const gate = blockNextGet(canvas.id);
+    const staleSync = session.syncExternalState();
+    await gate.started;
+    const local = await session.execute(
+      "createCard",
+      buildCreateNoteCardInput({ canvasId: canvas.id, text: "keep me" }),
+    );
+    gate.release();
+
+    expect(await staleSync).toBe(false);
+    expect(session.getSnapshot().cards.map((card) => card.id)).toContain(local.id);
+  });
+
+  it("preserves the current snapshot when a poll fails", async () => {
+    const store = new InMemoryDomainStore();
+    const ids = new IdSequence();
+    let failNextRead = false;
+    const session = new WorkspaceSession({
+      seedDefaultCanvas: false,
+      runAction: (name, input) => {
+        if (name === "getCanvasState" && failNextRead) {
+          failNextRead = false;
+          throw new Error("temporary read failure");
+        }
+        return runDomainActionFromRequest(
+          requestAuthFromVerifiedUser("session-user"),
+          name,
+          input,
+          { store, id: ids.next },
+        );
+      },
+      resetStore: () => undefined,
+    });
+    const canvas = await session.execute("createCanvas", { name: "Stable" });
+    await session.execute(
+      "createCard",
+      buildCreateNoteCardInput({ canvasId: canvas.id, text: "stay" }),
+    );
+    const before = session.getSnapshot();
+    failNextRead = true;
+
+    await expect(session.syncExternalState()).rejects.toThrow(
+      "temporary read failure",
+    );
+    expect(session.getSnapshot()).toBe(before);
   });
 
   it("does not start a second getCanvasState while one is in flight", async () => {

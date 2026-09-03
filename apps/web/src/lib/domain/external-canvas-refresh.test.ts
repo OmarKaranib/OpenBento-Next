@@ -114,6 +114,12 @@ describe("external canvas refresh scheduler", () => {
     releaseB();
     expect(refreshControllerRefCount(session)).toBe(0);
     expect(host.intervals.size).toBe(0);
+
+    const releaseAfterRemount = acquireExternalCanvasRefresh(session, host);
+    expect(refreshControllerRefCount(session)).toBe(1);
+    expect(host.intervals.size).toBe(1);
+    releaseAfterRemount();
+    expect(host.intervals.size).toBe(0);
   });
 
   it("does not poll while hidden and refreshes immediately on visible/focus", async () => {
@@ -133,11 +139,13 @@ describe("external canvas refresh scheduler", () => {
     }
     expect(sync).toHaveBeenCalledTimes(1);
     await sync.mock.results.at(-1)?.value;
+    await Promise.resolve();
     expect(host.intervals.size).toBe(1);
 
     host.advance(EXTERNAL_CANVAS_REFRESH_INTERVAL_MS);
     expect(sync).toHaveBeenCalledTimes(2);
     await sync.mock.results.at(-1)?.value;
+    await Promise.resolve();
 
     host.visibility = "hidden";
     for (const handler of host.visibilityHandlers) {
@@ -153,6 +161,7 @@ describe("external canvas refresh scheduler", () => {
     }
     expect(sync).toHaveBeenCalledTimes(3);
     await sync.mock.results.at(-1)?.value;
+    await Promise.resolve();
 
     for (const handler of host.focusHandlers) {
       handler();
@@ -195,6 +204,26 @@ describe("external canvas refresh scheduler", () => {
     host.advance(EXTERNAL_CANVAS_REFRESH_INTERVAL_MS);
     host.advance(EXTERNAL_CANVAS_REFRESH_INTERVAL_MS);
     expect(started).toBe(1);
+    release();
+  });
+
+  it("contains a failed poll and continues on the next interval", async () => {
+    const session = createUiSession();
+    await session.execute("createCanvas", { name: "Retry later" });
+    const sync = vi
+      .spyOn(session, "syncExternalState")
+      .mockRejectedValueOnce(new Error("temporary read failure"))
+      .mockResolvedValue(true);
+    const host = createHost("visible");
+    const release = acquireExternalCanvasRefresh(session, host);
+
+    host.advance(EXTERNAL_CANVAS_REFRESH_INTERVAL_MS);
+    await vi.waitFor(() => expect(sync).toHaveBeenCalledTimes(1));
+    await Promise.resolve();
+    host.advance(EXTERNAL_CANVAS_REFRESH_INTERVAL_MS);
+    await vi.waitFor(() => expect(sync).toHaveBeenCalledTimes(2));
+    expect(host.intervals.size).toBe(1);
+
     release();
   });
 });

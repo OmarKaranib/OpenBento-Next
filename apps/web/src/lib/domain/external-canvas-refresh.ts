@@ -66,9 +66,12 @@ function tick(controller: Controller): void {
     return;
   }
   controller.inflight = true;
-  void controller.session.syncExternalState().finally(() => {
-    controller.inflight = false;
-  });
+  void controller.session
+    .syncExternalState()
+    .catch(() => undefined)
+    .finally(() => {
+      controller.inflight = false;
+    });
 }
 
 function startTimer(controller: Controller): void {

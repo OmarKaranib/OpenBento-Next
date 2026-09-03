@@ -86,6 +86,16 @@ function CanvasSurface() {
     canvasRef.current = canvas;
   }, [canvas]);
 
+  useEffect(
+    () => () => {
+      if (interactingRef.current) {
+        interactingRef.current = false;
+        void session.endInteraction();
+      }
+    },
+    [canvas?.id, session],
+  );
+
   useEffect(() => {
     if (interactingRef.current) {
       return;
@@ -362,7 +372,14 @@ function CanvasSurface() {
   }
 
   return (
-    <div className="relative h-full w-full">
+    <div
+      className="relative h-full w-full"
+      onContextMenu={(event) => {
+        if (!event.defaultPrevented) {
+          openContextMenu(event);
+        }
+      }}
+    >
       <ReactFlow
         key={canvas.id}
         nodes={nodes}

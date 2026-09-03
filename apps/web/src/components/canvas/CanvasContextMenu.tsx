@@ -121,8 +121,17 @@ export function CanvasContextMenu({
       role="menu"
       tabIndex={-1}
       aria-label="Canvas actions"
+      aria-activedescendant={
+        state.items[activeIndex]
+          ? `canvas-menu-${state.items[activeIndex].id}`
+          : undefined
+      }
       className="fixed z-50 min-w-48 overflow-hidden rounded-lg border border-zinc-800 bg-zinc-950 p-1 text-zinc-100 shadow-xl outline-none"
       style={{ left: position.x, top: position.y }}
+      onContextMenu={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+      }}
     >
       {state.items.map((item, index) => (
         <button

@@ -1,7 +1,7 @@
 "use client";
 
 import { useReactFlow } from "@xyflow/react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { useWorkspaceUi } from "@/components/workspace/workspace-ui";
 import { useCanvasCommands } from "./use-canvas-commands";
@@ -39,6 +39,16 @@ export function FrameDrawLayer() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const draftRef = useRef<Draft | null>(null);
   const canvasId = snapshot.currentCanvasId;
+
+  useEffect(
+    () => () => {
+      if (draftRef.current) {
+        draftRef.current = null;
+        void session.endInteraction();
+      }
+    },
+    [session],
+  );
 
   if (!canvasId) {
     return null;
@@ -102,6 +112,16 @@ export function FrameDrawLayer() {
         } else {
           void session.endInteraction();
         }
+      }}
+      onPointerCancel={() => {
+        if (!draftRef.current) return;
+        draftRef.current = null;
+        setDraft(null);
+        setFrameToolActive(false);
+        void session.endInteraction();
+      }}
+      onContextMenu={(event) => {
+        event.preventDefault();
       }}
     >
       {draft ? (
