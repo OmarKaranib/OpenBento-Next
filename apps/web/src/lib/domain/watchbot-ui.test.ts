@@ -21,6 +21,7 @@ import {
   formatWatchBotLastActivity,
   watchBotCountSummary,
   watchBotErrorDisplay,
+  watchBotRunControl,
 } from "./watchbot-ui";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -88,6 +89,21 @@ describe("WatchBot UI helpers", () => {
     });
     expect(buildPauseWatchBotInput("wb1")).toEqual({ watchBotId: "wb1" });
     expect(buildResumeWatchBotInput("wb1")).toEqual({ watchBotId: "wb1" });
+  });
+
+  it("maps WatchBot status to Pause / Resume / Retry without a new action", () => {
+    expect(watchBotRunControl("running")).toEqual({
+      action: "pauseWatchBot",
+      label: "Pause",
+    });
+    expect(watchBotRunControl("paused")).toEqual({
+      action: "resumeWatchBot",
+      label: "Resume",
+    });
+    expect(watchBotRunControl("error")).toEqual({
+      action: "resumeWatchBot",
+      label: "Resume / Retry",
+    });
   });
 
   it("labels domain status as configured, not live worker activity", () => {
