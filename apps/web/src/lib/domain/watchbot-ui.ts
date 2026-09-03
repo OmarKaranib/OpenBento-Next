@@ -23,11 +23,24 @@ export const STALE_WATCHBOT_UI_PHRASES = [
   "Global WatchBot management is out of scope",
 ] as const;
 
+/** Overclaim phrases the product UI must never contain (case-insensitive). */
+export const OVERCLAIM_WATCHBOT_UI_PHRASES = [
+  "real-time",
+  "realtime",
+  "instantly",
+  "continuously",
+  "as it happens",
+  "every source",
+  "all sources",
+  "24/7",
+  "never miss",
+] as const;
+
 export const WATCHBOT_ZERO_STATE_COPY =
   "No WatchBots on this Canvas yet. Create one to configure a persistent monitor for this Canvas.";
 
 export const WATCHBOT_EXECUTION_CAVEAT =
-  "WatchBots monitor configured sources in the background. Activity and source availability depend on the selected sources.";
+  "WatchBots monitor configured sources on a schedule in the background. Activity and source availability depend on the selected sources.";
 
 export const WATCHBOT_SCOPE_LABEL = "This Canvas";
 
@@ -38,7 +51,7 @@ export const WATCHBOT_SOURCE_TYPE_OPTIONS: ReadonlyArray<{
 }> = [
   { value: "web", label: "Web" },
   { value: "news", label: "News" },
-  { value: "youtube", label: "YouTube" },
+  { value: "youtube", label: "YouTube", note: "YouTube discovery is not available yet — selecting it saves your preference but won't produce Cards." },
   { value: "x", label: "X" },
 ];
 

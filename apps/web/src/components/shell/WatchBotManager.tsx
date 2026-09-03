@@ -212,10 +212,20 @@ export function WatchBotCanvasPanel({
                       onChange={() => toggleSource(option.value)}
                     />
                     {option.label}
+                    {option.note ? (
+                      <span className="ml-0.5 text-[9px] text-zinc-500">
+                        *
+                      </span>
+                    ) : null}
                   </label>
                 );
               })}
             </div>
+            {WATCHBOT_SOURCE_TYPE_OPTIONS.filter((o) => o.note).map((o) => (
+              <p key={o.value} className="text-[10px] leading-4 text-zinc-500">
+                * {o.note}
+              </p>
+            ))}
             <p className="text-[10px] leading-4 text-zinc-600">
               Activity and source availability depend on the selected sources.
             </p>

@@ -8,8 +8,10 @@ import { runDomainActionFromRequest } from "../../server/run-action";
 import { requestAuthFromVerifiedUser } from "../../server/session";
 import { WorkspaceSession } from "./workspace-session";
 import {
+  OVERCLAIM_WATCHBOT_UI_PHRASES,
   STALE_WATCHBOT_UI_PHRASES,
   WATCHBOT_EXECUTION_CAVEAT,
+  WATCHBOT_SOURCE_TYPE_OPTIONS,
   WATCHBOT_ZERO_STATE_COPY,
   buildCreateWatchBotInput,
   buildPauseWatchBotInput,
@@ -93,9 +95,41 @@ describe("WatchBot UI helpers", () => {
   it("labels domain status as configured, not live worker activity", () => {
     expect(configuredStatusLabel("running")).toBe("configured · running");
     expect(configuredStatusLabel("paused")).toBe("configured · paused");
-    expect(WATCHBOT_EXECUTION_CAVEAT).toBe(
-      "WatchBots monitor configured sources in the background. Activity and source availability depend on the selected sources.",
-    );
+    expect(WATCHBOT_EXECUTION_CAVEAT).toContain("monitor configured sources");
+    expect(WATCHBOT_EXECUTION_CAVEAT).toContain("background");
+  });
+
+  it("does not overclaim in any user-facing WatchBot copy", () => {
+    const allCopy = [
+      WATCHBOT_EXECUTION_CAVEAT,
+      WATCHBOT_ZERO_STATE_COPY,
+      ...WATCHBOT_SOURCE_TYPE_OPTIONS.map((o) => o.note ?? ""),
+    ];
+    const shellSources = [
+      shellSource("WatchBotManager.tsx"),
+      shellSource("WatchBotStatus.tsx"),
+      shellSource("SidePanels.tsx"),
+    ];
+    for (const phrase of OVERCLAIM_WATCHBOT_UI_PHRASES) {
+      const re = new RegExp(phrase, "i");
+      for (const copy of allCopy) {
+        expect(copy).not.toMatch(re);
+      }
+      for (const src of shellSources) {
+        expect(src).not.toMatch(re);
+      }
+    }
+  });
+
+  it("YouTube source option has an availability note", () => {
+    const yt = WATCHBOT_SOURCE_TYPE_OPTIONS.find((o) => o.value === "youtube");
+    expect(yt).toBeDefined();
+    expect(yt!.note).toBeDefined();
+    expect(yt!.note).toMatch(/not available/i);
+    const web = WATCHBOT_SOURCE_TYPE_OPTIONS.find((o) => o.value === "web");
+    expect(web?.note).toBeUndefined();
+    const x = WATCHBOT_SOURCE_TYPE_OPTIONS.find((o) => o.value === "x");
+    expect(x?.note).toBeUndefined();
   });
 });
 
@@ -127,6 +161,9 @@ describe("WatchBot UI shell copy", () => {
     );
     for (const phrase of STALE_WATCHBOT_UI_PHRASES) {
       expect(combined).not.toContain(phrase);
+    }
+    for (const phrase of OVERCLAIM_WATCHBOT_UI_PHRASES) {
+      expect(combined).not.toMatch(new RegExp(phrase, "i"));
     }
     expect(combined).not.toMatch(/Persistent monitors arrive/i);
     expect(panels).not.toContain("Account-wide WatchBots");
