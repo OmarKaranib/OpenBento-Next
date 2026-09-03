@@ -396,9 +396,12 @@ describe("OpenAI web/news discovery", () => {
       apiKey: "test-not-a-secret",
       fetchImpl: mockFetch({ error: "nope" }, { status: 500 }),
     });
-    await expect(failing?.discover(discoverInput)).rejects.toThrow(
-      "openai_web_http_500",
-    );
+    await expect(failing?.discover(discoverInput)).rejects.toMatchObject({
+      name: "OpenAIWebSourceProviderError",
+      message: "openai_web_http_500",
+      code: "transient_server",
+      retryable: true,
+    });
 
     const timedOut = createOpenAIWebSourceProvider({
       enabled: true,
@@ -406,15 +409,42 @@ describe("OpenAI web/news discovery", () => {
       timeoutMs: 20,
       fetchImpl: mockFetch(envelopeWithItems([]), { delayMs: 200 }),
     });
-    await expect(timedOut?.discover(discoverInput)).rejects.toThrow(
-      "openai_web_timeout",
-    );
+    await expect(timedOut?.discover(discoverInput)).rejects.toMatchObject({
+      name: "OpenAIWebSourceProviderError",
+      message: "openai_web_timeout",
+      code: "timeout",
+      retryable: true,
+    });
+  });
+
+  it("classifies 429 as retryable and 401 as terminal", async () => {
+    const rateLimited = createOpenAIWebSourceProvider({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: mockFetch({ error: "slow down" }, { status: 429 }),
+    });
+    await expect(rateLimited?.discover(discoverInput)).rejects.toMatchObject({
+      message: "openai_web_http_429",
+      code: "rate_limited",
+      retryable: true,
+    });
+
+    const unauthorized = createOpenAIWebSourceProvider({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: mockFetch({ error: "nope" }, { status: 401 }),
+    });
+    await expect(unauthorized?.discover(discoverInput)).rejects.toMatchObject({
+      message: "openai_web_http_401",
+      code: "unauthorized",
+      retryable: false,
+    });
   });
 
   it("does not encode ASCII/English lexical gates, secrets, or crawl loops", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const src = readFileSync(join(here, "openai-web.ts"), "utf8");
-    expect(src).not.toMatch(/split\(\/\^\[a-z0-9/i);
+    expect(src).not.toMatch(/split(\/\^[a-z0-9/i);
     expect(src).not.toMatch(/["']sk-[a-zA-Z0-9]+["']/);
     expect(src).not.toMatch(/OPENAI_API_KEY\s*=\s*["'][^"']+["']/);
     expect(src).not.toMatch(/XAI_API_KEY|GROK_API_KEY|X_BEARER_TOKEN/);
