@@ -11,6 +11,9 @@ import {
   createOpenAIWebSourceProvider,
   createXSourceProvider,
   FakeSourceProvider,
+  XSourceProviderError,
+  YouTubeSourceProviderError,
+  type SourceProvider,
 } from "@openbento/watchbot";
 import { runWorkerCycle } from "./cycle";
 import { seedFixtureStore } from "./fixture";
@@ -96,6 +99,134 @@ describe("WatchBot worker cycle", () => {
 
     const statusB = await b.getWatchBotStatus({ watchBotId: botB.id });
     expect(statusB.status).toBe("running");
+  });
+
+  it.each([
+    "openai_web_timeout",
+    "openai_web_network",
+    "openai_web_http_429",
+    "openai_web_http_503",
+  ])("keeps an OpenAI transient failure running: %s", async (message) => {
+    const { store, ownerId, watchBotId } = await seedFixtureStore();
+    const provider: SourceProvider = {
+      id: "openai-web",
+      vendor: "openai",
+      discover: vi.fn(async () => {
+        throw new Error(message);
+      }),
+    };
+
+    const result = await runWorkerCycle({ store, provider });
+    const status = await createActionExecutor({ store, ownerId }).getWatchBotStatus({
+      watchBotId,
+    });
+
+    expect(result.errors).toBe(1);
+    expect(provider.discover).toHaveBeenCalledTimes(1);
+    expect(status).toMatchObject({ status: "running", lastError: message });
+  });
+
+  it.each(["openai_web_http_401", "openai_web_http_403", "openai_web_malformed"])(
+    "keeps an OpenAI terminal failure terminal: %s",
+    async (message) => {
+      const { store, ownerId, watchBotId } = await seedFixtureStore();
+      const provider: SourceProvider = {
+        id: "openai-web",
+        vendor: "openai",
+        discover: vi.fn(async () => {
+          throw new Error(message);
+        }),
+      };
+
+      await runWorkerCycle({ store, provider });
+      const executor = createActionExecutor({ store, ownerId });
+      expect(await executor.getWatchBotStatus({ watchBotId })).toMatchObject({
+        status: "error",
+        lastError: message,
+      });
+
+      const resumed = await executor.resumeWatchBot({ watchBotId });
+      expect(resumed.status).toBe("running");
+    },
+  );
+
+  it.each([
+    new XSourceProviderError("network", "X provider request failed.", {
+      retryable: true,
+    }),
+    new YouTubeSourceProviderError(
+      "transient_server",
+      "YouTube provider is temporarily unavailable.",
+      { retryable: true },
+    ),
+  ])("keeps typed retryable provider errors running", async (providerError) => {
+    const { store, ownerId, watchBotId } = await seedFixtureStore();
+    const provider: SourceProvider = {
+      id: "typed-provider",
+      vendor:
+        providerError instanceof XSourceProviderError ? "x-api" : "youtube-api",
+      discover: vi.fn(async () => {
+        throw providerError;
+      }),
+    };
+    const bot = await store.getWatchBot(watchBotId);
+    if (!bot) throw new Error("expected WatchBot");
+    await store.saveWatchBot({
+      ...bot,
+      sourceTypes:
+        providerError instanceof XSourceProviderError ? ["x"] : ["youtube"],
+    });
+
+    await runWorkerCycle({ store, provider });
+
+    expect(await createActionExecutor({ store, ownerId }).getWatchBotStatus({ watchBotId })).toMatchObject({
+      status: "running",
+      lastError: providerError.message,
+    });
+    expect(provider.discover).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries on the next tick, clears the warning after success, and preserves dedup", async () => {
+    const { store, ownerId, canvasId, watchBotId } = await seedFixtureStore();
+    const discovered = {
+      sourceUrl: "https://news.example.com/transient-recovery",
+      title: "Lake Ontario policy recovery update",
+      publishedAt: "2026-09-03T16:00:00.000Z",
+      sourceType: "news" as const,
+      rawExcerpt: "Officials announced a Lake Ontario policy development.",
+    };
+    let calls = 0;
+    const provider: SourceProvider = {
+      id: "openai-web",
+      vendor: "openai",
+      discover: vi.fn(async () => {
+        calls += 1;
+        if (calls === 1) throw new Error("openai_web_timeout");
+        return [discovered];
+      }),
+    };
+    const executor = createActionExecutor({ store, ownerId });
+
+    const first = await runWorkerCycle({ store, provider });
+    expect(first.errors).toBe(1);
+    expect(provider.discover).toHaveBeenCalledTimes(1);
+    expect(await executor.getWatchBotStatus({ watchBotId })).toMatchObject({
+      status: "running",
+      lastError: "openai_web_timeout",
+    });
+
+    const second = await runWorkerCycle({ store, provider });
+    expect(second.cardsCreated).toBe(1);
+    expect(await executor.getWatchBotStatus({ watchBotId })).toMatchObject({
+      status: "running",
+      lastError: undefined,
+    });
+
+    const third = await runWorkerCycle({ store, provider });
+    expect(third.cardsCreated).toBe(0);
+    expect(third.duplicates).toBe(1);
+    expect((await executor.getCanvasState({ canvasId })).cards).toHaveLength(1);
+    expect(provider.discover).toHaveBeenCalledTimes(3);
   });
 
   it("does not invent a second store — Cards exist on the shared DomainStore", async () => {

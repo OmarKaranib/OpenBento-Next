@@ -409,6 +409,17 @@ describe("OpenAI web/news discovery", () => {
     await expect(timedOut?.discover(discoverInput)).rejects.toThrow(
       "openai_web_timeout",
     );
+
+    const networkFailure = createOpenAIWebSourceProvider({
+      enabled: true,
+      apiKey: "test-not-a-secret",
+      fetchImpl: vi.fn(async () => {
+        throw new Error("socket detail must not escape");
+      }),
+    });
+    await expect(networkFailure?.discover(discoverInput)).rejects.toThrow(
+      "openai_web_network",
+    );
   });
 
   it("does not encode ASCII/English lexical gates, secrets, or crawl loops", () => {

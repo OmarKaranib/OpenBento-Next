@@ -304,11 +304,11 @@ async function fetchWithTimeout(
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await fetchImpl(url, { ...init, signal: controller.signal });
-  } catch (error) {
+  } catch {
     if (controller.signal.aborted) {
       throw new Error("openai_web_timeout");
     }
-    throw error instanceof Error ? error : new Error("openai_web_network");
+    throw new Error("openai_web_network");
   } finally {
     clearTimeout(timeout);
   }
