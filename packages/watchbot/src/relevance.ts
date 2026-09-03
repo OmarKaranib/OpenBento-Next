@@ -32,34 +32,49 @@ export function scoreRelevance(
 }
 
 /**
- * Ordinary WatchBots: Jaccard of item title vs raw instruction + canvas text.
- * Do not change this path for web/news natural-language monitors.
+ * Ordinary WatchBots: max of title↔instruction Jaccard and title↔canvas Jaccard.
+ * Instruction and Canvas context are separate signals so historical Cards
+ * cannot dilute instruction overlap. Do not mix this path with
+ * provider-filtered scoring, and do not concatenate the two token sets.
  */
 function scoreNaturalLanguageRelevance(
   item: NormalizedItem,
   instruction: string,
   canvas: CanvasState,
 ): number {
-  const contextTokens = tokenizeForScoring(
-    [
-      instruction,
-      canvas.canvas.name,
-      ...canvas.cards.map((card) => {
-        if (card.type === "note") {
-          return card.payload.text;
-        }
-        if ("provenance" in card.payload) {
-          return card.payload.provenance.title;
-        }
-        return "";
-      }),
-    ].join(" "),
-  );
   const itemTokens = tokenizeForScoring(item.title);
-  if (contextTokens.length === 0 || itemTokens.length === 0) {
+  if (itemTokens.length === 0) {
     return 0;
   }
-  return jaccardSimilarity(itemTokens, contextTokens);
+
+  const instructionTokens = tokenizeForScoring(instruction);
+  const canvasContextTokens = tokenizeForScoring(canvasContextText(canvas));
+
+  const instructionScore =
+    instructionTokens.length === 0
+      ? 0
+      : jaccardSimilarity(itemTokens, instructionTokens);
+  const canvasScore =
+    canvasContextTokens.length === 0
+      ? 0
+      : jaccardSimilarity(itemTokens, canvasContextTokens);
+
+  return Math.max(instructionScore, canvasScore);
+}
+
+function canvasContextText(canvas: CanvasState): string {
+  return [
+    canvas.canvas.name,
+    ...canvas.cards.map((card) => {
+      if (card.type === "note") {
+        return card.payload.text;
+      }
+      if ("provenance" in card.payload) {
+        return card.payload.provenance.title;
+      }
+      return "";
+    }),
+  ].join(" ");
 }
 
 /**

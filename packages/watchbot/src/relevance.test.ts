@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CanvasState } from "@openbento/domain";
+import type { CanvasState, Card } from "@openbento/domain";
 import type { NormalizedItem } from "./normalize";
 import {
   RELEVANCE_THRESHOLD,
@@ -11,7 +11,11 @@ import {
   deriveXPositiveSearchTerms,
   relevanceLaneForSourceType,
 } from "./relevance-intent";
-import { tokenizeForScoring, tokenizeItemForProviderRelevance } from "./untrusted";
+import {
+  jaccardSimilarity,
+  tokenizeForScoring,
+  tokenizeItemForProviderRelevance,
+} from "./untrusted";
 
 const X_QUERY = "(OpenAI OR WebMCP) -is:retweet";
 const NL_INSTRUCTION =
@@ -44,6 +48,87 @@ function item(sourceType: NormalizedItem["sourceType"], title: string): Normaliz
     snippet: title,
     discoveredAt: "2026-08-29T13:00:00.000Z",
   };
+}
+
+/** Titles chosen so they share almost no tokens with the Lake Ontario instruction. */
+const UNRELATED_CARD_TITLES = [
+  "Chocolate cake recipe with extra cocoa powder",
+  "Indoor succulent watering calendar for apartments",
+  "Vintage brass telescope repair workshop notes",
+  "Jazz piano chord voicings for complete beginners",
+  "Wool scarf knitting patterns using circular needles",
+  "Urban beekeeping starter kit inventory checklist",
+  "Pottery wheel throwing techniques for cylinders",
+  "Backyard compost bin temperature log entries",
+  "Origami crane folding sequence with extra creases",
+  "Sourdough starter feeding schedule for winter",
+  "Fountain pen ink comparison on cotton paper",
+  "Birdwatching checklist for coastal marsh habitats",
+];
+
+function unrelatedCard(index: number, title: string): Card {
+  const base = {
+    id: `card-unrelated-${index}`,
+    canvasId: "canvas-rel",
+    position: { x: index * 40, y: 0 },
+    size: { width: 320, height: 240 },
+    createdAt: "2026-08-29T00:00:00.000Z",
+    updatedAt: "2026-08-29T00:00:00.000Z",
+  };
+  if (index % 2 === 0) {
+    return {
+      ...base,
+      type: "news",
+      payload: {
+        provenance: {
+          sourceUrl: `https://news.example.com/unrelated-${index}`,
+          title,
+          publishedAt: "2026-08-28T12:00:00.000Z",
+          sourceType: "news",
+        },
+      },
+    };
+  }
+  return {
+    ...base,
+    type: "note",
+    payload: { text: title },
+  };
+}
+
+function populatedUnrelatedCanvas(name = "Ontario Watch"): CanvasState {
+  const base = emptyCanvas(name);
+  return {
+    ...base,
+    cards: UNRELATED_CARD_TITLES.map((title, index) => unrelatedCard(index, title)),
+  };
+}
+
+function concatenatedNaturalLanguageScore(
+  title: string,
+  instruction: string,
+  canvas: CanvasState,
+): number {
+  const contextTokens = tokenizeForScoring(
+    [
+      instruction,
+      canvas.canvas.name,
+      ...canvas.cards.map((card) => {
+        if (card.type === "note") {
+          return card.payload.text;
+        }
+        if ("provenance" in card.payload) {
+          return card.payload.provenance.title;
+        }
+        return "";
+      }),
+    ].join(" "),
+  );
+  const itemTokens = tokenizeForScoring(title);
+  if (contextTokens.length === 0 || itemTokens.length === 0) {
+    return 0;
+  }
+  return jaccardSimilarity(itemTokens, contextTokens);
 }
 
 describe("provider-aware X relevance intent", () => {
@@ -186,6 +271,66 @@ describe("ordinary natural-language relevance is unchanged", () => {
     expect(isRelevantEnough(scoreRelevance(sports, NL_INSTRUCTION, canvas))).toBe(
       false,
     );
+    expect(RELEVANCE_THRESHOLD).toBe(0.12);
+  });
+
+  it("accepts a relevant web/news title against a relevant instruction on an empty Canvas", () => {
+    const webOntario = item("web", ontario.title);
+    expect(isRelevantEnough(scoreRelevance(ontario, NL_INSTRUCTION, canvas))).toBe(
+      true,
+    );
+    expect(isRelevantEnough(scoreRelevance(webOntario, NL_INSTRUCTION, canvas))).toBe(
+      true,
+    );
+  });
+
+  it("does not dilute a relevant news title after many unrelated Canvas Cards", () => {
+    const populated = populatedUnrelatedCanvas();
+    const diluted = concatenatedNaturalLanguageScore(
+      ontario.title,
+      NL_INSTRUCTION,
+      populated,
+    );
+    expect(diluted).toBeLessThan(RELEVANCE_THRESHOLD);
+    expect(isRelevantEnough(diluted)).toBe(false);
+
+    const score = scoreRelevance(ontario, NL_INSTRUCTION, populated);
+    expect(score).toBeGreaterThanOrEqual(RELEVANCE_THRESHOLD);
+    expect(isRelevantEnough(score)).toBe(true);
+    expect(RELEVANCE_THRESHOLD).toBe(0.12);
+  });
+
+  it("still rejects an irrelevant web/news title on a populated Canvas", () => {
+    const populated = populatedUnrelatedCanvas();
+    const newsScore = scoreRelevance(sports, NL_INSTRUCTION, populated);
+    const webScore = scoreRelevance(
+      item("web", sports.title),
+      NL_INSTRUCTION,
+      populated,
+    );
+    expect(isRelevantEnough(newsScore)).toBe(false);
+    expect(isRelevantEnough(webScore)).toBe(false);
+  });
+
+  it("preserves multilingual / non-ASCII NL scoring via shared ASCII tokens", () => {
+    const populated = populatedUnrelatedCanvas();
+    const mixedTitle =
+      "オンタリオ湖を Lake Ontario に改名する公式の議論が続いている";
+    expect(tokenizeForScoring(mixedTitle)).toEqual(
+      expect.arrayContaining(["lake", "ontario"]),
+    );
+    const emptyScore = scoreRelevance(
+      item("news", mixedTitle),
+      NL_INSTRUCTION,
+      canvas,
+    );
+    const populatedScore = scoreRelevance(
+      item("news", mixedTitle),
+      NL_INSTRUCTION,
+      populated,
+    );
+    expect(isRelevantEnough(emptyScore)).toBe(true);
+    expect(isRelevantEnough(populatedScore)).toBe(true);
   });
 
   it("does not apply X operator stripping to a news candidate", () => {
