@@ -38,6 +38,8 @@ type WorkspaceContextValue = {
   snapshot: SessionSnapshot;
   /** True when the Supabase session is an anonymous (guest) user. */
   isGuest: boolean;
+  /** Signed-in account email when present. Guests typically have none. */
+  accountEmail: string | null;
   execute: <N extends ActionName>(
     name: N,
     input: ActionInputByName[N],
@@ -92,17 +94,25 @@ function getEmptySnapshot(): SessionSnapshot {
 function bindSessionForUser(user: AuthUserLike | null): {
   auth: "signed-out" | "signed-in";
   isGuest: boolean;
+  accountEmail: string | null;
   session: WorkspaceSession | null;
 } {
   const nextPrincipalId = principalIdFromAuthUser(user);
   if (!nextPrincipalId) {
     browserSessionBinder.retire();
-    return { auth: "signed-out", isGuest: false, session: null };
+    return {
+      auth: "signed-out",
+      isGuest: false,
+      accountEmail: null,
+      session: null,
+    };
   }
   const nextSession = browserSessionBinder.bind(nextPrincipalId);
   return {
     auth: "signed-in",
     isGuest: isAnonymousUser(user),
+    // Same verified getUser() result as bind — never JWT / session.user.
+    accountEmail: user?.email ?? null,
     session: nextSession,
   };
 }
@@ -112,6 +122,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     "loading",
   );
   const [isGuest, setIsGuest] = useState(false);
+  const [accountEmail, setAccountEmail] = useState<string | null>(null);
   const [session, setSession] = useState<WorkspaceSession | null>(null);
   const verificationSequencerRef = useRef(new AuthVerificationSequencer());
 
@@ -123,6 +134,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       const next = bindSessionForUser(user);
       setAuth(next.auth);
       setIsGuest(next.isGuest);
+      setAccountEmail(next.accountEmail);
       setSession(next.session);
       if (next.session) {
         void next.session.start();
@@ -167,12 +179,13 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
       session,
       snapshot,
       isGuest,
+      accountEmail,
       execute: (name, input, options) => session.execute(name, input, options),
       commit: (calls, options) => session.commit(calls, options),
       undo: () => session.undo(),
       redo: () => session.redo(),
     };
-  }, [session, snapshot, isGuest]);
+  }, [session, snapshot, isGuest, accountEmail]);
 
   if (auth === "loading") {
     return (
@@ -198,6 +211,7 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
                 const next = bindSessionForUser(user);
                 setAuth(next.auth);
                 setIsGuest(next.isGuest);
+                setAccountEmail(next.accountEmail);
                 setSession(next.session);
                 if (next.session) {
                   void next.session.start();
