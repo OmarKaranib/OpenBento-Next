@@ -17,7 +17,7 @@ function walkTs(dir: string): string[] {
 }
 
 describe("vendor boundary", () => {
-  it("keeps @openbento/domain free of Grok/xAI/OpenAI/X provider imports and credentials", () => {
+  it("keeps @openbento/domain free of provider imports and credentials", () => {
     const here = dirname(fileURLToPath(import.meta.url));
     const domainSrc = join(here, "../../domain/src");
     const files = walkTs(domainSrc);
@@ -25,7 +25,7 @@ describe("vendor boundary", () => {
     for (const file of files) {
       const text = readFileSync(file, "utf8");
       expect(text).not.toMatch(
-        /from\s+["'][^"']*(?:xai|grok|openai|adapters\/x)[^"']*["']|XAI_API_KEY|GROK_API_KEY|OPENAI_API_KEY|X_BEARER_TOKEN|api\.x\.com|api\.openai\.com/i,
+        /from\s+["'][^"']*(?:xai|grok|openai|adapters\/(?:x|youtube))[^"']*["']|XAI_API_KEY|GROK_API_KEY|OPENAI_API_KEY|X_BEARER_TOKEN|YOUTUBE_API_KEY|api\.x\.com|api\.openai\.com|googleapis\.com\/youtube/i,
       );
       expect(text).not.toMatch(/MeaningfulnessClassifier|createFixtureMeaningfulnessClassifier/);
       expect(text).not.toMatch(

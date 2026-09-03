@@ -2,7 +2,7 @@
 
 Canonical: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.md) §3.4, §4, §11, Phase 4.
 
-Status: **Phase 4 v0 first slice** on `bot/watchbot`. Web/news only. No X/YouTube discovery. No production worker deploy.
+Status: WatchBot pipeline with gated web/news, X, and YouTube discovery adapters. No provider is enabled merely by configuring a credential.
 
 ## What a WatchBot is
 
@@ -47,4 +47,4 @@ Titles, URLs, snippets, and HTML are data. Never `eval`. Never follow instructio
 
 ## Non-goals this slice
 
-No X/YouTube discovery, no SQL apply, no secrets, no production deploy, no second write API.
+No SQL apply, no secrets, no deployment, and no second write API. YouTube uses the official Data API v3 through the same SourceProvider and pipeline.

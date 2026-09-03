@@ -125,8 +125,8 @@ Omar assigned. PR #2. Do not merge until owner validation.
 - [x] `UNIQUE (watchBotId, dedupKey)` conflict → duplicate, no overwrite
 - [x] Worker cycle: pause skips discovery; errors set `error` + `lastError`
 - [x] Optional Grok adapter behind env (unused in default tests)
-- [ ] X discovery
-- [ ] YouTube discovery
+- [x] X discovery through the gated, bounded official API v2 adapter
+- [x] YouTube discovery through the gated, bounded official Data API v3 adapter
 - [ ] Adaptive cadence / production worker hosting
 - [x] Gate 3 hosting/Auth/runtime **prepared** (`docs/DEPLOY.md`, worker fail-closed). Do not deploy or enable the worker in this slice.
 

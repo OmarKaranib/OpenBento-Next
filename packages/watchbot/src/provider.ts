@@ -27,12 +27,16 @@ export interface SourceProviderDiscoverInput {
 
 export interface SourceProvider {
   readonly id: string;
-  readonly vendor: "xai-grok" | "x-api" | "openai" | "unspecified";
+  readonly vendor:
+    | "xai-grok"
+    | "x-api"
+    | "youtube-api"
+    | "openai"
+    | "unspecified";
   discover(input: SourceProviderDiscoverInput): Promise<DiscoveredItem[]>;
   /**
-   * Optional per-tick budget reset. OpenAI web/news uses this so a
-   * process-long provider instance does not accumulate paid calls
-   * across worker ticks.
+   * Optional per-tick budget reset. Metered providers use this so a
+   * process-long instance does not accumulate paid calls across worker ticks.
    */
   startWorkerTick?(): void;
 }

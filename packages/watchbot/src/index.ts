@@ -12,12 +12,14 @@ export type { WatchBot, WatchBotStatus } from "./types";
 export {
   WATCHBOT_V0_SOURCE_TYPES,
   canonicalizeUrl,
+  canonicalYouTubeWatchUrl,
   isBlockedWatchBotV0Host,
   isBlockedWatchBotV0Url,
   isWatchBotV0SourceType,
   normalizeDiscoveredItem,
   parsePublishedAt,
   sourceTypeToCardType,
+  youtubeVideoIdFromWatchUrl,
   type NormalizedItem,
   type WatchBotV0SourceType,
 } from "./normalize";
@@ -157,6 +159,19 @@ export {
   type XSourceProviderErrorCode,
   type XSourceProviderOptions,
 } from "./adapters/x";
+export {
+  YOUTUBE_SOURCE_PROVIDER_LIMITS,
+  YouTubeSourceProviderError,
+  canonicalYouTubeUrl,
+  createYouTubeSourceProvider,
+  youtubeApiKey,
+  youtubeMaxRequestsPerTick,
+  youtubeMaxResultsPerCycle,
+  youtubeTimeoutMs,
+  type YouTubeSourceProviderErrorCode,
+  type YouTubeSourceProviderOptions,
+  type YouTubeSourceProviderPublic,
+} from "./adapters/youtube";
 export {
   emptyMeaningfulnessClassifierTelemetry,
   noopWatchBotTelemetry,

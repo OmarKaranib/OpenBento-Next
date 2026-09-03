@@ -77,14 +77,24 @@ Hard bounds: `WATCHBOT_OPENAI_WEB_MAX_REQUESTS_PER_TICK` (default 1, ceiling 5),
 `WATCHBOT_OPENAI_WEB_MAX_RESULTS_PER_CYCLE` (default 10, ceiling 20),
 `WATCHBOT_OPENAI_WEB_TIMEOUT_MS` (default 15000, ceiling 30000). YouTube / X
 URLs are dropped and never coerced to web. `@openbento/domain` does not import
-OpenAI or Grok.
+provider implementations.
 
 The official X API v2 adapter is in `src/adapters/x.ts`. It is read-only and
 disabled by default. It requires both `X_PROVIDER_ENABLED=true` and the
 worker-only `X_BEARER_TOKEN`; it never posts, replies, likes, follows, sends
 DMs, or mutates X. It enforces code-level query, request, page, result, and
 timeout limits. X stays `sourceType: "x"` through normalization and Card
-creation. YouTube discovery is not implemented.
+creation.
+
+The official YouTube Data API v3 adapter is in `src/adapters/youtube.ts`.
+It is read-only, disabled by default, and requires both
+`YOUTUBE_PROVIDER_ENABLED=true` and worker-only `YOUTUBE_API_KEY`. Each cycle
+searches active live, embeddable/syndicated videos first and performs one
+recent-video fallback only when no valid live results exist. There is no
+pagination or retry loop. `YOUTUBE_MAX_REQUESTS_PER_TICK` is shared across all
+WatchBots using the provider; per-cycle results and request timeout are also
+hard-capped. Valid IDs become canonical `youtube.com/watch` URLs and stay
+`sourceType: "youtube"` through the existing pipeline and Card creation.
 
 ## Pipeline
 
