@@ -52,6 +52,7 @@ export {
   selectCandidates,
   type RankableCandidate,
 } from "./select-candidates";
+export { mapBounded } from "./bounded-concurrency";
 export {
   PASSTHROUGH_IMPORTANCE,
   PASSTHROUGH_MEANINGFULNESS_CLASSIFIER,
@@ -64,6 +65,7 @@ export {
   formatImportanceForDetail,
   isClassificationStatus,
   isMeaningfulDevelopment,
+  JUDGE_DEFAULT_CONCURRENCY,
   judgeRepresentatives,
   normalizeImportanceScore,
   normalizeMeaningfulnessJudgment,
