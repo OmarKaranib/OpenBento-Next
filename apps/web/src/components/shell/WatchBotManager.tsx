@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import type { WatchBot, WatchBotSourceType } from "@openbento/domain";
 import { UntrustedText } from "@/components/cards/UntrustedText";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
+import { useWorkspaceUi } from "@/components/workspace/workspace-ui";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -36,6 +37,7 @@ export function WatchBotCanvasPanel({
   className?: string;
 }) {
   const { snapshot, execute } = useWorkspace();
+  const { watchBotCreateEpoch } = useWorkspaceUi();
   const canvasId = snapshot.currentCanvasId;
   const watchBots = snapshot.watchBots;
   const cards = snapshot.cards;
@@ -66,6 +68,13 @@ export function WatchBotCanvasPanel({
     setEditing(null);
     setMode("create");
   }
+
+  useEffect(() => {
+    if (watchBotCreateEpoch <= 0) {
+      return;
+    }
+    startCreate();
+  }, [watchBotCreateEpoch]);
 
   function startEdit(bot: WatchBot) {
     setEditing(bot);

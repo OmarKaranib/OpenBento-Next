@@ -32,7 +32,7 @@ function screenRect(draft: Draft): {
 }
 
 export function FrameDrawLayer() {
-  const { snapshot } = useWorkspace();
+  const { session, snapshot } = useWorkspace();
   const { setFrameToolActive } = useWorkspaceUi();
   const { persistCreatedFrame } = useCanvasCommands();
   const { screenToFlowPosition } = useReactFlow();
@@ -61,6 +61,7 @@ export function FrameDrawLayer() {
         };
         draftRef.current = next;
         setDraft(next);
+        session.beginInteraction();
       }}
       onPointerMove={(event) => {
         const current = draftRef.current;
@@ -95,7 +96,11 @@ export function FrameDrawLayer() {
         setDraft(null);
         setFrameToolActive(false);
         if (bounds.width >= 48 && bounds.height >= 48) {
-          void persistCreatedFrame(canvasId, bounds, "Frame");
+          void persistCreatedFrame(canvasId, bounds, "Frame").finally(() => {
+            void session.endInteraction();
+          });
+        } else {
+          void session.endInteraction();
         }
       }}
     >

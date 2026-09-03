@@ -111,9 +111,14 @@ export class WorkspaceSession {
   private past: CatalogCall[][] = [];
   private future: CatalogCall[][] = [];
   private listeners = new Set<() => void>();
+  private disposeListeners = new Set<() => void>();
   private snapshot: SessionSnapshot;
   private revision = 0;
   private bootPromise: Promise<void> | null = null;
+  private disposed = false;
+  private interactionDepth = 0;
+  private pendingExternalSync = false;
+  private externalSyncInFlight = false;
   readonly ready: Promise<void>;
   private readonly resolveReady: () => void;
 
@@ -177,6 +182,114 @@ export class WorkspaceSession {
   };
 
   getSnapshot = (): SessionSnapshot => this.snapshot;
+
+  /** True after {@link dispose} — binder retire / principal change. */
+  isDisposed(): boolean {
+    return this.disposed;
+  }
+
+  /**
+   * Stop I/O for this instance. Binder retire / principal replacement must
+   * call this so pollers cannot keep reading a retired session.
+   */
+  dispose(): void {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    this.pendingExternalSync = false;
+    this.listeners.clear();
+    for (const listener of this.disposeListeners) {
+      listener();
+    }
+    this.disposeListeners.clear();
+  }
+
+  onDispose(listener: () => void): () => void {
+    if (this.disposed) {
+      listener();
+      return () => undefined;
+    }
+    this.disposeListeners.add(listener);
+    return () => {
+      this.disposeListeners.delete(listener);
+    };
+  }
+
+  beginInteraction(): void {
+    this.interactionDepth += 1;
+  }
+
+  isInteracting(): boolean {
+    return this.interactionDepth > 0;
+  }
+
+  /**
+   * End a local drag/resize/edit. Applies a deferred external merge after
+   * the last nested interaction finishes. Does not append undo history.
+   */
+  async endInteraction(): Promise<void> {
+    this.interactionDepth = Math.max(0, this.interactionDepth - 1);
+    if (this.interactionDepth === 0 && this.pendingExternalSync) {
+      this.pendingExternalSync = false;
+      await this.syncExternalState();
+    }
+  }
+
+  /**
+   * Re-read the current Canvas via catalog `getCanvasState` (user-JWT path)
+   * and publish to subscribers. Does not append the undo log, does not issue
+   * geometry writes, and leaves `canUndo` / `canRedo` unchanged.
+   *
+   * Skips while a local interaction is in flight and applies after
+   * {@link endInteraction}. Concurrent calls collapse to one in-flight read.
+   */
+  async syncExternalState(): Promise<boolean> {
+    if (this.disposed) {
+      return false;
+    }
+    if (this.interactionDepth > 0) {
+      this.pendingExternalSync = true;
+      return false;
+    }
+    if (this.externalSyncInFlight) {
+      this.pendingExternalSync = true;
+      return false;
+    }
+    this.externalSyncInFlight = true;
+    this.pendingExternalSync = false;
+    try {
+      const canvasId = this.currentCanvasId;
+      const previousViewport = canvasId
+        ? this.canvases.get(canvasId)?.viewport
+        : undefined;
+      await this.refreshCurrentCanvas();
+      if (this.disposed) {
+        return false;
+      }
+      if (canvasId && previousViewport) {
+        const canvas = this.canvases.get(canvasId);
+        if (canvas) {
+          this.canvases.set(canvasId, {
+            ...canvas,
+            viewport: previousViewport,
+          });
+        }
+      }
+      this.notify();
+      return true;
+    } finally {
+      this.externalSyncInFlight = false;
+      if (
+        this.pendingExternalSync &&
+        this.interactionDepth === 0 &&
+        !this.disposed
+      ) {
+        this.pendingExternalSync = false;
+        await this.syncExternalState();
+      }
+    }
+  }
 
   async execute<N extends ActionName>(
     name: N,
@@ -327,6 +440,10 @@ export class WorkspaceSession {
 
   private async publish(): Promise<void> {
     await this.refreshCurrentCanvas();
+    this.notify();
+  }
+
+  private notify(): void {
     this.revision += 1;
     this.snapshot = this.buildSnapshot();
     for (const listener of this.listeners) {

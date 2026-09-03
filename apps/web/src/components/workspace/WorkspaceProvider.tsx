@@ -32,6 +32,7 @@ import {
 import { createBrowserSupabaseClient } from "@/server/supabase-browser";
 import { EntryScreen } from "@/components/auth/EntryScreen";
 import { isAnonymousUser, type AuthUserLike } from "@/lib/auth/guest";
+import { useExternalCanvasRefresh } from "./use-external-canvas-refresh";
 
 type WorkspaceContextValue = {
   session: WorkspaceSession;
@@ -170,6 +171,8 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
     session ? session.getSnapshot : getEmptySnapshot,
     getEmptySnapshot,
   );
+
+  useExternalCanvasRefresh(session);
 
   const value = useMemo<WorkspaceContextValue | null>(() => {
     if (!session) {

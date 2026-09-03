@@ -24,7 +24,7 @@ export function useCanvasCommands() {
   const { snapshot, commit } = useWorkspace();
 
   const persistCardGeometry = useCallback(
-    (card: Card, next: { position?: Point; size?: Size }) => {
+    async (card: Card, next: { position?: Point; size?: Size }) => {
       const plan = planCardGeometry(card, next, snapshot.frames);
       const calls: CatalogCall[] = [];
       if (plan.move) {
@@ -37,7 +37,7 @@ export function useCanvasCommands() {
         calls.push({ name: "setCardFrame", input: plan.membership });
       }
       if (calls.length > 0) {
-        void commit(calls);
+        await commit(calls);
       }
     },
     [commit, snapshot.frames],
@@ -55,7 +55,7 @@ export function useCanvasCommands() {
   );
 
   const persistFrameMove = useCallback(
-    (frame: Frame, position: Point) => {
+    async (frame: Frame, position: Point) => {
       const dx = position.x - frame.bounds.x;
       const dy = position.y - frame.bounds.y;
       if (dx === 0 && dy === 0) {
@@ -90,13 +90,13 @@ export function useCanvasCommands() {
       for (const change of membershipCallsForCards(nextCards, nextFrames)) {
         calls.push({ name: "setCardFrame", input: change });
       }
-      void commit(calls);
+      await commit(calls);
     },
     [commit, snapshot.cards, snapshot.frames],
   );
 
   const persistFrameResize = useCallback(
-    (frame: Frame, next: { position?: Point; size?: Size }) => {
+    async (frame: Frame, next: { position?: Point; size?: Size }) => {
       const plan = planFrameGeometry(
         frame,
         next,
@@ -114,7 +114,7 @@ export function useCanvasCommands() {
         calls.push({ name: "setCardFrame", input: change });
       }
       if (calls.length > 0) {
-        void commit(calls);
+        await commit(calls);
       }
     },
     [commit, snapshot.cards, snapshot.frames],

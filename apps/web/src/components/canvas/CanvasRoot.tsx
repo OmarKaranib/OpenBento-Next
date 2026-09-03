@@ -16,8 +16,19 @@ import { cardNodeTypes } from "@/components/cards/registry";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { useWorkspaceUi } from "@/components/workspace/workspace-ui";
 import { buildCreateNoteCardInput } from "@/lib/domain/note-card";
+import {
+  cardSourceHref,
+  contextMenuItems,
+  frameBoundsAtPoint,
+  preventBrowserContextMenu,
+  resolveContextMenuTarget,
+  type ContextMenuItemId,
+  type ContextMenuTarget,
+} from "@/lib/canvas/context-menu";
+import { shouldApplyStoredViewport } from "@/lib/canvas/camera-sync";
 import { FrameNode } from "./nodes/FrameNode";
 import { CanvasToolbar } from "./CanvasToolbar";
+import { CanvasContextMenu, type CanvasContextMenuState } from "./CanvasContextMenu";
 import { FrameDrawLayer } from "./FrameDrawLayer";
 import { canvasDoubleClickShouldCreateNote } from "./empty-canvas-target";
 import { parseFlowNodeId } from "./flow-ids";
@@ -33,19 +44,31 @@ const NODE_TYPES = {
 };
 
 function CanvasSurface() {
-  const { snapshot, execute, undo, redo } = useWorkspace();
+  const { session, snapshot, execute, undo, redo } = useWorkspace();
   const {
     frameToolActive,
     setFrameToolActive,
     snapToGrid,
+    openWatchBotCreate,
   } = useWorkspaceUi();
-  const { persistCardGeometry, persistCreatedNote, persistFrameMove } =
-    useCanvasCommands();
+  const {
+    persistCardGeometry,
+    persistCreatedNote,
+    persistFrameMove,
+    persistCreatedFrame,
+  } = useCanvasCommands();
   const { cardVisible, filter } = useCanvasMonitor();
   const { screenToFlowPosition, setViewport, fitView } = useReactFlow();
   const interactingRef = useRef(false);
   const viewportTimer = useRef<number | null>(null);
   const lastNoteCreateAt = useRef(0);
+  const cameraKeyRef = useRef<{
+    canvasId: string | undefined;
+    fullscreen: boolean;
+  }>({ canvasId: undefined, fullscreen: false });
+  const menuTargetRef = useRef<ContextMenuTarget>({ variant: "canvas" });
+  const menuWorldRef = useRef<{ x: number; y: number } | null>(null);
+  const [menu, setMenu] = useState<CanvasContextMenuState | null>(null);
   const canvas = snapshot.canvases.find(
     (entry) => entry.id === snapshot.currentCanvasId,
   );
@@ -85,13 +108,28 @@ function CanvasSurface() {
   ]);
 
   useEffect(() => {
-    if (fullscreen?.active) {
+    const previous = cameraKeyRef.current;
+    const decision = shouldApplyStoredViewport({
+      previousCanvasId: previous.canvasId,
+      nextCanvasId: canvas?.id,
+      previousFullscreenActive: previous.fullscreen,
+      fullscreenActive: Boolean(fullscreen?.active),
+      // revision is intentionally omitted — poll publish must not move camera
+      revisionChanged: false,
+    });
+    cameraKeyRef.current = {
+      canvasId: canvas?.id,
+      fullscreen: Boolean(fullscreen?.active),
+    };
+    if (decision === "fit") {
       void fitView({ padding: 0.14, duration: 180 });
       return;
     }
-    const current = canvasRef.current;
-    if (current) {
-      void setViewport(current.viewport, { duration: 0 });
+    if (decision === "restore") {
+      const current = canvasRef.current;
+      if (current) {
+        void setViewport(current.viewport, { duration: 0 });
+      }
     }
   }, [canvas?.id, fitView, fullscreen?.active, fullscreen?.frameId, setViewport]);
 
@@ -201,6 +239,120 @@ function CanvasSurface() {
     [canvas, persistCreatedNote, screenToFlowPosition],
   );
 
+  const openContextMenu = useCallback(
+    (event: { preventDefault: () => void; stopPropagation: () => void; clientX: number; clientY: number }, nodeId?: string) => {
+      preventBrowserContextMenu(event);
+      event.stopPropagation();
+      if (readOnly) {
+        setMenu(null);
+        return;
+      }
+      const target = resolveContextMenuTarget(nodeId);
+      const sourceHref =
+        target.variant === "card"
+          ? cardSourceHref(
+              snapshot.cards.find((entry) => entry.id === target.cardId),
+            )
+          : null;
+      const items = contextMenuItems({
+        target,
+        canUndo: snapshot.canUndo,
+        canRedo: snapshot.canRedo,
+        sourceHref,
+      });
+      menuTargetRef.current = target;
+      menuWorldRef.current = screenToFlowPosition({
+        x: event.clientX,
+        y: event.clientY,
+      });
+      if (items.length === 0) {
+        setMenu(null);
+        return;
+      }
+      setMenu({
+        clientX: event.clientX,
+        clientY: event.clientY,
+        items,
+      });
+    },
+    [
+      readOnly,
+      screenToFlowPosition,
+      snapshot.canRedo,
+      snapshot.canUndo,
+      snapshot.cards,
+    ],
+  );
+
+  const closeContextMenu = useCallback(() => {
+    setMenu(null);
+  }, []);
+
+  const onContextMenuAction = useCallback(
+    (id: ContextMenuItemId) => {
+      const target = menuTargetRef.current;
+      const world = menuWorldRef.current;
+      setMenu(null);
+      if (id === "add-note" && canvas && world) {
+        void persistCreatedNote(
+          buildCreateNoteCardInput({
+            canvasId: canvas.id,
+            position: world,
+            text: "",
+          }),
+        );
+        return;
+      }
+      if (id === "create-frame" && canvas && world) {
+        void persistCreatedFrame(canvas.id, frameBoundsAtPoint(world), "Frame");
+        return;
+      }
+      if (id === "new-watchbot") {
+        openWatchBotCreate();
+        return;
+      }
+      if (id === "undo") {
+        void undo();
+        return;
+      }
+      if (id === "redo") {
+        void redo();
+        return;
+      }
+      if (id === "fit-view") {
+        void fitView({ padding: 0.2, duration: 200 });
+        return;
+      }
+      if (id === "open-source" && target.variant === "card") {
+        const href = cardSourceHref(
+          snapshot.cards.find((entry) => entry.id === target.cardId),
+        );
+        if (href) {
+          window.open(href, "_blank", "noopener,noreferrer");
+        }
+        return;
+      }
+      if (id === "fullscreen-frame" && target.variant === "frame") {
+        void execute(
+          "fullscreenFrame",
+          { frameId: target.frameId, active: true },
+          { history: false },
+        );
+      }
+    },
+    [
+      canvas,
+      execute,
+      fitView,
+      openWatchBotCreate,
+      persistCreatedFrame,
+      persistCreatedNote,
+      redo,
+      snapshot.cards,
+      undo,
+    ],
+  );
+
   if (!canvas) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-zinc-500">
@@ -226,7 +378,7 @@ function CanvasSurface() {
         edgesFocusable={false}
         elementsSelectable={!readOnly}
         nodesDraggable={!readOnly && !frameToolActive}
-        panOnDrag={!frameToolActive}
+        panOnDrag={!frameToolActive ? [0] : false}
         panOnScroll
         zoomOnScroll
         zoomOnPinch
@@ -242,29 +394,44 @@ function CanvasSurface() {
           }
           createNoteAtClientPoint(event);
         }}
+        onPaneContextMenu={(event) => {
+          openContextMenu(event);
+        }}
+        onNodeContextMenu={(event, node) => {
+          openContextMenu(event, node.id);
+        }}
+        onSelectionContextMenu={(event) => {
+          openContextMenu(event);
+        }}
         onNodeDragStart={() => {
           interactingRef.current = true;
+          session.beginInteraction();
         }}
         onNodeDragStop={(_event, node) => {
-          interactingRef.current = false;
-          const parsed = parseFlowNodeId(node.id);
-          if (!parsed) {
-            return;
-          }
-          if (parsed.kind === "card") {
-            const card = snapshot.cards.find((entry) => entry.id === parsed.entityId);
-            if (card) {
-              persistCardGeometry(card, { position: node.position });
+          void (async () => {
+            try {
+              const parsed = parseFlowNodeId(node.id);
+              if (parsed?.kind === "card") {
+                const card = snapshot.cards.find(
+                  (entry) => entry.id === parsed.entityId,
+                );
+                if (card) {
+                  await persistCardGeometry(card, { position: node.position });
+                }
+              }
+              if (parsed?.kind === "frame") {
+                const frame = snapshot.frames.find(
+                  (entry) => entry.id === parsed.entityId,
+                );
+                if (frame) {
+                  await persistFrameMove(frame, node.position);
+                }
+              }
+            } finally {
+              interactingRef.current = false;
+              await session.endInteraction();
             }
-          }
-          if (parsed.kind === "frame") {
-            const frame = snapshot.frames.find(
-              (entry) => entry.id === parsed.entityId,
-            );
-            if (frame) {
-              persistFrameMove(frame, node.position);
-            }
-          }
+          })();
         }}
         onMoveEnd={(_event, viewport) => {
           if (readOnly) {
@@ -311,8 +478,13 @@ function CanvasSurface() {
         />
       </ReactFlow>
       {frameToolActive && !readOnly ? <FrameDrawLayer /> : null}
+      <CanvasContextMenu
+        state={menu}
+        onClose={closeContextMenu}
+        onAction={onContextMenuAction}
+      />
       {readOnly ? (
-        <button
+        <button>
           type="button"
           className="absolute right-3 top-3 z-30 rounded-md border border-zinc-700 bg-[#141820]/95 px-3 py-1.5 text-xs text-zinc-200 shadow-lg hover:bg-zinc-800"
           onClick={() => {

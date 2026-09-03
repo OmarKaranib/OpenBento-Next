@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { InMemoryDomainStore } from "@openbento/domain";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { IdSequence } from "../../server/ids";
 import { runDomainActionFromRequest } from "../../server/run-action";
 import { requestAuthFromVerifiedUser } from "../../server/session";
@@ -210,5 +210,207 @@ describe("workspace session uses the shared server executor path", () => {
       frameId: frame.id,
     });
     expect(updated.frameId).toBe(frame.id);
+  });
+});
+
+function createSharedSession(ownerId = "session-user") {
+  const store = new InMemoryDomainStore();
+  const ids = new IdSequence();
+  const calls: string[] = [];
+  const session = new WorkspaceSession({
+    seedDefaultCanvas: false,
+    runAction: (name, input) => {
+      calls.push(name);
+      return runDomainActionFromRequest(
+        requestAuthFromVerifiedUser(ownerId),
+        name,
+        input,
+        { store, id: ids.next },
+      );
+    },
+    resetStore: () => undefined,
+  });
+  const workerRun = <N extends import("@openbento/domain").ActionName>(
+    name: N,
+    input: import("@openbento/domain").ActionInputMap[N],
+  ) =>
+    runDomainActionFromRequest(
+      requestAuthFromVerifiedUser(ownerId),
+      name,
+      input,
+      { store, id: ids.next },
+    );
+  return { session, workerRun, store, calls };
+}
+
+describe("WorkspaceSession.syncExternalState", () => {
+  it("publishes an externally written Card without undo or geometry writes", async () => {
+    const { session, workerRun, calls } = createSharedSession();
+    const canvas = await session.execute(
+      "createCanvas",
+      { name: "Live" },
+      { history: false },
+    );
+    const local = await session.execute(
+      "createCard",
+      buildCreateNoteCardInput({
+        canvasId: canvas.id,
+        text: "mine",
+        position: { x: 8, y: 12 },
+      }),
+    );
+    const before = session.getSnapshot();
+    expect(before.canUndo).toBe(true);
+    expect(before.canRedo).toBe(false);
+
+    await session.execute(
+      "updateCanvasViewport",
+      {
+        canvasId: canvas.id,
+        viewport: { x: 40, y: -16, zoom: 1.5 },
+      },
+      { history: false },
+    );
+    const viewportBefore = session.getSnapshot().canvases[0]?.viewport;
+
+    calls.length = 0;
+    const external = await workerRun(
+      "createCard",
+      buildCreateNoteCardInput({
+        canvasId: canvas.id,
+        text: "worker card",
+        position: { x: 200, y: 80 },
+      }),
+    );
+
+    expect(session.getSnapshot().cards.map((card) => card.id)).not.toContain(
+      external.id,
+    );
+
+    const applied = await session.syncExternalState();
+    expect(applied).toBe(true);
+    const after = session.getSnapshot();
+    expect(after.cards.map((card) => card.id)).toContain(external.id);
+    expect(after.cards.find((card) => card.id === local.id)?.position).toEqual({
+      x: 8,
+      y: 12,
+    });
+    expect(after.cards.find((card) => card.id === local.id)?.size).toEqual(
+      local.size,
+    );
+    expect(after.canUndo).toBe(before.canUndo);
+    expect(after.canRedo).toBe(before.canRedo);
+    expect(after.canvases[0]?.viewport).toEqual(viewportBefore);
+    expect(calls.every((name) => name === "getCanvasState")).toBe(true);
+    expect(calls.some((name) => name === "moveCard")).toBe(false);
+    expect(calls.some((name) => name === "resizeCard")).toBe(false);
+    expect(calls.some((name) => name === "setCardFrame")).toBe(false);
+    expect(calls.some((name) => name === "updateCard")).toBe(false);
+    expect(calls.some((name) => name === "updateCanvasViewport")).toBe(false);
+
+    expect(await session.undo()).toBe(true);
+    expect(session.getSnapshot().canUndo).toBe(false);
+    expect(session.getSnapshot().canRedo).toBe(true);
+  });
+
+  it("publishes external WatchBot count and status", async () => {
+    const { session, workerRun } = createSharedSession();
+    const canvas = await session.execute("createCanvas", { name: "Bots" });
+    expect(session.getSnapshot().watchBots).toEqual([]);
+
+    const running = await workerRun("createWatchBot", {
+      canvasId: canvas.id,
+      instruction: "Watch the story",
+      name: "External",
+    });
+    await session.syncExternalState();
+    expect(session.getSnapshot().watchBots).toHaveLength(1);
+    expect(session.getSnapshot().watchBots[0]?.status).toBe("running");
+
+    await workerRun("pauseWatchBot", { watchBotId: running.id });
+    const second = await workerRun("createWatchBot", {
+      canvasId: canvas.id,
+      instruction: "Second bot",
+      name: "Another",
+    });
+    await session.syncExternalState();
+    const bots = session.getSnapshot().watchBots;
+    expect(bots).toHaveLength(2);
+    expect(bots.find((bot) => bot.id === running.id)?.status).toBe("paused");
+    expect(bots.find((bot) => bot.id === second.id)?.status).toBe("running");
+  });
+
+  it("skips the merge while interacting and applies after endInteraction", async () => {
+    const { session, workerRun } = createSharedSession();
+    const canvas = await session.execute("createCanvas", { name: "Busy" });
+    session.beginInteraction();
+    const external = await workerRun(
+      "createCard",
+      buildCreateNoteCardInput({
+        canvasId: canvas.id,
+        text: "deferred",
+      }),
+    );
+    expect(await session.syncExternalState()).toBe(false);
+    expect(session.getSnapshot().cards.map((card) => card.id)).not.toContain(
+      external.id,
+    );
+    await session.endInteraction();
+    expect(session.getSnapshot().cards.map((card) => card.id)).toContain(
+      external.id,
+    );
+  });
+
+  it("does not start a second getCanvasState while one is in flight", async () => {
+    const store = new InMemoryDomainStore();
+    const ids = new IdSequence();
+    let release!: () => void;
+    let getCanvasStateCount = 0;
+    let blockGets = false;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const session = new WorkspaceSession({
+      seedDefaultCanvas: false,
+      runAction: async (name, input) => {
+        const result = await runDomainActionFromRequest(
+          requestAuthFromVerifiedUser("session-user"),
+          name,
+          input,
+          { store, id: ids.next },
+        );
+        if (name === "getCanvasState" && blockGets) {
+          getCanvasStateCount += 1;
+          await gate;
+        }
+        return result;
+      },
+      resetStore: () => undefined,
+    });
+    await session.execute("createCanvas", { name: "Gate" });
+    blockGets = true;
+    getCanvasStateCount = 0;
+    const first = session.syncExternalState();
+    const second = session.syncExternalState();
+    await vi.waitFor(() => {
+      expect(getCanvasStateCount).toBe(1);
+    });
+    release();
+    await first;
+    await second;
+  });
+
+  it("stops syncing after dispose", async () => {
+    const { session, workerRun } = createSharedSession();
+    const canvas = await session.execute("createCanvas", { name: "Gone" });
+    session.dispose();
+    await workerRun(
+      "createCard",
+      buildCreateNoteCardInput({
+        canvasId: canvas.id,
+        text: "late",
+      }),
+    );
+    expect(await session.syncExternalState()).toBe(false);
   });
 });

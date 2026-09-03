@@ -11,7 +11,7 @@ import { cn } from "@/lib/utils";
 export type NoteNode = Node<{ cardId: string }, "note">;
 
 export function NoteCardNode({ data, selected }: NodeProps<NoteNode>) {
-  const { snapshot, execute } = useWorkspace();
+  const { session, snapshot, execute } = useWorkspace();
   const { persistCardGeometry } = useCanvasCommands();
   const card = snapshot.cards.find((entry) => entry.id === data.cardId);
   const readOnly = Boolean(snapshot.fullscreen?.active);
@@ -37,10 +37,15 @@ export function NoteCardNode({ data, selected }: NodeProps<NoteNode>) {
         minWidth={160}
         minHeight={100}
         color="#64748b"
+        onResizeStart={() => {
+          session.beginInteraction();
+        }}
         onResizeEnd={(_event, params) => {
-          persistCardGeometry(card, {
+          void persistCardGeometry(card, {
             position: { x: params.x, y: params.y },
             size: { width: params.width, height: params.height },
+          }).finally(() => {
+            void session.endInteraction();
           });
         }}
       />
@@ -53,18 +58,24 @@ export function NoteCardNode({ data, selected }: NodeProps<NoteNode>) {
         value={draft ?? text}
         readOnly={readOnly}
         placeholder="Write a note…"
-        onFocus={() => setDraft(text)}
+        onFocus={() => {
+          session.beginInteraction();
+          setDraft(text);
+        }}
         onChange={(event) => setDraft(event.target.value)}
         onBlur={() => {
           const next = draft ?? text;
           setDraft(null);
-          if (readOnly || next === card.payload.text) {
-            return;
-          }
-          void execute("updateCard", {
-            cardId: card.id,
-            type: "note",
-            payload: { text: next },
+          const persist =
+            !readOnly && next !== card.payload.text
+              ? execute("updateCard", {
+                  cardId: card.id,
+                  type: "note",
+                  payload: { text: next },
+                })
+              : Promise.resolve();
+          void persist.finally(() => {
+            void session.endInteraction();
           });
         }}
       />

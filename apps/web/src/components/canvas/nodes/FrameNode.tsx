@@ -9,7 +9,7 @@ import { useCanvasCommands } from "@/components/canvas/use-canvas-commands";
 export type FrameNode = Node<{ frameId: string }, "frame">;
 
 export function FrameNode({ data, selected }: NodeProps<FrameNode>) {
-  const { snapshot, execute } = useWorkspace();
+  const { session, snapshot, execute } = useWorkspace();
   const { persistFrameResize } = useCanvasCommands();
   const frame = snapshot.frames.find((entry) => entry.id === data.frameId);
   const readOnly = Boolean(snapshot.fullscreen?.active);
@@ -27,10 +27,15 @@ export function FrameNode({ data, selected }: NodeProps<FrameNode>) {
         minWidth={120}
         minHeight={80}
         color="#94a3b8"
+        onResizeStart={() => {
+          session.beginInteraction();
+        }}
         onResizeEnd={(_event, params) => {
-          persistFrameResize(frame, {
+          void persistFrameResize(frame, {
             position: { x: params.x, y: params.y },
             size: { width: params.width, height: params.height },
+          }).finally(() => {
+            void session.endInteraction();
           });
         }}
       />
@@ -40,14 +45,21 @@ export function FrameNode({ data, selected }: NodeProps<FrameNode>) {
           value={name ?? storedName}
           readOnly={readOnly}
           aria-label="Frame name"
-          onFocus={() => setName(storedName)}
+          onFocus={() => {
+            session.beginInteraction();
+            setName(storedName);
+          }}
           onChange={(event) => setName(event.target.value)}
           onBlur={() => {
             const next = (name ?? storedName).trim() || "Frame";
             setName(null);
-            if (!readOnly && next !== (frame.name ?? "Frame")) {
-              void execute("updateFrame", { frameId: frame.id, name: next });
-            }
+            const persist =
+              !readOnly && next !== (frame.name ?? "Frame")
+                ? execute("updateFrame", { frameId: frame.id, name: next })
+                : Promise.resolve();
+            void persist.finally(() => {
+              void session.endInteraction();
+            });
           }}
           onKeyDown={(event) => {
             if (event.key === "Enter") {
