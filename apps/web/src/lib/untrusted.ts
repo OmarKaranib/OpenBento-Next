@@ -6,6 +6,46 @@
 const CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g;
 const HTML_TAG = /<\/?[a-zA-Z][^>]*>/g;
 const HTML_COMMENT = /<!--[\s\S]*?-->/g;
+const HTML_ENTITY = /&(#x[0-9a-f]+|#\d+|amp|apos|gt|lt|quot);/gi;
+const NAMED_HTML_ENTITIES: Readonly<Record<string, string>> = {
+  amp: "&",
+  apos: "'",
+  gt: ">",
+  lt: "<",
+  quot: '"',
+};
+
+/**
+ * Decode a deliberately small HTML-entity subset into text before display
+ * sanitization. This never creates an HTML sink: callers still render React
+ * text and strip decoded markup below.
+ */
+export function decodeHtmlEntities(value: string): string {
+  return value.replace(HTML_ENTITY, (entity, encoded: string) => {
+    const normalized = encoded.toLowerCase();
+    if (normalized.startsWith("#x")) {
+      const codePoint = Number.parseInt(normalized.slice(2), 16);
+      return safeCodePoint(codePoint, entity);
+    }
+    if (normalized.startsWith("#")) {
+      const codePoint = Number.parseInt(normalized.slice(1), 10);
+      return safeCodePoint(codePoint, entity);
+    }
+    return NAMED_HTML_ENTITIES[normalized] ?? entity;
+  });
+}
+
+function safeCodePoint(codePoint: number, fallback: string): string {
+  if (
+    !Number.isInteger(codePoint) ||
+    codePoint < 0 ||
+    codePoint > 0x10ffff ||
+    (codePoint >= 0xd800 && codePoint <= 0xdfff)
+  ) {
+    return fallback;
+  }
+  return String.fromCodePoint(codePoint);
+}
 
 /** Strip tags/controls and collapse whitespace. Result is plain text only. */
 export function sanitizeUntrustedDisplayText(
@@ -15,7 +55,7 @@ export function sanitizeUntrustedDisplayText(
   if (typeof value !== "string") {
     return "";
   }
-  return value
+  return decodeHtmlEntities(value)
     .replace(CONTROL_CHARS, "")
     .replace(HTML_COMMENT, "")
     .replace(HTML_TAG, "")

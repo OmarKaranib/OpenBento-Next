@@ -65,6 +65,26 @@ export function officialYouTubeEmbedUrl(videoId: string): string {
   return `https://www.youtube.com/embed/${videoId}`;
 }
 
+/**
+ * Official thumbnail derived only from a validated video id. It is not a
+ * provider-supplied media URL and does not require an application API request.
+ */
+export function officialYouTubeThumbnailUrl(videoId: string): string {
+  if (!YOUTUBE_ID.test(videoId)) {
+    throw new Error("Invalid YouTube video id");
+  }
+  return `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`;
+}
+
+/** Muted inline autoplay is applied only to Canvas-managed live players. */
+export function officialYouTubeAutoplayEmbedUrl(videoId: string): string {
+  const url = new URL(officialYouTubeEmbedUrl(videoId));
+  url.searchParams.set("autoplay", "1");
+  url.searchParams.set("mute", "1");
+  url.searchParams.set("playsinline", "1");
+  return url.toString();
+}
+
 export function isYouTubeVideoId(value: unknown): value is string {
   return typeof value === "string" && YOUTUBE_ID.test(value);
 }

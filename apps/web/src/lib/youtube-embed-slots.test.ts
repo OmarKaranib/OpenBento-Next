@@ -5,6 +5,7 @@ import {
   liveYoutubeEmbedIds,
   releaseYoutubeEmbedSlot,
   resetYoutubeEmbedSlots,
+  tryAcquireYoutubeEmbedSlot,
 } from "./youtube-embed-slots";
 
 afterEach(() => {
@@ -20,5 +21,25 @@ describe("YouTube live embed cap", () => {
     expect([...liveYoutubeEmbedIds()]).toEqual(["b", "c"]);
     releaseYoutubeEmbedSlot("b");
     expect([...liveYoutubeEmbedIds()]).toEqual(["c"]);
+  });
+
+  it("auto-acquires only spare slots without evicting active players", () => {
+    tryAcquireYoutubeEmbedSlot("first");
+    tryAcquireYoutubeEmbedSlot("second");
+    tryAcquireYoutubeEmbedSlot("third");
+
+    expect([...liveYoutubeEmbedIds()]).toEqual(["first", "second"]);
+
+    releaseYoutubeEmbedSlot("first");
+    tryAcquireYoutubeEmbedSlot("third");
+    expect([...liveYoutubeEmbedIds()]).toEqual(["second", "third"]);
+  });
+
+  it("allows an explicit click to promote a Card and evict the oldest slot", () => {
+    tryAcquireYoutubeEmbedSlot("first");
+    tryAcquireYoutubeEmbedSlot("second");
+    acquireYoutubeEmbedSlot("third");
+
+    expect([...liveYoutubeEmbedIds()]).toEqual(["second", "third"]);
   });
 });

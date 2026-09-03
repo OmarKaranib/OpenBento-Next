@@ -46,6 +46,20 @@ export function acquireYoutubeEmbedSlot(cardId: string): readonly string[] {
   return order;
 }
 
+/**
+ * Acquire a slot only when capacity is already available. This is used for
+ * viewport-driven playback so a newly visible Card never interrupts another
+ * automatically playing Card.
+ */
+export function tryAcquireYoutubeEmbedSlot(cardId: string): readonly string[] {
+  if (order.includes(cardId) || order.length >= MAX_LIVE_YOUTUBE_EMBEDS) {
+    return order;
+  }
+  order.push(cardId);
+  emit();
+  return order;
+}
+
 export function releaseYoutubeEmbedSlot(cardId: string): readonly string[] {
   const existing = order.indexOf(cardId);
   if (existing >= 0) {

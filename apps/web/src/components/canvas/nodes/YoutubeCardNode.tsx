@@ -11,11 +11,13 @@ import {
   acquireYoutubeEmbedSlot,
   releaseYoutubeEmbedSlot,
   subscribeYoutubeEmbedSlots,
+  tryAcquireYoutubeEmbedSlot,
 } from "@/lib/youtube-embed-slots";
 import { sanitizeUntrustedDisplayText } from "@/lib/untrusted";
 import {
   isYouTubeVideoId,
-  officialYouTubeEmbedUrl,
+  officialYouTubeAutoplayEmbedUrl,
+  officialYouTubeThumbnailUrl,
   parseYouTubeVideoId,
 } from "@/lib/youtube";
 
@@ -26,8 +28,8 @@ export function YoutubeCardNode({ data, selected }: NodeProps<YoutubeNode>) {
   const card = snapshot.cards.find((entry) => entry.id === data.cardId);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const [inView, setInView] = useState(true);
-  const [wantsPlay, setWantsPlay] = useState(false);
   const [liveIds, setLiveIds] = useState<readonly string[]>([]);
+  const [failedThumbnail, setFailedThumbnail] = useState<string | null>(null);
 
   useEffect(() => {
     return subscribeYoutubeEmbedSlots(setLiveIds);
@@ -49,38 +51,51 @@ export function YoutubeCardNode({ data, selected }: NodeProps<YoutubeNode>) {
     return () => observer.disconnect();
   }, []);
 
+  const youtubeCard = card?.type === "youtube" ? card : null;
+  const provenance = youtubeCard?.payload.provenance;
+  const videoId =
+    (provenance && parseYouTubeVideoId(provenance.sourceUrl)) ??
+    (provenance && isYouTubeVideoId(provenance.externalId)
+      ? provenance.externalId
+      : null);
+  const embedSrc = videoId ? officialYouTubeAutoplayEmbedUrl(videoId) : null;
+  const thumbnailSrc = videoId ? officialYouTubeThumbnailUrl(videoId) : null;
+  const iframeTitle = sanitizeUntrustedDisplayText(provenance?.title) || "YouTube";
+  const mounted = Boolean(
+    youtubeCard && inView && embedSrc && liveIds.includes(youtubeCard.id),
+  );
+
+  // Visible Cards acquire only spare slots, preserving current automatic
+  // players. A deliberate click uses the promoting allocator below.
   useEffect(() => {
-    if (!card || card.type !== "youtube") {
+    if (!youtubeCard || !videoId || !inView) {
+      if (youtubeCard) {
+        releaseYoutubeEmbedSlot(youtubeCard.id);
+      }
       return;
     }
-    if (wantsPlay && inView) {
-      acquireYoutubeEmbedSlot(card.id);
-      return () => {
-        releaseYoutubeEmbedSlot(card.id);
-      };
+    if (!liveIds.includes(youtubeCard.id)) {
+      tryAcquireYoutubeEmbedSlot(youtubeCard.id);
     }
-    releaseYoutubeEmbedSlot(card.id);
-    return undefined;
-  }, [card, inView, wantsPlay]);
+  }, [inView, liveIds, videoId, youtubeCard]);
 
-  if (!card || card.type !== "youtube") {
+  useEffect(() => {
+    const cardId = youtubeCard?.id;
+    return () => {
+      if (cardId) {
+        releaseYoutubeEmbedSlot(cardId);
+      }
+    };
+  }, [youtubeCard?.id]);
+
+  if (!youtubeCard || !provenance) {
     return null;
   }
-
-  const provenance = card.payload.provenance;
-  const videoId =
-    parseYouTubeVideoId(provenance.sourceUrl) ??
-    (isYouTubeVideoId(provenance.externalId) ? provenance.externalId : null);
-  const embedSrc = videoId ? officialYouTubeEmbedUrl(videoId) : null;
-  const iframeTitle = sanitizeUntrustedDisplayText(provenance.title) || "YouTube";
-  const mounted = Boolean(
-    wantsPlay && inView && embedSrc && liveIds.includes(card.id),
-  );
 
   return (
     <div ref={rootRef} className="h-full w-full">
       <SourceCardChrome
-        card={card}
+        card={youtubeCard}
         selected={selected}
         label="YouTube"
         minWidth={240}
@@ -104,23 +119,37 @@ export function YoutubeCardNode({ data, selected }: NodeProps<YoutubeNode>) {
             ) : (
               <button
                 type="button"
-                className="nodrag nopan flex h-full w-full flex-col items-center justify-center gap-2 text-zinc-400 hover:bg-zinc-900 hover:text-zinc-100"
+                className="nodrag nopan group relative flex h-full w-full items-center justify-center overflow-hidden text-zinc-300"
                 onClick={() => {
                   if (embedSrc) {
                     setInView(true);
-                    setWantsPlay(true);
+                    acquireYoutubeEmbedSlot(youtubeCard.id);
                   }
                 }}
                 disabled={!embedSrc}
               >
-                <Play className="h-8 w-8" strokeWidth={1.5} />
-                <span className="text-[11px]">
-                  {embedSrc ? "Play official embed" : "Invalid YouTube URL"}
+                {thumbnailSrc && failedThumbnail !== thumbnailSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- fixed official thumbnail URL; Next Image would require host configuration.
+                  <img
+                    src={thumbnailSrc}
+                    alt=""
+                    className="absolute inset-0 h-full w-full object-cover"
+                    onError={() => setFailedThumbnail(thumbnailSrc)}
+                  />
+                ) : null}
+                <span className="absolute inset-0 bg-black/55 transition-colors group-hover:bg-black/40" />
+                <span className="relative flex flex-col items-center gap-2">
+                  <span className="rounded-full border border-white/40 bg-black/50 p-3 text-white shadow-lg">
+                    <Play className="h-7 w-7 fill-current" strokeWidth={1.5} />
+                  </span>
+                  <span className="text-[11px] text-zinc-200">
+                    {embedSrc ? "Play official embed" : "Invalid YouTube URL"}
+                  </span>
                 </span>
               </button>
             )}
           </div>
-          <SourceProvenanceMeta card={card} />
+          <SourceProvenanceMeta card={youtubeCard} />
         </div>
       </SourceCardChrome>
     </div>
