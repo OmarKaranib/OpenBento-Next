@@ -54,7 +54,7 @@ describe("ActionExecutor catalog coverage", () => {
     for (const name of ACTION_NAMES) {
       expect(typeof a[name]).toBe("function");
     }
-    expect(ACTION_NAMES).toHaveLength(20);
+    expect(ACTION_NAMES).toHaveLength(23);
     expect(Object.keys(ACTION_CATALOG)).toEqual([...ACTION_NAMES]);
   });
 });
@@ -139,6 +139,9 @@ describe("IDOR — user A cannot operate user B resources", () => {
       () => b.getCanvasState({ canvasId: canvas.id }),
       () => b.getWatchBotStatus({ watchBotId: watchBot.id }),
       () => b.fullscreenFrame({ frameId: frame.id, active: true }),
+      () => b.deleteCard({ cardId: card.id }),
+      () => b.deleteFrame({ frameId: frame.id }),
+      () => b.deleteCanvas({ canvasId: canvas.id }),
     ];
 
     for (const op of forbidden) {
@@ -168,6 +171,105 @@ describe("IDOR — user A cannot operate user B resources", () => {
     expect(stateB.canvas.ownerId).toBe("user-b");
     expect(stateB.canvas.id).toBe(canvasB.id);
     expect(canvasA.ownerId).toBe("user-a");
+  });
+});
+
+describe("destructive actions", () => {
+  it("deletes an owned Card and retains WatchBot history without a Card link", async () => {
+    const { store, a, canvas, card, watchBot } = await seedOwned();
+    await store.saveWatchBotEvent({
+      id: "event-1",
+      watchBotId: watchBot.id,
+      canvasId: canvas.id,
+      kind: "card_created",
+      sourceUrl: "https://example.com/story",
+      dedupKey: "news:story",
+      discoveredAt: "2026-09-03T00:00:00.000Z",
+      cardId: card.id,
+    });
+
+    await expect(a.deleteCard({ cardId: card.id })).resolves.toEqual({
+      deletedCardId: card.id,
+    });
+    expect(await store.getCard(card.id)).toBeNull();
+    const [event] = await store.listWatchBotEventsByWatchBot(watchBot.id);
+    expect(event?.dedupKey).toBe("news:story");
+    expect(event?.cardId).toBeUndefined();
+  });
+
+  it("detaches Frame Cards without changing world geometry, including partial retries", async () => {
+    const { store, a, canvas, card, frame } = await seedOwned();
+    const second = await a.createCard({
+      canvasId: canvas.id,
+      type: "note",
+      payload: { text: "second" },
+      position: { x: 80, y: 90 },
+      size: { width: 260, height: 170 },
+    });
+    await a.moveCard({ cardId: card.id, position: { x: 20, y: 30 } });
+    await a.resizeCard({ cardId: card.id, size: { width: 250, height: 180 } });
+    await a.setCardFrame({ cardId: card.id, frameId: frame.id });
+    await a.setCardFrame({ cardId: second.id, frameId: frame.id });
+    // A previous attempt may already have detached one Card. Repeating that
+    // cleanup is harmless and the action handles only remaining members.
+    await a.setCardFrame({ cardId: card.id, frameId: null });
+    await a.setCardFrame({ cardId: card.id, frameId: null });
+    const beforeFirst = await store.getCard(card.id);
+    const beforeSecond = await store.getCard(second.id);
+
+    await expect(a.deleteFrame({ frameId: frame.id })).resolves.toEqual({
+      deletedFrameId: frame.id,
+      detachedCardIds: [second.id],
+    });
+    expect(await store.getFrame(frame.id)).toBeNull();
+    const afterFirst = await store.getCard(card.id);
+    const afterSecond = await store.getCard(second.id);
+    expect(afterFirst?.frameId ?? null).toBeNull();
+    expect(afterSecond?.frameId ?? null).toBeNull();
+    expect(afterFirst?.position).toEqual(beforeFirst?.position);
+    expect(afterFirst?.size).toEqual(beforeFirst?.size);
+    expect(afterSecond?.position).toEqual(beforeSecond?.position);
+    expect(afterSecond?.size).toEqual(beforeSecond?.size);
+  });
+
+  it("deletes Canvas children and chooses the most recently opened remaining Canvas", async () => {
+    const store = new InMemoryDomainStore();
+    const times = [
+      "2026-09-03T00:00:00.000Z",
+      "2026-09-03T00:01:00.000Z",
+      "2026-09-03T00:02:00.000Z",
+      "2026-09-03T00:03:00.000Z",
+      "2026-09-03T00:04:00.000Z",
+    ];
+    const a = createActionExecutor({
+      store,
+      ownerId: "user-a",
+      now: () => times.shift() ?? "2026-09-03T00:05:00.000Z",
+    });
+    const older = await a.createCanvas({ name: "Older" });
+    const current = await a.createCanvas({ name: "Delete me" });
+    await a.createCard({
+      canvasId: current.id,
+      type: "note",
+      payload: { text: "child" },
+    });
+    await a.createFrame({
+      canvasId: current.id,
+      bounds: { x: 0, y: 0, width: 100, height: 100 },
+    });
+    const bot = await a.createWatchBot({
+      canvasId: current.id,
+      instruction: "Watch",
+    });
+
+    await expect(a.deleteCanvas({ canvasId: current.id })).resolves.toEqual({
+      deletedCanvasId: current.id,
+      nextCanvasId: older.id,
+    });
+    expect(await store.getCanvas(current.id)).toBeNull();
+    expect(await store.listCardsByCanvas(current.id)).toEqual([]);
+    expect(await store.listFramesByCanvas(current.id)).toEqual([]);
+    expect(await store.getWatchBot(bot.id)).toBeNull();
   });
 });
 

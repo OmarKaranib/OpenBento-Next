@@ -25,15 +25,18 @@ const MUTATING = new Set<ActionName>([
   "renameCanvas",
   "switchCanvas",
   "updateCanvasViewport",
+  "deleteCanvas",
   "createCard",
   "updateCard",
   "moveCard",
   "resizeCard",
   "setCardFrame",
+  "deleteCard",
   "createFrame",
   "updateFrame",
   "moveFrame",
   "resizeFrame",
+  "deleteFrame",
   "createWatchBot",
   "updateWatchBot",
   "pauseWatchBot",
@@ -407,6 +410,41 @@ export class WorkspaceSession {
         // A Canvas switch unmounts the old target's editors/drag surface.
         this.interactionDepth = 0;
       }
+    }
+    if (name === "deleteCanvas") {
+      const deletion = result as ActionResultMap["deleteCanvas"];
+      this.canvases.delete(deletion.deletedCanvasId);
+      if (this.currentCanvasId === deletion.deletedCanvasId) {
+        this.currentCanvasId = deletion.nextCanvasId;
+        this.cards = [];
+        this.frames = [];
+        this.watchBots = [];
+        this.fullscreen = null;
+        this.interactionDepth = 0;
+        this.pendingExternalSync = false;
+      }
+      return;
+    }
+    if (name === "deleteCard") {
+      const deletion = result as ActionResultMap["deleteCard"];
+      this.cards = this.cards.filter(
+        (card) => card.id !== deletion.deletedCardId,
+      );
+      return;
+    }
+    if (name === "deleteFrame") {
+      const deletion = result as ActionResultMap["deleteFrame"];
+      const detached = new Set(deletion.detachedCardIds);
+      this.cards = this.cards.map((card) =>
+        detached.has(card.id) ? { ...card, frameId: null } : card,
+      );
+      this.frames = this.frames.filter(
+        (frame) => frame.id !== deletion.deletedFrameId,
+      );
+      if (this.fullscreen?.frameId === deletion.deletedFrameId) {
+        this.fullscreen = null;
+      }
+      return;
     }
     if (name === "fullscreenFrame") {
       const view = result as FrameFullscreenView;

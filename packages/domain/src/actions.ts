@@ -28,15 +28,18 @@ export const ACTION_NAMES = [
   "renameCanvas",
   "switchCanvas",
   "updateCanvasViewport",
+  "deleteCanvas",
   "createCard",
   "updateCard",
   "moveCard",
   "resizeCard",
   "setCardFrame",
+  "deleteCard",
   "createFrame",
   "updateFrame",
   "moveFrame",
   "resizeFrame",
+  "deleteFrame",
   "createWatchBot",
   "updateWatchBot",
   "pauseWatchBot",
@@ -66,6 +69,15 @@ export interface UpdateCanvasViewportInput {
   viewport: Viewport;
 }
 
+export interface DeleteCanvasInput {
+  canvasId: string;
+}
+
+export interface DeleteCanvasResult {
+  deletedCanvasId: string;
+  nextCanvasId: string | null;
+}
+
 export type CreateCardInput = {
   canvasId: string;
   position?: Point;
@@ -93,6 +105,14 @@ export interface SetCardFrameInput {
   frameId: string | null;
 }
 
+export interface DeleteCardInput {
+  cardId: string;
+}
+
+export interface DeleteCardResult {
+  deletedCardId: string;
+}
+
 export interface CreateFrameInput {
   canvasId: string;
   bounds: { x: number; y: number; width: number; height: number };
@@ -112,6 +132,15 @@ export interface MoveFrameInput {
 export interface ResizeFrameInput {
   frameId: string;
   size: Size;
+}
+
+export interface DeleteFrameInput {
+  frameId: string;
+}
+
+export interface DeleteFrameResult {
+  deletedFrameId: string;
+  detachedCardIds: string[];
 }
 
 export interface CreateWatchBotInput {
@@ -155,15 +184,18 @@ export interface ActionInputMap {
   renameCanvas: RenameCanvasInput;
   switchCanvas: SwitchCanvasInput;
   updateCanvasViewport: UpdateCanvasViewportInput;
+  deleteCanvas: DeleteCanvasInput;
   createCard: CreateCardInput;
   updateCard: UpdateCardInput;
   moveCard: MoveCardInput;
   resizeCard: ResizeCardInput;
   setCardFrame: SetCardFrameInput;
+  deleteCard: DeleteCardInput;
   createFrame: CreateFrameInput;
   updateFrame: UpdateFrameInput;
   moveFrame: MoveFrameInput;
   resizeFrame: ResizeFrameInput;
+  deleteFrame: DeleteFrameInput;
   createWatchBot: CreateWatchBotInput;
   updateWatchBot: UpdateWatchBotInput;
   pauseWatchBot: PauseWatchBotInput;
@@ -178,15 +210,18 @@ export interface ActionResultMap {
   renameCanvas: Canvas;
   switchCanvas: Canvas;
   updateCanvasViewport: Canvas;
+  deleteCanvas: DeleteCanvasResult;
   createCard: Card;
   updateCard: Card;
   moveCard: Card;
   resizeCard: Card;
   setCardFrame: Card;
+  deleteCard: DeleteCardResult;
   createFrame: Frame;
   updateFrame: Frame;
   moveFrame: Frame;
   resizeFrame: Frame;
+  deleteFrame: DeleteFrameResult;
   createWatchBot: WatchBot;
   updateWatchBot: WatchBot;
   pauseWatchBot: WatchBot;
@@ -306,6 +341,17 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
       },
     },
   },
+  deleteCanvas: {
+    name: "deleteCanvas",
+    description:
+      "Permanently delete an owned Canvas and its database-cascaded children.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["canvasId"],
+      properties: { canvasId: { type: "string", minLength: 1 } },
+    },
+  },
   createCard: {
     name: "createCard",
     description:
@@ -382,6 +428,17 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
       },
     },
   },
+  deleteCard: {
+    name: "deleteCard",
+    description:
+      "Permanently delete an owned Card while retaining WatchBot event history.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["cardId"],
+      properties: { cardId: { type: "string", minLength: 1 } },
+    },
+  },
   createFrame: {
     name: "createFrame",
     description: "Create a persisted bordered Frame region on a Canvas.",
@@ -433,6 +490,17 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
         frameId: { type: "string", minLength: 1 },
         size: sizeSchema,
       },
+    },
+  },
+  deleteFrame: {
+    name: "deleteFrame",
+    description:
+      "Detach Cards from an owned Frame, then permanently delete the Frame.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["frameId"],
+      properties: { frameId: { type: "string", minLength: 1 } },
     },
   },
   createWatchBot: {

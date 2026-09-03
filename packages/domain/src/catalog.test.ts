@@ -11,15 +11,18 @@ const FULL_CATALOG = [
   "renameCanvas",
   "switchCanvas",
   "updateCanvasViewport",
+  "deleteCanvas",
   "createCard",
   "updateCard",
   "moveCard",
   "resizeCard",
   "setCardFrame",
+  "deleteCard",
   "createFrame",
   "updateFrame",
   "moveFrame",
   "resizeFrame",
+  "deleteFrame",
   "createWatchBot",
   "updateWatchBot",
   "pauseWatchBot",
@@ -32,8 +35,8 @@ const FULL_CATALOG = [
 describe("master action catalog", () => {
   it("exports the full locked catalog, not a 5-action stub", () => {
     expect([...ACTION_NAMES]).toEqual([...FULL_CATALOG]);
-    expect(ACTION_NAMES).toHaveLength(20);
-    expect(ACTION_CATALOG_LIST).toHaveLength(20);
+    expect(ACTION_NAMES).toHaveLength(23);
+    expect(ACTION_CATALOG_LIST).toHaveLength(23);
   });
 
   it("has a catalog entry for every action name", () => {
@@ -48,6 +51,14 @@ describe("master action catalog", () => {
       expect(actionInputForbidsOwnerId(action.inputSchema)).toBe(true);
       expect(JSON.stringify(action.inputSchema)).not.toMatch(/ownerId/);
     }
+  });
+
+  it("keeps destructive inputs minimal and session-owned", () => {
+    expect(ACTION_CATALOG.deleteCard.inputSchema.required).toEqual(["cardId"]);
+    expect(ACTION_CATALOG.deleteFrame.inputSchema.required).toEqual(["frameId"]);
+    expect(ACTION_CATALOG.deleteCanvas.inputSchema.required).toEqual([
+      "canvasId",
+    ]);
   });
 
   it("treats moveCard, resizeCard, and updateCanvasViewport as first-class", () => {

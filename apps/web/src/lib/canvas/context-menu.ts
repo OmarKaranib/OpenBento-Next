@@ -27,7 +27,9 @@ export type ContextMenuItemId =
   | "redo"
   | "fit-view"
   | "open-source"
-  | "fullscreen-frame";
+  | "fullscreen-frame"
+  | "delete-card"
+  | "delete-frame";
 
 export type ContextMenuItem = {
   id: ContextMenuItemId;
@@ -99,6 +101,12 @@ export function contextMenuItems(args: {
         actionName: "openSource",
       });
     }
+    items.push({
+      id: "delete-card",
+      label: "Delete Card",
+      disabled: false,
+      actionName: "deleteCard",
+    });
     return items;
   }
   if (target.variant === "frame") {
@@ -108,6 +116,12 @@ export function contextMenuItems(args: {
         label: "Fullscreen Frame",
         disabled: false,
         actionName: "fullscreenFrame",
+      },
+      {
+        id: "delete-frame",
+        label: "Delete Frame",
+        disabled: false,
+        actionName: "deleteFrame",
       },
     ];
   }
@@ -216,7 +230,7 @@ export function shouldCloseContextMenu(event: {
   return false;
 }
 
-/** Menu writes must stay inside the locked 20-name catalog. */
+/** Menu writes must stay inside the shared domain catalog. */
 export function contextMenuCatalogActions(): ActionName[] {
   return ACTION_NAMES.filter((name) =>
     (
@@ -224,9 +238,35 @@ export function contextMenuCatalogActions(): ActionName[] {
         "createCard",
         "createFrame",
         "fullscreenFrame",
+        "deleteCard",
+        "deleteFrame",
       ] as ActionName[]
     ).includes(name),
   );
+}
+
+export function isTypingTarget(
+  target: { tagName?: string; isContentEditable?: boolean } | null,
+): boolean {
+  const tagName = target?.tagName?.toUpperCase();
+  return (
+    tagName === "INPUT" ||
+    tagName === "TEXTAREA" ||
+    tagName === "SELECT" ||
+    target?.isContentEditable === true
+  );
+}
+
+export function selectedCardIds(
+  nodes: ReadonlyArray<{ id: string; selected?: boolean }>,
+): string[] {
+  return nodes.flatMap((node) => {
+    if (!node.selected) {
+      return [];
+    }
+    const parsed = parseFlowNodeId(node.id);
+    return parsed?.kind === "card" ? [parsed.entityId] : [];
+  });
 }
 
 export function isKnownActionName(name: string): name is ActionName {

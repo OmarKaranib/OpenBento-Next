@@ -19,8 +19,9 @@ meaningful, source-backed developments over time.
 WebMCP lets an external agent operate the durable Canvas that the person is
 already using. It does not write to a separate demo state or return a detached
 chat answer. The human UI, Interactive Agent, WatchBot, and WebMCP converge on
-the same 20-action `ACTION_CATALOG` and domain executor, so agent changes obey
-the same authentication, ownership, Card, Frame, and WatchBot rules.
+the same 23-action `ACTION_CATALOG` and domain executor, so permitted agent
+changes obey the same authentication, ownership, Card, Frame, and WatchBot
+rules. The destructive actions remain human-UI-only.
 
 The implemented WebMCP surface has 13 tools:
 

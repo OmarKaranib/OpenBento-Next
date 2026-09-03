@@ -211,6 +211,102 @@ describe("workspace session uses the shared server executor path", () => {
     });
     expect(updated.frameId).toBe(frame.id);
   });
+
+  it("projects Card and Frame deletion without adding destructive undo history", async () => {
+    const session = createUiSession();
+    const canvas = await session.execute(
+      "createCanvas",
+      { name: "Delete children" },
+      { history: false },
+    );
+    const card = await session.execute(
+      "createCard",
+      buildCreateNoteCardInput({
+        canvasId: canvas.id,
+        text: "keep geometry",
+        position: { x: 22, y: 44 },
+        size: { width: 250, height: 170 },
+      }),
+      { history: false },
+    );
+    const frame = await session.execute(
+      "createFrame",
+      {
+        canvasId: canvas.id,
+        bounds: { x: 0, y: 0, width: 400, height: 300 },
+      },
+      { history: false },
+    );
+    await session.execute(
+      "setCardFrame",
+      { cardId: card.id, frameId: frame.id },
+      { history: false },
+    );
+
+    await session.execute(
+      "deleteFrame",
+      { frameId: frame.id },
+      { history: false },
+    );
+    let snapshot = session.getSnapshot();
+    expect(snapshot.frames).toEqual([]);
+    expect(snapshot.cards[0]?.frameId ?? null).toBeNull();
+    expect(snapshot.cards[0]?.position).toEqual({ x: 22, y: 44 });
+    expect(snapshot.cards[0]?.size).toEqual({ width: 250, height: 170 });
+    expect(snapshot.canUndo).toBe(false);
+
+    await session.execute(
+      "deleteCard",
+      { cardId: card.id },
+      { history: false },
+    );
+    snapshot = session.getSnapshot();
+    expect(snapshot.cards).toEqual([]);
+    expect(snapshot.canUndo).toBe(false);
+  });
+
+  it("switches after current Canvas deletion and reaches a clean empty state", async () => {
+    const session = createUiSession();
+    const first = await session.execute("createCanvas", { name: "First" });
+    const second = await session.execute("createCanvas", { name: "Second" });
+    await session.execute(
+      "createCard",
+      buildCreateNoteCardInput({ canvasId: second.id, text: "child" }),
+    );
+    await session.execute("createFrame", {
+      canvasId: second.id,
+      bounds: { x: 0, y: 0, width: 100, height: 100 },
+    });
+    await session.execute("createWatchBot", {
+      canvasId: second.id,
+      instruction: "Watch",
+    });
+
+    const deleted = await session.execute(
+      "deleteCanvas",
+      { canvasId: second.id },
+      { history: false },
+    );
+    expect(deleted.nextCanvasId).toBe(first.id);
+    let snapshot = session.getSnapshot();
+    expect(snapshot.currentCanvasId).toBe(first.id);
+    expect(snapshot.canvases.map((canvas) => canvas.id)).toEqual([first.id]);
+    expect(snapshot.cards).toEqual([]);
+    expect(snapshot.frames).toEqual([]);
+    expect(snapshot.watchBots).toEqual([]);
+
+    await session.execute(
+      "deleteCanvas",
+      { canvasId: first.id },
+      { history: false },
+    );
+    snapshot = session.getSnapshot();
+    expect(snapshot.currentCanvasId).toBeNull();
+    expect(snapshot.canvases).toEqual([]);
+    expect(snapshot.cards).toEqual([]);
+    expect(snapshot.frames).toEqual([]);
+    expect(snapshot.watchBots).toEqual([]);
+  });
 });
 
 function createSharedSession(ownerId = "session-user") {
@@ -442,6 +538,33 @@ describe("WorkspaceSession.syncExternalState", () => {
     expect(snapshot.currentCanvasId).toBe(second.id);
     expect(snapshot.cards.map((card) => card.id)).toContain(secondCard.id);
     expect(snapshot.cards.map((card) => card.id)).not.toContain(firstCard.id);
+  });
+
+  it("does not resurrect a deleted Canvas from an in-flight poll", async () => {
+    const { session, blockNextGet, calls } = createSharedSession();
+    const canvas = await session.execute("createCanvas", { name: "Transient" });
+    await session.execute(
+      "createCard",
+      buildCreateNoteCardInput({ canvasId: canvas.id, text: "will delete" }),
+    );
+    const gate = blockNextGet(canvas.id);
+    const staleSync = session.syncExternalState();
+    await gate.started;
+
+    await session.execute(
+      "deleteCanvas",
+      { canvasId: canvas.id },
+      { history: false },
+    );
+    gate.release();
+    expect(await staleSync).toBe(false);
+    expect(session.getSnapshot().currentCanvasId).toBeNull();
+    expect(session.getSnapshot().canvases).toEqual([]);
+    expect(session.getSnapshot().cards).toEqual([]);
+
+    calls.length = 0;
+    expect(await session.syncExternalState()).toBe(false);
+    expect(calls).toEqual([]);
   });
 
   it("does not clobber a local mutation that completes during a poll", async () => {
