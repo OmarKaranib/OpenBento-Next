@@ -10,6 +10,10 @@ export {
 } from "./types";
 export type { WatchBot, WatchBotStatus } from "./types";
 export {
+  deriveProviderSearchQuery,
+  type ProviderQueryTarget,
+} from "./provider-query";
+export {
   WATCHBOT_V0_SOURCE_TYPES,
   canonicalizeUrl,
   canonicalYouTubeWatchUrl,
@@ -153,6 +157,7 @@ export {
 } from "./adapters/openai-meaningfulness-classifier";
 export {
   createXSourceProvider,
+  selectHighestBitrateMp4Variant,
   xBearerToken,
   X_SOURCE_PROVIDER_LIMITS,
   XSourceProviderError,

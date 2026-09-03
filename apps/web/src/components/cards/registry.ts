@@ -16,8 +16,8 @@ import {
   ArticleCardNode,
   NewsCardNode,
   WebCardNode,
-  XCardNode,
 } from "@/components/canvas/nodes/ArticleCardNode";
+import { XCardNode } from "@/components/canvas/nodes/XCardNode";
 import { YoutubeCardNode } from "@/components/canvas/nodes/YoutubeCardNode";
 
 export type CardCreateMode = "note" | "source";

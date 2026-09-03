@@ -3,6 +3,7 @@ import type {
   SourceProvider,
   SourceProviderDiscoverInput,
 } from "../provider";
+import { deriveProviderSearchQuery } from "../provider-query";
 import { decodeHtmlEntities, sanitizeUntrustedText } from "../untrusted";
 
 const YOUTUBE_SEARCH_URL = "https://www.googleapis.com/youtube/v3/search";
@@ -213,8 +214,9 @@ class YouTubeSourceProvider
       );
     }
 
-    const query = sanitizeUntrustedText(
+    const query = deriveProviderSearchQuery(
       input.instruction,
+      "youtube",
       YOUTUBE_SOURCE_PROVIDER_LIMITS.maxQueryLength,
     );
     if (!query) {

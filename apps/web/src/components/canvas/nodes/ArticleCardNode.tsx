@@ -11,10 +11,9 @@ import { hostnameFromHttpUrl, sanitizeUntrustedDisplayText } from "@/lib/untrust
 
 export type ArticleNode = Node<{ cardId: string }, "article">;
 export type WebNode = Node<{ cardId: string }, "web">;
-export type XNode = Node<{ cardId: string }, "x">;
 export type NewsNode = Node<{ cardId: string }, "news">;
 
-type SourceLinkCard = Extract<Card, { type: "article" | "web" | "x" | "news" }>;
+type SourceLinkCard = Extract<Card, { type: "article" | "web" | "news" }>;
 
 /** Resolves a persisted sourced Card without coercing its discriminated type. */
 export function sourceLinkCardForNode<T extends SourceLinkCard["type"]>(
@@ -80,15 +79,6 @@ export function WebCardNode({ data, selected }: NodeProps<WebNode>) {
     return null;
   }
   return <SourceLinkBody card={card} selected={selected} label="Web" />;
-}
-
-export function XCardNode({ data, selected }: NodeProps<XNode>) {
-  const { snapshot } = useWorkspace();
-  const card = sourceLinkCardForNode(snapshot.cards, data.cardId, "x");
-  if (!card) {
-    return null;
-  }
-  return <SourceLinkBody card={card} selected={selected} label="X" />;
 }
 
 export function NewsCardNode({ data, selected }: NodeProps<NewsNode>) {

@@ -113,6 +113,68 @@ describe("PAYLOAD_SCHEMAS", () => {
     ).toBe(false);
   });
 
+  it("keeps minimal X payloads valid and validates explicit rich fields", () => {
+    const xProvenance = { ...sourceProvenance, sourceType: "x" as const };
+    expect(isValidCardPayload("x", { provenance: xProvenance })).toBe(true);
+    expect(
+      isValidCardPayload("x", {
+        provenance: xProvenance,
+        postText: "A source-backed update",
+        authorDisplayName: "OpenBento",
+        username: "openbento",
+        authorAvatarUrl: "https://pbs.twimg.com/profile_images/1/avatar.jpg",
+        metrics: { replyCount: 0, repostCount: 2, likeCount: 7 },
+        media: [
+          {
+            mediaKey: "3_10",
+            type: "video",
+            previewImageUrl: "https://pbs.twimg.com/media/poster.jpg",
+            playbackUrl: "https://video.twimg.com/ext_tw_video/10/video/a.mp4",
+            width: 720,
+            height: 720,
+          },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it("rejects malformed X presentation data without changing other sources", () => {
+    const xProvenance = { ...sourceProvenance, sourceType: "x" as const };
+    expect(
+      isValidCardPayload("x", {
+        provenance: xProvenance,
+        username: "not a handle",
+      }),
+    ).toBe(false);
+    expect(
+      isValidCardPayload("x", {
+        provenance: xProvenance,
+        metrics: { likeCount: -1 },
+      }),
+    ).toBe(false);
+    expect(
+      isValidCardPayload("x", {
+        provenance: xProvenance,
+        media: [
+          {
+            mediaKey: "3_10",
+            type: "video",
+            playbackUrl: "javascript:alert(1)",
+          },
+        ],
+      }),
+    ).toBe(false);
+    expect(isValidCardPayload("news", { provenance: sourceProvenance })).toBe(
+      true,
+    );
+    expect(
+      isValidCardPayload("news", {
+        provenance: sourceProvenance,
+        postText: "X-only field",
+      }),
+    ).toBe(false);
+  });
+
   it("shares schema matching between PAYLOAD_SCHEMAS and isValidCardPayload", () => {
     const payload = { kind: "bar" };
     expect(matchesJsonSchema(PAYLOAD_SCHEMAS.chart, payload)).toBe(true);

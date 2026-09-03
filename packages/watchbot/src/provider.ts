@@ -1,4 +1,7 @@
-import type { WatchBotSourceType } from "@openbento/domain";
+import type {
+  WatchBotSourceType,
+  XCardPresentation,
+} from "@openbento/domain";
 import type { XHttpBudget } from "./x-http-budget";
 
 /**
@@ -14,6 +17,8 @@ export interface DiscoveredItem {
   /** Optional source-supplied identity fields. Never inferred by the pipeline. */
   author?: string;
   externalId?: string;
+  /** Optional typed X presentation data; ignored for every other source type. */
+  x?: XCardPresentation;
 }
 
 export interface SourceProviderDiscoverInput {

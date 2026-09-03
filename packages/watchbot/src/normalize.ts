@@ -1,4 +1,9 @@
-import type { SourceType } from "@openbento/domain";
+import type {
+  SourceType,
+  XCardMedia,
+  XCardMetrics,
+  XCardPresentation,
+} from "@openbento/domain";
 import type { DiscoveredItem } from "./provider";
 import { sanitizeUntrustedText } from "./untrusted";
 
@@ -38,6 +43,7 @@ export interface NormalizedItem {
   discoveredAt: string;
   author?: string;
   externalId?: string;
+  x?: XCardPresentation;
 }
 
 export function isWatchBotV0SourceType(
@@ -82,6 +88,119 @@ function isXUrl(raw: string): boolean {
   } catch {
     return false;
   }
+}
+
+function safeXAssetUrl(
+  value: unknown,
+  allowedHosts: readonly string[],
+): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" &&
+      !url.username &&
+      !url.password &&
+      !url.port &&
+      allowedHosts.includes(url.hostname.toLowerCase())
+      ? url.href
+      : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function optionalCount(value: unknown): number | undefined {
+  return Number.isInteger(value) && (value as number) >= 0
+    ? (value as number)
+    : undefined;
+}
+
+function normalizeXMetrics(value: XCardMetrics | undefined): XCardMetrics | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const metrics: XCardMetrics = {};
+  for (const key of [
+    "replyCount",
+    "repostCount",
+    "quoteCount",
+    "likeCount",
+    "viewCount",
+    "bookmarkCount",
+  ] as const) {
+    const count = optionalCount(value[key]);
+    if (count !== undefined) {
+      metrics[key] = count;
+    }
+  }
+  return Object.keys(metrics).length > 0 ? metrics : undefined;
+}
+
+function normalizeXMedia(value: XCardMedia): XCardMedia | null {
+  if (
+    !value ||
+    typeof value !== "object" ||
+    !/^\d+_\d+$/.test(value.mediaKey) ||
+    !["photo", "video", "animated_gif"].includes(value.type)
+  ) {
+    return null;
+  }
+  const url = safeXAssetUrl(value.url, ["pbs.twimg.com"]);
+  const previewImageUrl = safeXAssetUrl(value.previewImageUrl, ["pbs.twimg.com"]);
+  const playbackUrl = safeXAssetUrl(value.playbackUrl, ["video.twimg.com"]);
+  if (
+    (value.type === "photo" && !url) ||
+    (value.type !== "photo" && !previewImageUrl && !playbackUrl)
+  ) {
+    return null;
+  }
+  const width = optionalCount(value.width);
+  const height = optionalCount(value.height);
+  const durationMs = optionalCount(value.durationMs);
+  const viewCount = optionalCount(value.viewCount);
+  const altText = sanitizeUntrustedText(value.altText, 1_000);
+  return {
+    mediaKey: value.mediaKey,
+    type: value.type,
+    ...(url ? { url } : {}),
+    ...(previewImageUrl ? { previewImageUrl } : {}),
+    ...(playbackUrl ? { playbackUrl } : {}),
+    ...(width !== undefined ? { width } : {}),
+    ...(height !== undefined ? { height } : {}),
+    ...(durationMs !== undefined ? { durationMs } : {}),
+    ...(viewCount !== undefined ? { viewCount } : {}),
+    ...(altText ? { altText } : {}),
+  };
+}
+
+function normalizeXPresentation(
+  value: XCardPresentation | undefined,
+): XCardPresentation | undefined {
+  if (!value || typeof value !== "object") {
+    return undefined;
+  }
+  const postText = sanitizeUntrustedText(value.postText, 5_000);
+  const authorDisplayName = sanitizeUntrustedText(value.authorDisplayName, 200);
+  const username = sanitizeUntrustedText(value.username, 15);
+  const authorAvatarUrl = safeXAssetUrl(value.authorAvatarUrl, ["pbs.twimg.com"]);
+  const metrics = normalizeXMetrics(value.metrics);
+  const media = Array.isArray(value.media)
+    ? value.media.flatMap((item) => {
+        const normalized = normalizeXMedia(item);
+        return normalized ? [normalized] : [];
+      }).slice(0, 4)
+    : [];
+  const normalized: XCardPresentation = {
+    ...(postText ? { postText } : {}),
+    ...(authorDisplayName ? { authorDisplayName } : {}),
+    ...(/^[A-Za-z0-9_]{1,15}$/.test(username) ? { username } : {}),
+    ...(authorAvatarUrl ? { authorAvatarUrl } : {}),
+    ...(metrics ? { metrics } : {}),
+    ...(media.length > 0 ? { media } : {}),
+  };
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
 }
 
 const YOUTUBE_VIDEO_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -207,6 +326,7 @@ export function normalizeDiscoveredItem(
   if (!title) {
     return null;
   }
+  const x = item.sourceType === "x" ? normalizeXPresentation(item.x) : undefined;
   return {
     sourceUrl: canonicalUrl,
     canonicalUrl,
@@ -221,6 +341,7 @@ export function normalizeDiscoveredItem(
     ...(item.externalId
       ? { externalId: sanitizeUntrustedText(item.externalId, 200) }
       : {}),
+    ...(x ? { x } : {}),
   };
 }
 

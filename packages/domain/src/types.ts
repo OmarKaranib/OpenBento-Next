@@ -98,6 +98,45 @@ export interface SourceCardPayload {
   provenance: CardProvenance;
 }
 
+/** Optional public engagement counts supplied by X. Missing means unknown. */
+export interface XCardMetrics {
+  replyCount?: number;
+  repostCount?: number;
+  quoteCount?: number;
+  likeCount?: number;
+  viewCount?: number;
+  bookmarkCount?: number;
+}
+
+export type XCardMediaType = "photo" | "video" | "animated_gif";
+
+/** A bounded, display-only X media attachment. Provider responses are not stored. */
+export interface XCardMedia {
+  mediaKey: string;
+  type: XCardMediaType;
+  url?: string;
+  previewImageUrl?: string;
+  playbackUrl?: string;
+  width?: number;
+  height?: number;
+  durationMs?: number;
+  altText?: string;
+  viewCount?: number;
+}
+
+/** Optional X presentation fields. Provenance remains the source identity. */
+export interface XCardPresentation {
+  postText?: string;
+  authorDisplayName?: string;
+  username?: string;
+  authorAvatarUrl?: string;
+  metrics?: XCardMetrics;
+  media?: XCardMedia[];
+}
+
+/** Existing `{ provenance }` X payloads remain valid because display fields are optional. */
+export interface XCardPayload extends SourceCardPayload, XCardPresentation {}
+
 export interface AiSummaryPayload {
   summary: string;
   sourceCardIds: string[];
@@ -121,7 +160,7 @@ export type CardPayloadByType = {
   web: SourceCardPayload;
   news: SourceCardPayload;
   youtube: SourceCardPayload;
-  x: SourceCardPayload;
+  x: XCardPayload;
   reddit: SourceCardPayload;
   instagram: SourceCardPayload;
   ai_summary: AiSummaryPayload;

@@ -901,7 +901,22 @@ describe("provider-aware X relevance pipeline", () => {
   });
 
   it("preserves dedup, novelty, and X provenance", async () => {
-    const firstPost = xPost("41", "OpenAI shipped a new API");
+    const firstPost: DiscoveredItem = {
+      ...xPost("41", "OpenAI shipped a new API"),
+      x: {
+        postText: "OpenAI shipped a new API",
+        authorDisplayName: "OpenAI",
+        username: "someone",
+        metrics: { likeCount: 42 },
+        media: [
+          {
+            mediaKey: "3_41",
+            type: "photo",
+            url: "https://pbs.twimg.com/media/openai.jpg",
+          },
+        ],
+      },
+    };
     const { store, executor, watchBot, provider } = await seedXWatchBot([
       firstPost,
     ]);
@@ -927,6 +942,20 @@ describe("provider-aware X relevance pipeline", () => {
         author: "someone",
         externalId: "41",
       });
+      if (card.type === "x") {
+        expect(card.payload).toMatchObject({
+          postText: "OpenAI shipped a new API",
+          authorDisplayName: "OpenAI",
+          metrics: { likeCount: 42 },
+          media: [
+            {
+              mediaKey: "3_41",
+              type: "photo",
+              url: "https://pbs.twimg.com/media/openai.jpg",
+            },
+          ],
+        });
+      }
     }
 
     const second = await runWatchBotPipeline({

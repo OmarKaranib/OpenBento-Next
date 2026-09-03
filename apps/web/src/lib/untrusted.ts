@@ -91,6 +91,32 @@ export function safeHttpUrl(value: unknown): string | null {
   return parsed.href;
 }
 
+/** Defense-in-depth for X-owned image/video URLs persisted by the worker. */
+export function safeXMediaUrl(
+  value: unknown,
+  kind: "image" | "video",
+): string | null {
+  const href = safeHttpUrl(value);
+  if (!href) {
+    return null;
+  }
+  try {
+    const url = new URL(href);
+    const expectedHost = kind === "video" ? "video.twimg.com" : "pbs.twimg.com";
+    if (
+      url.protocol !== "https:" ||
+      url.hostname.toLowerCase() !== expectedHost ||
+      url.port ||
+      (kind === "video" && !url.pathname.toLowerCase().endsWith(".mp4"))
+    ) {
+      return null;
+    }
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
 export function hostnameFromHttpUrl(value: unknown): string {
   const href = safeHttpUrl(value);
   if (!href) {
