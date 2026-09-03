@@ -123,6 +123,20 @@ export function buildResumeWatchBotInput(
   return { watchBotId };
 }
 
+/** Pause / Resume / Retry control for the WatchBot list. */
+export function watchBotRunControl(status: WatchBotStatus): {
+  action: "pauseWatchBot" | "resumeWatchBot";
+  label: string;
+} {
+  if (status === "paused") {
+    return { action: "resumeWatchBot", label: "Resume" };
+  }
+  if (status === "error") {
+    return { action: "resumeWatchBot", label: "Resume / Retry" };
+  }
+  return { action: "pauseWatchBot", label: "Pause" };
+}
+
 /** Domain record status — not live worker activity. */
 export function configuredStatusLabel(status: WatchBotStatus): string {
   switch (status) {

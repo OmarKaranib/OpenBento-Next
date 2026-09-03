@@ -4,8 +4,11 @@ WatchBot worker (v0 first slice).
 
 Runs `discover → normalize → dedup → novelty → relevance → cluster → meaning → select → provenance → Card`
 through `@openbento/watchbot` and `@openbento/domain` `createActionExecutor`.
-Paused bots skip discovery. Unexpected failures set status `error` + `lastError`
-without crashing the process. Meaningfulness classification is passthrough
+Paused bots skip discovery. Transient provider failures (timeout, network,
+429, 5xx, typed retryable errors) keep status `running` and stamp a sanitized
+`lastError` so the next scheduled tick retries. Terminal credential, auth, or
+malformed failures set status `error` + `lastError` without crashing the
+process. Meaningfulness classification is passthrough
 unless `WATCHBOT_MEANINGFULNESS_CLASSIFIER_ENABLED=true` **and**
 `WATCHBOT_MEANINGFULNESS_PROVIDER` is `openai` or `xai` **and** the matching
 vendor key is set (`OPENAI_API_KEY` or `XAI_API_KEY` / `GROK_API_KEY`).
