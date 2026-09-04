@@ -23,14 +23,17 @@ Dev / explicit-dev migrations for the hosted **dev** project (org `openbento`, u
 
 `20260904010000_primary_frame_columns.sql` establishes the Phase 1 dashboard model:
 
-- each Canvas gets a non-null `primary_frame_id` and a database uniqueness constraint permits exactly one Frame row per Canvas;
+- each Canvas gets a non-null `primary_frame_id` and `frames_one_per_canvas_key unique (canvas_id)` permits exactly one Frame row per Canvas;
+- the Canvas → Frame FK is `DEFERRABLE INITIALLY DEFERRED` / `ON DELETE NO ACTION` so `createCanvas` can insert Canvas then Frame in one transaction and `DELETE FROM canvases` still cascades; an independent Frame delete cannot commit while the Canvas exists;
+- `UNIQUE (id, primary_frame_id)` lets `columns (canvas_id, frame_id)` reference the Canvas primary Frame at the database level (RLS WITH CHECK is not a substitute);
 - zero-Frame Canvases receive a 1600×900 `Dashboard` Frame;
 - multi-Frame Canvases choose the oldest `created_at`, then lowest `id`, as primary; that selected Frame is normalized to exact `{x:0,y:0,width:1600,height:900}` bounds without translating Cards; Cards on other Frames keep payload/provenance and world geometry, have `frame_id` cleared, and only then are the now-unreferenced extra Frames removed;
 - a database check prevents the canonical Frame geometry from drifting after migration;
 - `columns` is owner-scoped through its Canvas, with same-Canvas/primary-Frame constraints and bounded geometry;
-- `cards.column_id` is explicit same-Canvas/Frame membership;
-- every existing WatchBot receives a dedicated Column and `watch_bots.column_id` becomes required and unique; deterministic slots fill the dashboard first, then place overflow Columns wholly to its right without overlap; and
-- `apply_domain_transaction` accepts the new fields/entities so Card + Frame + Column + dedup writes stay atomic.
+- `cards.column_id` is explicit same-Canvas/Frame membership (`cards_column_requires_frame_check` closes the MATCH SIMPLE null hole);
+- Card and WatchBot Column FKs are deferrable so sibling CASCADE from Canvas delete cannot fail mid-statement; Column delete still cannot commit while Cards or a WatchBot reference it;
+- every existing WatchBot receives a dedicated Column and `watch_bots.column_id` becomes required and unique; deterministic slots fill the dashboard first, then place overflow Columns wholly to its right without overlap; WatchBot `status` is unchanged when a Column is parked; and
+- `apply_domain_transaction` stays SECURITY INVOKER with `search_path = public`, keeps every previous operation kind, and accepts the new fields/entities so Card + Frame + Column + dedup writes stay atomic.
 
 Composite foreign key `cards_frame_same_canvas_fkey` prevents `card.frame_id` from pointing at a frame on another canvas.
 

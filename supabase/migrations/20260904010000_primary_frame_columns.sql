@@ -1,9 +1,27 @@
 -- Phase 1 dashboard architecture: singleton primary Frame + first-class Columns.
 -- Local / explicit-dev migration only. Do not apply to production from an agent.
+--
+-- Validated against the live openbento-next schema (Postgres 17) before apply:
+-- canvases/frames/cards/watch_bots already use same-canvas composite FKs,
+-- FORCE RLS, authenticated+service_role grants, and SECURITY INVOKER
+-- apply_domain_transaction. This file assumes that current remote shape.
 
 -- ---------------------------------------------------------------------------
 -- Preserve legacy content, choose one deterministic Frame, bootstrap zero-Frame
 -- Canvases, then enforce exactly one Frame per Canvas.
+--
+-- Singleton design (circular 1:1 is intentional and safe):
+--   * frames.canvas_id UNIQUE — at most one Frame row per Canvas
+--   * canvases.primary_frame_id NOT NULL — every Canvas names that Frame
+--   * canvases(primary_frame_id, id) → frames(id, canvas_id)
+--     DEFERRABLE INITIALLY DEFERRED / ON DELETE NO ACTION
+--     so CREATE can insert Canvas then Frame in one transaction, and
+--     DELETE FROM canvases still works: child Frame CASCADE is checked at
+--     COMMIT after the Canvas row is gone. RESTRICT would make delete
+--     impossible. ON DELETE CASCADE on this reverse FK would delete the
+--     Canvas if the Frame were removed — rejected.
+--   * Independent Frame delete cannot commit while the Canvas exists, so a
+--     Canvas cannot permanently lose its Frame.
 -- ---------------------------------------------------------------------------
 
 alter table public.canvases add column primary_frame_id uuid;
@@ -39,6 +57,7 @@ where frame.id = canvas.primary_frame_id;
 
 -- Cards from legacy extra Frames keep their content, provenance, and world
 -- geometry. They become free-floating/parked before those empty shells go away.
+-- Clear frame_id first so cards_frame_same_canvas_fkey cannot fire on delete.
 update public.cards card
 set frame_id = null, updated_at = now()
 from public.canvases canvas
@@ -51,6 +70,37 @@ using public.canvases canvas
 where frame.canvas_id = canvas.id
   and frame.id <> canvas.primary_frame_id;
 
+do $$
+begin
+  if exists (select 1 from public.canvases where primary_frame_id is null) then
+    raise exception 'canvases.primary_frame_id backfill left null rows';
+  end if;
+  if exists (
+    select 1
+    from public.canvases c
+    where not exists (
+      select 1
+      from public.frames f
+      where f.id = c.primary_frame_id
+        and f.canvas_id = c.id
+    )
+  ) then
+    raise exception 'canvases.primary_frame_id is not a same-canvas Frame';
+  end if;
+  if exists (
+    select canvas_id
+    from public.frames
+    group by canvas_id
+    having count(*) <> 1
+  ) then
+    raise exception 'legacy Frame collapse did not leave exactly one Frame per Canvas';
+  end if;
+end
+$$;
+
+-- UNIQUE(canvas_id) replaces frames_canvas_id_idx (same leading column).
+drop index if exists public.frames_canvas_id_idx;
+
 alter table public.frames
   add constraint frames_one_per_canvas_key unique (canvas_id),
   add constraint frames_canonical_dashboard_bounds_check
@@ -58,13 +108,15 @@ alter table public.frames
 
 alter table public.canvases
   alter column primary_frame_id set not null,
+  add constraint canvases_id_primary_frame_id_key unique (id, primary_frame_id),
   add constraint canvases_primary_frame_same_canvas_fkey
     foreign key (primary_frame_id, id)
     references public.frames (id, canvas_id)
+    on delete no action
     deferrable initially deferred;
 
 comment on column public.canvases.primary_frame_id is
-  'Authoritative singleton primary Frame. Same-canvas FK + frames(canvas_id) uniqueness enforce exactly one.';
+  'Authoritative singleton primary Frame. Same-canvas deferred FK + frames(canvas_id) uniqueness enforce exactly one.';
 
 -- ---------------------------------------------------------------------------
 -- First-class persisted Columns and explicit Card membership.
@@ -87,6 +139,12 @@ create table public.columns (
   constraint columns_primary_frame_same_canvas_fkey
     foreign key (frame_id, canvas_id)
     references public.frames (id, canvas_id)
+    on delete cascade,
+  -- Database-enforced (not only RLS): Column.frame_id is the Canvas primary Frame.
+  constraint columns_canvas_primary_frame_fkey
+    foreign key (canvas_id, frame_id)
+    references public.canvases (id, primary_frame_id)
+    on delete cascade
 );
 
 alter table public.cards add column column_id uuid;
@@ -131,22 +189,40 @@ set column_id = backfill.column_id
 from watchbot_column_backfill backfill
 where backfill.watch_bot_id = wb.id;
 
+do $$
+begin
+  if exists (select 1 from public.watch_bots where column_id is null) then
+    raise exception 'watch_bots.column_id backfill left null rows';
+  end if;
+end
+$$;
+
 alter table public.watch_bots
   alter column column_id set not null,
+  -- DEFERRABLE: canvas delete cascades WatchBots and Columns as siblings.
+  -- Immediate NO ACTION would fail if Columns were removed first.
+  -- Still rejects a committed delete of a dedicated WatchBot Column.
   add constraint watch_bots_column_same_canvas_fkey
     foreign key (column_id, canvas_id)
-    references public.columns (id, canvas_id),
+    references public.columns (id, canvas_id)
+    on delete no action
+    deferrable initially deferred,
   add constraint watch_bots_one_per_column_key unique (column_id);
 
 alter table public.cards
   add constraint cards_column_requires_frame_check
     check (column_id is null or frame_id is not null),
+  -- MATCH SIMPLE: a null column_id skips the check. DEFERRABLE so sibling
+  -- CASCADE from canvas delete can remove Columns before Cards commit-check.
+  -- No ON DELETE SET NULL: a composite SET NULL would also null canvas_id.
+  -- App contract: refuse Column delete while Cards still reference it.
   add constraint cards_column_same_primary_frame_fkey
     foreign key (column_id, canvas_id, frame_id)
-    references public.columns (id, canvas_id, frame_id);
+    references public.columns (id, canvas_id, frame_id)
+    on delete no action
+    deferrable initially deferred;
 
 create index columns_canvas_id_idx on public.columns (canvas_id);
-create index columns_frame_id_idx on public.columns (frame_id);
 create index cards_column_id_idx on public.cards (column_id) where column_id is not null;
 
 create trigger columns_set_updated_at
@@ -155,6 +231,7 @@ create trigger columns_set_updated_at
 
 revoke all on table public.columns from public, anon;
 grant select, insert, update, delete on table public.columns to authenticated;
+grant select, insert, update, delete, references, trigger on table public.columns to service_role;
 
 alter table public.columns enable row level security;
 alter table public.columns force row level security;
@@ -214,10 +291,17 @@ comment on column public.cards.column_id is
   'Explicit Column membership. Null means free-floating; ordering is created_at DESC, id DESC.';
 comment on column public.watch_bots.column_id is
   'Dedicated output Column. UNIQUE enforces at most one WatchBot per Column.';
+comment on constraint columns_canvas_primary_frame_fkey on public.columns is
+  'Enforces Column.frame_id = Canvas.primary_frame_id. RLS WITH CHECK is not a substitute.';
+comment on constraint cards_column_same_primary_frame_fkey on public.cards is
+  'If column_id is set, Card canvas_id/frame_id must match the Column. MATCH SIMPLE so a null column_id is allowed.';
+comment on constraint watch_bots_column_same_canvas_fkey on public.watch_bots is
+  'WatchBot Column must belong to the same Canvas. UNIQUE(column_id) makes the Column dedicated.';
 
 -- ---------------------------------------------------------------------------
 -- Atomic domain writer updated for the new authoritative fields/entity.
 -- SECURITY INVOKER: owner RLS continues to apply.
+-- Existing operation kinds are preserved; new fields/ops are additive.
 -- ---------------------------------------------------------------------------
 
 create or replace function public.apply_domain_transaction(ops jsonb)
@@ -357,3 +441,7 @@ $$;
 
 revoke all on function public.apply_domain_transaction(jsonb) from public, anon;
 grant execute on function public.apply_domain_transaction(jsonb) to authenticated;
+grant execute on function public.apply_domain_transaction(jsonb) to service_role;
+
+comment on function public.apply_domain_transaction(jsonb) is
+  'SECURITY INVOKER batch write for leftover-Card TOCTOU. Unique conflict rolls back the Card. RLS still applies. Accepts primary_frame_id, columns, and column_id.';
