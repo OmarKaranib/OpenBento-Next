@@ -7,6 +7,7 @@ import { useCanvasCommands } from "@/components/canvas/use-canvas-commands";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { useWorkspaceUiOptional } from "@/components/workspace/workspace-ui";
 import {
+  cardDashboardActivity,
   clampDashboardResize,
   isDashboardGeometryInside,
   type DashboardGeometry,
@@ -30,9 +31,10 @@ export function CardNodeResizer({
   const resizeStartedInside = useRef(false);
   const resizeGeometry = useRef<DashboardGeometry | null>(null);
   const minimumSize = { width: minWidth, height: minHeight };
-  const dashboard = snapshot.canvases && snapshot.frames
-    ? primaryDashboardFrame(snapshot)?.bounds
+  const dashboardFrame = snapshot.canvases && snapshot.frames
+    ? primaryDashboardFrame(snapshot)
     : null;
+  const dashboard = dashboardFrame?.bounds ?? null;
 
   return (
     <NodeResizer
@@ -44,10 +46,12 @@ export function CardNodeResizer({
       lineClassName="nodrag nopan !border-2 !border-indigo-400"
       onResizeStart={() => {
         workspaceUi?.setDashboardEdgeActive(false);
-        resizeStartedInside.current = isDashboardGeometryInside(
-          { position: card.position, size: card.size },
-          dashboard,
-        );
+        resizeStartedInside.current =
+          cardDashboardActivity(card.frameId, dashboardFrame?.id ?? "") ??
+          isDashboardGeometryInside(
+            { position: card.position, size: card.size },
+            dashboard,
+          );
         resizeGeometry.current = null;
         session.beginInteraction();
       }}

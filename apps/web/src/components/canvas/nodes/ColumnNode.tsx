@@ -24,6 +24,7 @@ import {
 import { sanitizeUntrustedDisplayText } from "@/lib/untrusted";
 import { useWorkspaceUiOptional } from "@/components/workspace/workspace-ui";
 import {
+  columnDashboardActivity,
   clampDashboardResize,
   isDashboardGeometryInside,
   type DashboardGeometry,
@@ -198,13 +199,15 @@ export function ColumnNode({ data, selected }: NodeProps<ColumnFlowNode>) {
         color="#818cf8"
         onResizeStart={() => {
           workspaceUi?.setDashboardEdgeActive(false);
-          resizeStartedInside.current = isDashboardGeometryInside(
-            {
-              position: { x: column.bounds.x, y: column.bounds.y },
-              size: { width: column.bounds.width, height: column.bounds.height },
-            },
-            dashboard,
-          );
+          resizeStartedInside.current =
+            columnDashboardActivity(parked) ??
+            isDashboardGeometryInside(
+              {
+                position: { x: column.bounds.x, y: column.bounds.y },
+                size: { width: column.bounds.width, height: column.bounds.height },
+              },
+              dashboard,
+            );
           resizeGeometry.current = null;
           session.beginInteraction();
         }}

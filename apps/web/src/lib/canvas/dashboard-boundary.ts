@@ -1,6 +1,7 @@
 import type { Point, Rect, Size } from "@openbento/domain";
 
-export const DASHBOARD_BREAK_FREE_DISTANCE = 48;
+export const DASHBOARD_BREAK_FREE_SCREEN_PX = 120;
+export const DASHBOARD_BREAK_FREE_HOLD_MS = 150;
 
 export type DashboardGeometry = { position: Point; size: Size };
 
@@ -8,7 +9,40 @@ export type DashboardDragState = {
   startedInside: boolean;
   escaped: boolean;
   displayedPosition: Point;
+  positionOffset: Point;
+  resistance: DashboardResistance | null;
+  escape: { pointer: Point; position: Point } | null;
 };
+
+type DashboardResistance = {
+  edges: DashboardEdges;
+  pointer: Point;
+  startedAt: number;
+};
+
+type DashboardEdges = {
+  left: boolean;
+  right: boolean;
+  top: boolean;
+  bottom: boolean;
+};
+
+/** Persisted Card membership takes precedence over imperfect legacy geometry. */
+export function cardDashboardActivity(
+  frameId: string | null | undefined,
+  primaryFrameId: string,
+): boolean | undefined {
+  if (frameId === primaryFrameId) return true;
+  if (frameId === null) return false;
+  return undefined;
+}
+
+/** Column parked state is the existing presentation of its delivery semantics. */
+export function columnDashboardActivity(
+  parked: boolean | undefined,
+): boolean | undefined {
+  return typeof parked === "boolean" ? !parked : undefined;
+}
 
 export function isDashboardGeometryInside(
   geometry: DashboardGeometry,
@@ -27,11 +61,22 @@ export function isDashboardGeometryInside(
 export function beginDashboardDrag(
   geometry: DashboardGeometry,
   dashboard: Rect | null | undefined,
+  semanticActive?: boolean,
 ): DashboardDragState {
+  const startedInside = semanticActive ?? isDashboardGeometryInside(geometry, dashboard);
+  const displayedPosition = startedInside && dashboard
+    ? clampPositionToDashboard(geometry.position, geometry.size, dashboard)
+    : geometry.position;
   return {
-    startedInside: isDashboardGeometryInside(geometry, dashboard),
+    startedInside,
     escaped: false,
-    displayedPosition: geometry.position,
+    displayedPosition,
+    positionOffset: {
+      x: displayedPosition.x - geometry.position.x,
+      y: displayedPosition.y - geometry.position.y,
+    },
+    resistance: null,
+    escape: null,
   };
 }
 
@@ -43,32 +88,73 @@ export function beginDashboardDrag(
 export function resolveDashboardDrag(
   state: DashboardDragState,
   desiredPosition: Point,
+  pointer: Point,
+  zoom: number,
+  timestamp: number,
   size: Size,
   dashboard: Rect | null | undefined,
 ): { state: DashboardDragState; position: Point; resisting: boolean } {
-  if (!dashboard || !state.startedInside || state.escaped) {
+  const adjustedDesired = {
+    x: desiredPosition.x + state.positionOffset.x,
+    y: desiredPosition.y + state.positionOffset.y,
+  };
+  if (!dashboard || !state.startedInside) {
     return {
-      state: { ...state, displayedPosition: desiredPosition },
-      position: desiredPosition,
+      state: { ...state, displayedPosition: adjustedDesired },
+      position: adjustedDesired,
       resisting: false,
     };
   }
 
-  const overflow = dashboardOverflow({ position: desiredPosition, size }, dashboard);
-  if (Math.max(overflow.left, overflow.right, overflow.top, overflow.bottom) > DASHBOARD_BREAK_FREE_DISTANCE) {
+  if (state.escaped && state.escape) {
+    const zoomScale = Math.max(zoom, 0.01);
+    const position = {
+      x: state.escape.position.x + (pointer.x - state.escape.pointer.x) / zoomScale,
+      y: state.escape.position.y + (pointer.y - state.escape.pointer.y) / zoomScale,
+    };
     return {
-      state: { ...state, escaped: true, displayedPosition: desiredPosition },
-      position: desiredPosition,
+      state: { ...state, displayedPosition: position },
+      position,
       resisting: false,
     };
   }
 
-  const position = clampPositionToDashboard(desiredPosition, size, dashboard);
-  const resisting = position.x !== desiredPosition.x || position.y !== desiredPosition.y;
+  const edges = dashboardEdges({ position: adjustedDesired, size }, dashboard);
+  if (!edges.left && !edges.right && !edges.top && !edges.bottom) {
+    return {
+      state: { ...state, displayedPosition: adjustedDesired, resistance: null },
+      position: adjustedDesired,
+      resisting: false,
+    };
+  }
+
+  const position = clampPositionToDashboard(adjustedDesired, size, dashboard);
+  const resistance = continuesResistance(state.resistance, edges)
+    ? { ...state.resistance!, edges: mergeEdges(state.resistance!.edges, edges) }
+    : { edges, pointer, startedAt: timestamp };
+
+  if (
+    pointerResistanceDistance(pointer, resistance) >= DASHBOARD_BREAK_FREE_SCREEN_PX &&
+    timestamp - resistance.startedAt >= DASHBOARD_BREAK_FREE_HOLD_MS
+  ) {
+    const escapePosition = nudgeOutsideWall(position, resistance.edges, zoom);
+    return {
+      state: {
+        ...state,
+        escaped: true,
+        displayedPosition: escapePosition,
+        resistance: null,
+        escape: { pointer, position: escapePosition },
+      },
+      position: escapePosition,
+      resisting: false,
+    };
+  }
+
   return {
-    state: { ...state, displayedPosition: position },
+    state: { ...state, displayedPosition: position, resistance },
     position,
-    resisting,
+    resisting: true,
   };
 }
 
@@ -118,18 +204,56 @@ export function clampDashboardResize(
   };
 }
 
-function dashboardOverflow(geometry: DashboardGeometry, dashboard: Rect) {
+function dashboardEdges(geometry: DashboardGeometry, dashboard: Rect): DashboardEdges {
   return {
-    left: Math.max(0, dashboard.x - geometry.position.x),
-    right: Math.max(
-      0,
-      geometry.position.x + geometry.size.width - (dashboard.x + dashboard.width),
-    ),
-    top: Math.max(0, dashboard.y - geometry.position.y),
-    bottom: Math.max(
-      0,
-      geometry.position.y + geometry.size.height - (dashboard.y + dashboard.height),
-    ),
+    left: geometry.position.x < dashboard.x,
+    right: geometry.position.x + geometry.size.width > dashboard.x + dashboard.width,
+    top: geometry.position.y < dashboard.y,
+    bottom: geometry.position.y + geometry.size.height > dashboard.y + dashboard.height,
+  };
+}
+
+function continuesResistance(
+  resistance: DashboardResistance | null,
+  edges: DashboardEdges,
+): boolean {
+  if (!resistance) return false;
+  return (
+    (resistance.edges.left && edges.left) ||
+    (resistance.edges.right && edges.right) ||
+    (resistance.edges.top && edges.top) ||
+    (resistance.edges.bottom && edges.bottom)
+  );
+}
+
+function mergeEdges(first: DashboardEdges, second: DashboardEdges): DashboardEdges {
+  return {
+    left: first.left || second.left,
+    right: first.right || second.right,
+    top: first.top || second.top,
+    bottom: first.bottom || second.bottom,
+  };
+}
+
+function pointerResistanceDistance(pointer: Point, resistance: DashboardResistance): number {
+  const horizontal = Math.max(
+    resistance.edges.left ? resistance.pointer.x - pointer.x : 0,
+    resistance.edges.right ? pointer.x - resistance.pointer.x : 0,
+    0,
+  );
+  const vertical = Math.max(
+    resistance.edges.top ? resistance.pointer.y - pointer.y : 0,
+    resistance.edges.bottom ? pointer.y - resistance.pointer.y : 0,
+    0,
+  );
+  return Math.hypot(horizontal, vertical);
+}
+
+function nudgeOutsideWall(position: Point, edges: DashboardEdges, zoom: number): Point {
+  const nudge = 1 / Math.max(zoom, 0.01);
+  return {
+    x: position.x + (edges.left ? -nudge : edges.right ? nudge : 0),
+    y: position.y + (edges.top ? -nudge : edges.bottom ? nudge : 0),
   };
 }
 

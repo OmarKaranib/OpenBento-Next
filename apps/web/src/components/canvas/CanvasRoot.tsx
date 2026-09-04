@@ -12,7 +12,7 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tokens } from "@openbento/ui";
-import { containsRect } from "@openbento/domain";
+import { containsRect, type Point } from "@openbento/domain";
 import { cardNodeTypes } from "@/components/cards/registry";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { useWorkspaceUi } from "@/components/workspace/workspace-ui";
@@ -43,6 +43,8 @@ import {
 } from "@/lib/canvas/dashboard-view";
 import {
   beginDashboardDrag,
+  cardDashboardActivity,
+  columnDashboardActivity,
   resolveDashboardDrag,
   type DashboardDragState,
 } from "@/lib/canvas/dashboard-boundary";
@@ -61,6 +63,14 @@ type ActiveDashboardDrag = {
   state: DashboardDragState;
 };
 
+function pointerFromEvent(event: MouseEvent | TouchEvent): Point {
+  if (event instanceof TouchEvent) {
+    const touch = event.touches[0] ?? event.changedTouches[0];
+    return touch ? { x: touch.clientX, y: touch.clientY } : { x: 0, y: 0 };
+  }
+  return { x: event.clientX, y: event.clientY };
+}
+
 function CanvasSurface() {
   const { session, snapshot, execute, commit, undo, redo } = useWorkspace();
   const {
@@ -78,7 +88,7 @@ function CanvasSurface() {
     detachCardFromColumn,
   } = useCanvasCommands();
   const { cardVisible, filter } = useCanvasMonitor();
-  const { screenToFlowPosition, setViewport, fitBounds } = useReactFlow();
+  const { screenToFlowPosition, setViewport, fitBounds, getViewport } = useReactFlow();
   const interactingRef = useRef(false);
   const viewportTimer = useRef<number | null>(null);
   const dashboardDragRef = useRef<ActiveDashboardDrag | null>(null);
@@ -499,14 +509,38 @@ function CanvasSurface() {
               "size" in source
                 ? source.size
                 : { width: source.bounds.width, height: source.bounds.height };
+            const semanticActive =
+              parsed?.kind === "card"
+                ? cardDashboardActivity(source.frameId, primaryFrame.id)
+                : "parked" in node.data
+                  ? columnDashboardActivity(
+                      typeof node.data.parked === "boolean"
+                        ? node.data.parked
+                        : undefined,
+                    )
+                  : undefined;
+            const state = beginDashboardDrag(
+              { position: node.position, size },
+              primaryFrame.bounds,
+              semanticActive,
+            );
             dashboardDragRef.current = {
               nodeId: node.id,
               size,
-              state: beginDashboardDrag(
-                { position: node.position, size },
-                primaryFrame.bounds,
-              ),
+              state,
             };
+            if (
+              state.displayedPosition.x !== node.position.x ||
+              state.displayedPosition.y !== node.position.y
+            ) {
+              setNodes((current) =>
+                current.map((entry) =>
+                  entry.id === node.id
+                    ? { ...entry, position: state.displayedPosition }
+                    : entry,
+                ),
+              );
+            }
           } else {
             dashboardDragRef.current = null;
           }
@@ -518,6 +552,9 @@ function CanvasSurface() {
           const resolved = resolveDashboardDrag(
             drag.state,
             node.position,
+            pointerFromEvent(_event),
+            getViewport().zoom,
+            performance.now(),
             drag.size,
             primaryFrame.bounds,
           );
