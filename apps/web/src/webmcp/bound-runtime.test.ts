@@ -47,6 +47,25 @@ describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
     expect(store).toBe(getDomainStore());
   });
 
+  it("keeps Stock creation on generic create_card without adding a quote tool", async () => {
+    const { runtime } = sessionRuntime();
+    const canvas = await runtime.invoke("create_canvas", { name: "Markets" });
+    const card = await runtime.invoke("create_card", {
+      canvasId: canvas.id,
+      type: "chart",
+      payload: {
+        kind: "stock",
+        symbol: "AAPL",
+        price: 214.5,
+        currency: "USD",
+        asOf: "2026-09-04T00:00:00.000Z",
+      },
+    });
+    expect(card).toMatchObject({ type: "chart", payload: { kind: "stock", symbol: "AAPL" } });
+    expect(WEBMCP_TOOL_NAMES).toHaveLength(15);
+    expect(WEBMCP_TOOL_NAMES).not.toContain("get_stock_quote");
+  });
+
   it("stamps ownerId from the session, never from tool arguments", async () => {
     const { runtime, events, catalog } = sessionRuntime("session-user");
     const canvas = await runtime.invoke("create_canvas", { name: "From session" });

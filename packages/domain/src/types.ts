@@ -150,9 +150,33 @@ export interface TimelinePayload {
   itemCardIds: string[];
 }
 
-export interface ChartPayload {
+export interface StockChartPoint {
+  /** Provider timestamp, kept as a display-only ISO string. */
+  t: string;
+  value: number;
+}
+
+/** A server-resolved stock snapshot. Values are optional when a provider is unavailable. */
+export interface StockChartPayload {
+  kind: "stock";
+  symbol: string;
+  name?: string;
+  price?: number;
+  currency?: string;
+  change?: number;
+  changePercent?: number;
+  previousClose?: number;
+  marketState?: string;
+  asOf?: string;
+  points?: StockChartPoint[];
+}
+
+/** Existing chart kinds remain valid while Stock uses the typed shape above. */
+export interface GenericChartPayload {
   kind: string;
 }
+
+export type ChartPayload = StockChartPayload | GenericChartPayload;
 
 export type CardPayloadByType = {
   note: NotePayload;

@@ -201,6 +201,8 @@ export {
   type DiscriminatedCardContent,
   type NotePayload,
   type SourceCardPayload,
+  type StockChartPayload,
+  type StockChartPoint,
   type TimelinePayload,
   type WatchBotStatusPayload,
   type Frame,

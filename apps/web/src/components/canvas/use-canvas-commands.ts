@@ -43,11 +43,11 @@ export function useCanvasCommands() {
   );
 
   const persistCreatedColumn = useCallback(
-    (canvasId: string, position?: Point) =>
+    (canvasId: string, position?: Point, name?: string) =>
       commit([
         {
           name: "createColumn",
-          input: { canvasId, ...(position ? { position } : {}) },
+          input: { canvasId, ...(position ? { position } : {}), ...(name ? { name } : {}) },
         },
       ]).then((results) => results[0] as Column),
     [commit],

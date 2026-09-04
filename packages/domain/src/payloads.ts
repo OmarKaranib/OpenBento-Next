@@ -14,6 +14,7 @@ import {
   type CardType,
   type NotePayload,
   type SourceCardPayload,
+  type StockChartPayload,
   type XCardPayload,
 } from "./types";
 
@@ -300,6 +301,28 @@ const CHART_PAYLOAD_SCHEMA: ObjectJsonSchema = {
   required: ["kind"],
   properties: {
     kind: { type: "string" },
+    symbol: { type: "string", minLength: 1, maxLength: 12 },
+    name: { type: "string", minLength: 1, maxLength: 160 },
+    price: { type: "number", minimum: 0 },
+    currency: { type: "string", minLength: 3, maxLength: 3 },
+    change: { type: "number" },
+    changePercent: { type: "number" },
+    previousClose: { type: "number", minimum: 0 },
+    marketState: { type: "string", minLength: 1, maxLength: 40 },
+    asOf: { type: "string", minLength: 1, maxLength: 64 },
+    points: {
+      type: "array",
+      maxItems: 60,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["t", "value"],
+        properties: {
+          t: { type: "string", minLength: 1, maxLength: 64 },
+          value: { type: "number", minimum: 0 },
+        },
+      },
+    },
   },
 };
 
@@ -414,6 +437,22 @@ function isSemanticallyValidXPayload(payload: XCardPayload): boolean {
   });
 }
 
+function isSemanticallyValidStockPayload(payload: unknown): payload is StockChartPayload {
+  if (!isRecord(payload) || payload.kind !== "stock") {
+    return false;
+  }
+  if (typeof payload.symbol !== "string" || !/^[A-Z][A-Z0-9.\-]{0,11}$/.test(payload.symbol)) {
+    return false;
+  }
+  if (payload.currency !== undefined && !/^[A-Z]{3}$/.test(String(payload.currency))) {
+    return false;
+  }
+  if (payload.asOf !== undefined && Number.isNaN(Date.parse(String(payload.asOf)))) {
+    return false;
+  }
+  return true;
+}
+
 export function isValidCardPayload<T extends CardType>(
   type: T,
   payload: unknown,
@@ -422,7 +461,9 @@ export function isValidCardPayload<T extends CardType>(
     return false;
   }
   if (!(SOURCE_CARD_TYPES as readonly string[]).includes(type)) {
-    return true;
+    return type !== "chart" ||
+      (payload as { kind?: unknown }).kind !== "stock" ||
+      isSemanticallyValidStockPayload(payload);
   }
   const validSourceUrl = isSafeSourceUrl(
     (payload as { provenance: { sourceUrl: unknown } }).provenance.sourceUrl,

@@ -156,4 +156,22 @@ describe("findFreeCardPosition", () => {
     );
     expect(src).not.toMatch(/Math\.random|crypto\.random|viewport|\.zoom\b/);
   });
+
+  it("keeps bounded placement fully inside the canonical dashboard", () => {
+    const bounds = { x: 0, y: 0, width: 1600, height: 900 };
+    const size = { width: 320, height: 220 };
+    const occupied = [occupies({ x: 80, y: 80 }, size)];
+    const next = findFreeCardPosition(occupied, size, { bounds });
+    expect(next.x).toBeGreaterThanOrEqual(bounds.x);
+    expect(next.y).toBeGreaterThanOrEqual(bounds.y);
+    expect(next.x + size.width).toBeLessThanOrEqual(bounds.x + bounds.width);
+    expect(next.y + size.height).toBeLessThanOrEqual(bounds.y + bounds.height);
+    expect(overlapsAny(next, size, occupied)).toBe(false);
+  });
+
+  it("fails deterministically rather than placing a Card outside full bounds", () => {
+    expect(() => findFreeCardPosition([], SOURCE_SIZE, {
+      bounds: { x: 0, y: 0, width: 100, height: 100 },
+    })).toThrow(/larger than the available dashboard/);
+  });
 });

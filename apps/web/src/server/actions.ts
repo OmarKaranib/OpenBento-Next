@@ -35,6 +35,7 @@ import {
 } from "./session";
 import { getDomainStore } from "./store";
 import { getSupabaseAuthUser } from "./supabase";
+import { resolveStockMarketData } from "./market-data";
 
 async function requestAuthFromIncoming(): Promise<RequestAuthContext> {
   const user = await getSupabaseAuthUser();
@@ -171,6 +172,12 @@ export async function getCanvasState(input: GetCanvasStateInput) {
 
 export async function getWatchBotStatus(input: GetWatchBotStatusInput) {
   return runDomainAction("getWatchBotStatus", input);
+}
+
+/** Server-only quote resolution used once during Stock Card creation. */
+export async function resolveStockQuote(symbol: string) {
+  await requireAuthenticatedSession();
+  return resolveStockMarketData(symbol);
 }
 
 export async function fullscreenFrame(input: FullscreenFrameInput) {
