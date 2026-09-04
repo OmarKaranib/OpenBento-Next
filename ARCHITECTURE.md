@@ -2,7 +2,7 @@
 
 Canonical product context: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.md).
 
-Status: **Phase 3 durable persist** on `bot/platform-persist`. Runtime persist is `getDomainStore()` → `SupabaseDomainStore` for UI, WebMCP, and `runBoundAction` (user JWT only). The WatchBot worker uses `createWorkerDomainStore()` (explicit service role). Auth is hosted Supabase (`getUser()` / `auth.uid()`). **Reload / login restore is required for PASS.** No production infra. No in-memory runtime fallback.
+Status: **Dashboard Frame + Columns Phase 1**. Runtime persist is `getDomainStore()` → `SupabaseDomainStore` for UI, WebMCP, and `runBoundAction` (user JWT only). The WatchBot worker uses `createWorkerDomainStore()` (explicit service role). Auth is hosted Supabase (`getUser()` / `auth.uid()`). **Reload / login restore is required for PASS.** No production infra. No in-memory runtime fallback.
 
 ## Monorepo
 
@@ -35,8 +35,9 @@ Human UI, WatchBot, and WebMCP **must** use `@openbento/domain` `ACTION_CATALOG`
 | Group | Actions |
 | --- | --- |
 | Canvas | `createCanvas`, `renameCanvas`, `switchCanvas`, `updateCanvasViewport` |
-| Card | `createCard`, `updateCard`, `moveCard`, `resizeCard`, `setCardFrame` |
+| Card | `createCard`, `updateCard`, `moveCard`, `resizeCard`, `setCardFrame`, `setCardColumn`, `detachCardFromColumn` |
 | Frame | `createFrame`, `updateFrame`, `moveFrame`, `resizeFrame` |
+| Column | `createColumn`, `updateColumn`, `moveColumn`, `resizeColumn` |
 | WatchBot | `createWatchBot` (**requires `instruction`**), `updateWatchBot`, `pauseWatchBot`, `resumeWatchBot` |
 | Read/view | `getCanvasState`, `getWatchBotStatus`, `fullscreenFrame` |
 
@@ -46,8 +47,9 @@ Locked rules:
 - `ownerId` is **server-derived from the authenticated session** (`auth.uid()`). It must **not** appear on action inputs. Canvas and WatchBot **records** still carry `ownerId`.
 - Provenance is required on **externally discovered source Cards only**. Notes do not get a fake source URL. `moveCard` / `resizeCard` do not re-require provenance.
 - A Card is **discriminated `type` + matching `payload`**. Runtime validation uses shared `PAYLOAD_SCHEMAS`.
-- `setCardFrame` applies membership from spatial containment. Smallest area wins; **equal-area ties use newest `createdAt`**. Platform must call `canSetCardFrame` / `assertSameCanvasMembership` before persisting membership — **do not rely on RLS alone**. Two-call membership stays: write bounds, then `setCardFrame`. Do not fold membership into `createCard`.
-- `fullscreenFrame` is **view-only**. It must not rewrite stored Frame or Card geometry.
+- Every Canvas has exactly one primary Frame. Canvas creation persists both atomically at stable logical bounds `{x:0,y:0,width:1600,height:900}`. Compatibility `createFrame` configures the same Frame; `deleteFrame` rejects the sole primary.
+- Free Card activity is geometric full containment. Column membership is authoritative `card.columnId`; `setCardColumn` verifies the same Canvas and primary Frame. `detachCardFromColumn` clears only membership and persists the drop geometry on the same Card.
+- `fullscreenFrame` is **view state**. It must not rewrite stored Frame, Column, or Card geometry; the UI locks the camera while keeping dashboard contents interactive.
 - Zoom / `updateCanvasViewport` is **camera-only**. No semantic zoom.
 - WatchBot status: **`running` \| `paused` \| `error`** only.
 - `listWatchBots` is a store/worker scan, **not** an `ACTION_CATALOG` name. The worker stamps `ownerId` from the WatchBot record.
@@ -60,19 +62,20 @@ WebMCP registers the Issue #1 snake_case map via `document.modelContext.register
 
 `getDomainStore()` returns `SupabaseDomainStore` for UI, WebMCP, and `runBoundAction`, authenticated with the user JWT (publishable/anon + session). It never reads `SUPABASE_SERVICE_ROLE_KEY`. The worker uses `createWorkerDomainStore()`. `InMemoryDomainStore` is isolated tests only.
 
-Leftover-Card TOCTOU: the WatchBot pipeline persists `createCard` + `setCardFrame` + unique `(watch_bot_id, dedup_key)` claim in one `runInTransaction`. A unique conflict rolls back the Card. A thrown create does not occupy the unique key.
+Leftover-Card TOCTOU: the WatchBot pipeline persists `createCard` + `setCardFrame` + `setCardColumn` + unique `(watch_bot_id, dedup_key)` claim in one `runInTransaction`. A unique conflict rolls back the Card. A thrown create does not occupy the unique key. It checks the dedicated Column before discovery and spends no provider call while that Column is parked.
 
 ## Data ownership (dev SQL)
 
 SQL is in `supabase/migrations`. **Do not apply from this agent. Platform applies reviewed SQL to the explicit-dev project.** Shapes live in `packages/domain/src/schema.ts`.
 
-- **Canvas** — `owner_id`, name, persisted viewport (x, y, zoom)
-- **Card** — canvas, optional `frame_id`, type, `jsonb` payload (not title/body)
-- **Frame** — canvas, name, stored bounds (fullscreen does not rewrite these)
-- **WatchBot** — `owner_id`, canvas, **instruction**, status `running|paused|error`
+- **Canvas** — `owner_id`, `primary_frame_id`, name, persisted viewport (x, y, zoom)
+- **Card** — canvas, optional `frame_id`, optional authoritative `column_id`, type, `jsonb` payload (not title/body)
+- **Frame** — exactly one per Canvas, name, stable stored bounds (fullscreen does not rewrite these)
+- **Column** — canvas + primary Frame, name, stored bounds/z-index; contents are bounded newest-first streams
+- **WatchBot** — `owner_id`, canvas, required unique `column_id`, **instruction**, status `running|paused|error`
 - **WatchBotEvent** — discovery/dedup/novelty records. Unique `(watch_bot_id, dedup_key)`. `card_id` is protected by same-canvas composite FK `(card_id, canvas_id) → cards(id, canvas_id)`.
 
-RLS: every table is owner-scoped via `auth.uid()` (cards/frames join through canvas ownership). Handlers still call `assertSameCanvasMembership`. RLS is not a substitute. Never trust a client-supplied user id.
+RLS: every table is owner-scoped via `auth.uid()` (cards/frames/columns join through canvas ownership). Handlers still enforce same-Canvas and primary-Frame membership. RLS is not a substitute. Never trust a client-supplied user id.
 
 ## Env
 

@@ -8,12 +8,12 @@ import { useCanvasMonitorOptional } from "@/components/workspace/canvas-monitor"
 import { cn } from "@/lib/utils";
 import { CardNodeResizer } from "@/components/cards/CardNodeResizer";
 
-export type NoteNode = Node<{ cardId: string }, "note">;
+export type NoteNode = Node<{ cardId: string; parked?: boolean }, "note">;
 
 export function NoteCardNode({ data, selected }: NodeProps<NoteNode>) {
   const { session, snapshot, execute } = useWorkspace();
   const card = snapshot.cards.find((entry) => entry.id === data.cardId);
-  const readOnly = Boolean(snapshot.fullscreen?.active);
+  const readOnly = Boolean(data.parked);
   const monitor = useCanvasMonitorOptional();
   const text = card && card.type === "note" ? card.payload.text : "";
   const [draft, setDraft] = useState<string | null>(null);
@@ -39,6 +39,7 @@ export function NoteCardNode({ data, selected }: NodeProps<NoteNode>) {
         className={cn(
           "h-full w-full overflow-hidden rounded-xl border border-[#2a3140] bg-[#161a22] shadow-[0_8px_24px_rgba(0,0,0,0.35)]",
           isNew && "ring-1 ring-indigo-400/70",
+          readOnly && "opacity-45 grayscale",
         )}
       >
         <div className="flex h-7 items-center gap-2 px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-500">
@@ -46,7 +47,10 @@ export function NoteCardNode({ data, selected }: NodeProps<NoteNode>) {
           {isNew ? <NewCardBadge /> : null}
         </div>
         <textarea
-          className="nodrag nowheel nopan h-[calc(100%-1.75rem)] w-full resize-none bg-transparent px-3 pb-3 text-sm leading-5 text-zinc-100 placeholder:text-zinc-600 focus:outline-none"
+          className={cn(
+            "nodrag nowheel nopan h-[calc(100%-1.75rem)] w-full resize-none bg-transparent px-3 pb-3 text-sm leading-5 text-zinc-100 placeholder:text-zinc-600 focus:outline-none",
+            readOnly && "pointer-events-none select-none",
+          )}
           value={draft ?? text}
           readOnly={readOnly}
           placeholder="Write a note…"

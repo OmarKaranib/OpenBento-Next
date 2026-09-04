@@ -16,13 +16,12 @@ export function CardNodeResizer({
   minWidth: number;
   minHeight: number;
 }) {
-  const { session, snapshot } = useWorkspace();
+  const { session } = useWorkspace();
   const { persistCardGeometry } = useCanvasCommands();
-  const readOnly = Boolean(snapshot.fullscreen?.active);
 
   return (
     <NodeResizer
-      isVisible={selected && !readOnly}
+      isVisible={selected}
       minWidth={minWidth}
       minHeight={minHeight}
       color="#818cf8"

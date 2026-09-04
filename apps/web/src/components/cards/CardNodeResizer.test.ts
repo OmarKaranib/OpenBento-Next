@@ -90,10 +90,10 @@ describe("shared Card resize controls", () => {
     expect(box.nodeResizerProps.isVisible).toBe(false);
   });
 
-  it("hides handles in fullscreen/read-only mode", () => {
+  it("keeps geometry controls interactive in fullscreen mode", () => {
     box.fullscreen = true;
     renderResizer(true);
-    expect(box.nodeResizerProps.isVisible).toBe(false);
+    expect(box.nodeResizerProps.isVisible).toBe(true);
     box.fullscreen = false;
   });
 
@@ -135,7 +135,8 @@ describe("shared Card resize controls", () => {
     expect(note).toMatch(/data-card-visual-shell[\s\S]*overflow-hidden/);
     expect(sourceNodes).toContain('"article" | "web" | "news"');
     expect(sourceNodes.match(/<SourceLinkBody/g)).toHaveLength(3);
-    expect(youtube).toContain("<SourceCardChrome");
+    expect(youtube).toContain("<CardNodeResizer");
+    expect(youtube).toContain("data-media-first");
     expect(youtube).toContain("aspect-video");
     expect(x).toContain("<SourceCardChrome");
   });

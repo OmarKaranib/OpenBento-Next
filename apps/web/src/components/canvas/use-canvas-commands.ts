@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import type { Card, CreateCardInput, Frame, Point, Size } from "@openbento/domain";
+import type { Card, Column, CreateCardInput, Frame, Point, Size } from "@openbento/domain";
 import type { CatalogCall } from "@/lib/domain/inputs";
 import {
   cardWorldBounds,
@@ -73,6 +73,20 @@ export function useCanvasCommands() {
       const calls: CatalogCall[] = [
         { name: "moveFrame", input: { frameId: frame.id, position } },
       ];
+      for (const column of snapshot.columns) {
+        if (column.frameId === frame.id) {
+          calls.push({
+            name: "moveColumn",
+            input: {
+              columnId: column.id,
+              position: {
+                x: column.bounds.x + dx,
+                y: column.bounds.y + dy,
+              },
+            },
+          });
+        }
+      }
       for (const card of nextCards) {
         const previous = snapshot.cards.find((entry) => entry.id === card.id);
         if (
@@ -92,7 +106,7 @@ export function useCanvasCommands() {
       }
       await commit(calls);
     },
-    [commit, snapshot.cards, snapshot.frames],
+    [commit, snapshot.cards, snapshot.columns, snapshot.frames],
   );
 
   const persistFrameResize = useCallback(
@@ -141,6 +155,70 @@ export function useCanvasCommands() {
     [commit, snapshot.cards, snapshot.frames],
   );
 
+  const persistCreatedColumn = useCallback(
+    (canvasId: string, position?: Point) =>
+      commit([
+        {
+          name: "createColumn",
+          input: { canvasId, ...(position ? { position } : {}) },
+        },
+      ]).then((results) => results[0] as Column),
+    [commit],
+  );
+
+  const persistColumnMove = useCallback(
+    async (column: Column, position: Point) => {
+      if (
+        position.x === column.bounds.x &&
+        position.y === column.bounds.y
+      ) {
+        return;
+      }
+      await commit([
+        { name: "moveColumn", input: { columnId: column.id, position } },
+      ]);
+    },
+    [commit],
+  );
+
+  const persistColumnResize = useCallback(
+    async (column: Column, next: { position?: Point; size: Size }) => {
+      const calls: CatalogCall[] = [];
+      if (
+        next.position &&
+        (next.position.x !== column.bounds.x ||
+          next.position.y !== column.bounds.y)
+      ) {
+        calls.push({
+          name: "moveColumn",
+          input: { columnId: column.id, position: next.position },
+        });
+      }
+      if (
+        next.size.width !== column.bounds.width ||
+        next.size.height !== column.bounds.height
+      ) {
+        calls.push({
+          name: "resizeColumn",
+          input: { columnId: column.id, size: next.size },
+        });
+      }
+      if (calls.length) await commit(calls);
+    },
+    [commit],
+  );
+
+  const detachCardFromColumn = useCallback(
+    (cardId: string, position: Point, size?: Size) =>
+      commit([
+        {
+          name: "detachCardFromColumn",
+          input: { cardId, position, ...(size ? { size } : {}) },
+        },
+      ]),
+    [commit],
+  );
+
   return {
     persistCardGeometry,
     persistCreatedNote,
@@ -148,6 +226,10 @@ export function useCanvasCommands() {
     persistFrameMove,
     persistFrameResize,
     persistCreatedFrame,
+    persistCreatedColumn,
+    persistColumnMove,
+    persistColumnResize,
+    detachCardFromColumn,
     cardWorldBounds,
   };
 }

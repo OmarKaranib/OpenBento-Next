@@ -7,8 +7,19 @@
  */
 
 import type { Node } from "@xyflow/react";
-import type { Card, Frame, FrameFullscreenView } from "@openbento/domain";
-import { cardNodeId, frameNodeId } from "@/components/canvas/flow-ids";
+import {
+  isColumnActive,
+  isFreeCardActive,
+  type Card,
+  type Column,
+  type Frame,
+  type FrameFullscreenView,
+} from "@openbento/domain";
+import {
+  cardNodeId,
+  columnNodeId,
+  frameNodeId,
+} from "@/components/canvas/flow-ids";
 
 export type FlowNodesOptions = {
   /** Return false to hide a Card in the render path only. */
@@ -18,17 +29,26 @@ export type FlowNodesOptions = {
 export function nodesFromSnapshot(
   cards: readonly Card[],
   frames: readonly Frame[],
+  columns: readonly Column[],
   fullscreen: FrameFullscreenView | null | undefined,
   options?: FlowNodesOptions,
 ): Node[] {
   const active = Boolean(fullscreen?.active);
+  const primaryFrame = frames.find((frame) =>
+    active ? frame.id === fullscreen?.frameId : true,
+  );
   const visibleFrames = active
     ? frames.filter((frame) => frame.id === fullscreen?.frameId)
     : frames;
-  const visibleCards = (active
-    ? cards.filter((card) => card.frameId === fullscreen?.frameId)
-    : cards
-  ).filter((card) => options?.cardVisible?.(card) ?? true);
+  const visibleColumns = columns.filter((column) =>
+    active && primaryFrame ? isColumnActive(column, primaryFrame) : true,
+  );
+  const visibleCards = cards
+    .filter((card) => !card.columnId)
+    .filter((card) =>
+      active && primaryFrame ? isFreeCardActive(card, primaryFrame) : true,
+    )
+    .filter((card) => options?.cardVisible?.(card) ?? true);
 
   return [
     ...visibleFrames.map((frame) => ({
@@ -41,15 +61,33 @@ export function nodesFromSnapshot(
       selectable: !active,
       draggable: !active,
     })),
-    ...visibleCards.map((card) => ({
-      id: cardNodeId(card.id),
-      type: card.type,
-      position: { ...card.position },
-      style: { width: card.size.width, height: card.size.height },
-      data: { cardId: card.id },
-      zIndex: card.zIndex ?? 1,
-      selectable: !active,
-      draggable: !active,
-    })),
+    ...visibleColumns.map((column) => {
+      const parked = primaryFrame ? !isColumnActive(column, primaryFrame) : true;
+      return {
+        id: columnNodeId(column.id),
+        type: "column" as const,
+        position: { x: column.bounds.x, y: column.bounds.y },
+        style: { width: column.bounds.width, height: column.bounds.height },
+        className: parked ? "is-parked" : undefined,
+        data: { columnId: column.id, parked },
+        zIndex: column.zIndex ?? 1,
+        selectable: true,
+        draggable: true,
+      };
+    }),
+    ...visibleCards.map((card) => {
+      const parked = primaryFrame ? !isFreeCardActive(card, primaryFrame) : true;
+      return {
+        id: cardNodeId(card.id),
+        type: card.type,
+        position: { ...card.position },
+        style: { width: card.size.width, height: card.size.height },
+        className: parked ? "is-parked" : undefined,
+        data: { cardId: card.id, parked },
+        zIndex: card.zIndex ?? 2,
+        selectable: true,
+        draggable: true,
+      };
+    }),
   ];
 }

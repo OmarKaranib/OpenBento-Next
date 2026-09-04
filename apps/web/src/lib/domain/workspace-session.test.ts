@@ -212,7 +212,7 @@ describe("workspace session uses the shared server executor path", () => {
     expect(updated.frameId).toBe(frame.id);
   });
 
-  it("projects Card and Frame deletion without adding destructive undo history", async () => {
+  it("projects Card deletion and rejects primary Frame deletion", async () => {
     const session = createUiSession();
     const canvas = await session.execute(
       "createCanvas",
@@ -243,14 +243,16 @@ describe("workspace session uses the shared server executor path", () => {
       { history: false },
     );
 
-    await session.execute(
-      "deleteFrame",
-      { frameId: frame.id },
-      { history: false },
-    );
+    await expect(
+      session.execute(
+        "deleteFrame",
+        { frameId: frame.id },
+        { history: false },
+      ),
+    ).rejects.toMatchObject({ code: "conflict" });
     let snapshot = session.getSnapshot();
-    expect(snapshot.frames).toEqual([]);
-    expect(snapshot.cards[0]?.frameId ?? null).toBeNull();
+    expect(snapshot.frames).toHaveLength(1);
+    expect(snapshot.cards[0]?.frameId).toBe(frame.id);
     expect(snapshot.cards[0]?.position).toEqual({ x: 22, y: 44 });
     expect(snapshot.cards[0]?.size).toEqual({ width: 250, height: 170 });
     expect(snapshot.canUndo).toBe(false);
@@ -292,7 +294,8 @@ describe("workspace session uses the shared server executor path", () => {
     expect(snapshot.currentCanvasId).toBe(first.id);
     expect(snapshot.canvases.map((canvas) => canvas.id)).toEqual([first.id]);
     expect(snapshot.cards).toEqual([]);
-    expect(snapshot.frames).toEqual([]);
+    expect(snapshot.frames).toHaveLength(1);
+    expect(snapshot.frames[0]?.id).toBe(first.primaryFrameId);
     expect(snapshot.watchBots).toEqual([]);
 
     await session.execute(

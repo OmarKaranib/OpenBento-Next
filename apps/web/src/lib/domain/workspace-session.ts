@@ -14,6 +14,7 @@ import type {
   ActionResultMap,
   Canvas,
   Card,
+  Column,
   Frame,
   FrameFullscreenView,
   WatchBot,
@@ -37,6 +38,12 @@ const MUTATING = new Set<ActionName>([
   "moveFrame",
   "resizeFrame",
   "deleteFrame",
+  "createColumn",
+  "updateColumn",
+  "moveColumn",
+  "resizeColumn",
+  "setCardColumn",
+  "detachCardFromColumn",
   "createWatchBot",
   "updateWatchBot",
   "pauseWatchBot",
@@ -55,6 +62,12 @@ const UNDOABLE = new Set<ActionName>([
   "updateFrame",
   "moveFrame",
   "resizeFrame",
+  "createColumn",
+  "updateColumn",
+  "moveColumn",
+  "resizeColumn",
+  "setCardColumn",
+  "detachCardFromColumn",
   "createWatchBot",
   "updateWatchBot",
   "pauseWatchBot",
@@ -66,6 +79,7 @@ export type SessionSnapshot = {
   currentCanvasId: string | null;
   cards: Card[];
   frames: Frame[];
+  columns: Column[];
   watchBots: WatchBot[];
   fullscreen: FrameFullscreenView | null;
   canUndo: boolean;
@@ -108,6 +122,7 @@ export class WorkspaceSession {
   private currentCanvasId: string | null = null;
   private cards: Card[] = [];
   private frames: Frame[] = [];
+  private columns: Column[] = [];
   private watchBots: WatchBot[] = [];
   private fullscreen: FrameFullscreenView | null = null;
   private fullLog: CatalogCall[] = [];
@@ -293,6 +308,7 @@ export class WorkspaceSession {
       });
       this.cards = state.cards;
       this.frames = state.frames;
+      this.columns = state.columns;
       this.watchBots = state.watchBots;
       this.notify();
       return true;
@@ -418,6 +434,7 @@ export class WorkspaceSession {
         this.currentCanvasId = deletion.nextCanvasId;
         this.cards = [];
         this.frames = [];
+        this.columns = [];
         this.watchBots = [];
         this.fullscreen = null;
         this.interactionDepth = 0;
@@ -446,6 +463,27 @@ export class WorkspaceSession {
       }
       return;
     }
+    if (
+      name === "createColumn" ||
+      name === "updateColumn" ||
+      name === "moveColumn" ||
+      name === "resizeColumn"
+    ) {
+      const column = result as Column;
+      this.columns = [
+        ...this.columns.filter((entry) => entry.id !== column.id),
+        column,
+      ];
+      return;
+    }
+    if (name === "setCardColumn" || name === "detachCardFromColumn") {
+      const card = result as Card;
+      this.cards = [
+        ...this.cards.filter((entry) => entry.id !== card.id),
+        card,
+      ];
+      return;
+    }
     if (name === "fullscreenFrame") {
       const view = result as FrameFullscreenView;
       this.fullscreen = view.active ? view : null;
@@ -457,6 +495,7 @@ export class WorkspaceSession {
     if (!this.currentCanvasId) {
       this.cards = [];
       this.frames = [];
+      this.columns = [];
       this.watchBots = [];
       return;
     }
@@ -466,6 +505,7 @@ export class WorkspaceSession {
     this.canvases.set(state.canvas.id, state.canvas);
     this.cards = state.cards;
     this.frames = state.frames;
+    this.columns = state.columns;
     this.watchBots = state.watchBots;
   }
 
@@ -475,6 +515,7 @@ export class WorkspaceSession {
     this.currentCanvasId = null;
     this.cards = [];
     this.frames = [];
+    this.columns = [];
     this.watchBots = [];
     this.fullscreen = null;
     if (this.options.replayOnReset === false) {
@@ -502,6 +543,7 @@ export class WorkspaceSession {
       currentCanvasId: this.currentCanvasId,
       cards: this.cards,
       frames: this.frames,
+      columns: this.columns,
       watchBots: this.watchBots,
       fullscreen: this.fullscreen,
       canUndo: this.past.length > 0,

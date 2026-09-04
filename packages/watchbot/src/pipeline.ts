@@ -1,10 +1,9 @@
 import {
   DEFAULT_CARD_SIZE,
   DomainError,
-  findFreeCardPosition,
+  containsRect,
   isDomainError,
   isValidCardPayload,
-  selectSmallestContainingFrame,
   type ActionExecutor,
   type CardProvenance,
   type DomainStore,
@@ -102,6 +101,7 @@ export interface PipelineCycleResult {
     | "paused"
     | "not_running"
     | "provider_not_eligible"
+    | "parked_column"
     | "x_budget_exhausted";
   items: PipelineItemResult[];
   stats: PipelineCycleStats;
@@ -308,6 +308,32 @@ export async function runWatchBotPipeline(
       items: [],
       stats,
       topOutcome: "not_running",
+      cardsCreated: 0,
+      durationMs: Date.now() - started,
+    };
+  }
+  const canvasState = await executor.getCanvasState({
+    canvasId: watchBot.canvasId,
+  });
+  const primaryFrame = canvasState.frames.find(
+    (frame) => frame.id === canvasState.canvas.primaryFrameId,
+  );
+  const dedicatedColumn = canvasState.columns.find(
+    (column) => column.id === watchBot.columnId,
+  );
+  if (
+    !primaryFrame ||
+    !dedicatedColumn ||
+    !containsRect(primaryFrame.bounds, dedicatedColumn.bounds)
+  ) {
+    const stats = emptyPipelineStats();
+    return {
+      watchBotId: watchBot.id,
+      skipped: true,
+      skipReason: "parked_column",
+      items: [],
+      stats,
+      topOutcome: "parked_column",
       cardsCreated: 0,
       durationMs: Date.now() - started,
     };
@@ -907,7 +933,28 @@ async function createCardFromCandidate(input: {
   const canvas = await executor.getCanvasState({ canvasId: watchBot.canvasId });
   const cardType = sourceTypeToCardType(normalized.sourceType);
   const payload = buildSourcePayload(normalized, watchBot.id);
-  const position = findFreeCardPosition(canvas.cards, SOURCE_CARD_SIZE);
+  const column = canvas.columns.find((entry) => entry.id === watchBot.columnId);
+  const primaryFrame = canvas.frames.find(
+    (entry) => entry.id === canvas.canvas.primaryFrameId,
+  );
+  if (
+    !column ||
+    !primaryFrame ||
+    !containsRect(primaryFrame.bounds, column.bounds)
+  ) {
+    throw new DomainError(
+      "conflict",
+      "WatchBot delivery is suspended while its dedicated Column is parked",
+    );
+  }
+  const size = {
+    width: Math.min(SOURCE_CARD_SIZE.width, column.bounds.width - 24),
+    height: SOURCE_CARD_SIZE.height,
+  };
+  const position = {
+    x: column.bounds.x + 12,
+    y: column.bounds.y + 52,
+  };
 
   try {
     const card = await store.runInTransaction(async () => {
@@ -916,21 +963,16 @@ async function createCardFromCandidate(input: {
         type: cardType,
         payload,
         position,
-        size: { ...SOURCE_CARD_SIZE },
+        size,
       });
-      const afterCreate = await executor.getCanvasState({
-        canvasId: watchBot.canvasId,
+      await executor.setCardFrame({
+        cardId: created.id,
+        frameId: primaryFrame.id,
       });
-      const frameId = selectSmallestContainingFrame(
-        {
-          x: created.position.x,
-          y: created.position.y,
-          width: created.size.width,
-          height: created.size.height,
-        },
-        afterCreate.frames,
-      );
-      await executor.setCardFrame({ cardId: created.id, frameId });
+      await executor.setCardColumn({
+        cardId: created.id,
+        columnId: column.id,
+      });
       await store.saveWatchBotEvent({
         id: id(),
         watchBotId: watchBot.id,

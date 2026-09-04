@@ -12,6 +12,7 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { tokens } from "@openbento/ui";
+import { containsRect } from "@openbento/domain";
 import { cardNodeTypes } from "@/components/cards/registry";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { useWorkspaceUi } from "@/components/workspace/workspace-ui";
@@ -19,7 +20,6 @@ import { buildCreateNoteCardInput } from "@/lib/domain/note-card";
 import {
   cardSourceHref,
   contextMenuItems,
-  frameBoundsAtPoint,
   isTypingTarget,
   preventBrowserContextMenu,
   resolveContextMenuTarget,
@@ -29,9 +29,9 @@ import {
 } from "@/lib/canvas/context-menu";
 import { shouldApplyStoredViewport } from "@/lib/canvas/camera-sync";
 import { FrameNode } from "./nodes/FrameNode";
+import { ColumnNode, COLUMN_CARD_DRAG_TYPE } from "./nodes/ColumnNode";
 import { CanvasToolbar } from "./CanvasToolbar";
 import { CanvasContextMenu, type CanvasContextMenuState } from "./CanvasContextMenu";
-import { FrameDrawLayer } from "./FrameDrawLayer";
 import { canvasDoubleClickShouldCreateNote } from "./empty-canvas-target";
 import { parseFlowNodeId } from "./flow-ids";
 import { useCanvasCommands } from "./use-canvas-commands";
@@ -43,21 +43,19 @@ import "@xyflow/react/dist/style.css";
 const NODE_TYPES = {
   ...cardNodeTypes(),
   frame: FrameNode,
+  column: ColumnNode,
 };
 
 function CanvasSurface() {
   const { session, snapshot, execute, commit, undo, redo } = useWorkspace();
-  const {
-    frameToolActive,
-    setFrameToolActive,
-    snapToGrid,
-    openWatchBotCreate,
-  } = useWorkspaceUi();
+  const { snapToGrid, openWatchBotCreate } = useWorkspaceUi();
   const {
     persistCardGeometry,
     persistCreatedNote,
     persistFrameMove,
-    persistCreatedFrame,
+    persistCreatedColumn,
+    persistColumnMove,
+    detachCardFromColumn,
   } = useCanvasCommands();
   const { cardVisible, filter } = useCanvasMonitor();
   const { screenToFlowPosition, setViewport, fitView } = useReactFlow();
@@ -76,10 +74,10 @@ function CanvasSurface() {
   );
   const canvasRef = useRef(canvas);
   const fullscreen = snapshot.fullscreen;
-  const readOnly = Boolean(fullscreen?.active);
+  const fullscreenActive = Boolean(fullscreen?.active);
 
   const [nodes, setNodes] = useState<Node[]>(() =>
-    nodesFromSnapshot(snapshot.cards, snapshot.frames, snapshot.fullscreen, {
+    nodesFromSnapshot(snapshot.cards, snapshot.frames, snapshot.columns, snapshot.fullscreen, {
       cardVisible,
     }),
   );
@@ -103,13 +101,14 @@ function CanvasSurface() {
       return;
     }
     setNodes(
-      nodesFromSnapshot(snapshot.cards, snapshot.frames, snapshot.fullscreen, {
+      nodesFromSnapshot(snapshot.cards, snapshot.frames, snapshot.columns, snapshot.fullscreen, {
         cardVisible,
       }),
     );
   }, [
     snapshot.cards,
     snapshot.frames,
+    snapshot.columns,
     snapshot.fullscreen,
     snapshot.revision,
     cardVisible,
@@ -160,11 +159,7 @@ function CanvasSurface() {
         }
         return;
       }
-      if (
-        !readOnly &&
-        !typing &&
-        (event.key === "Delete" || event.key === "Backspace")
-      ) {
+      if (!typing && (event.key === "Delete" || event.key === "Backspace")) {
         const cardIds = selectedCardIds(nodes);
         if (cardIds.length > 0) {
           event.preventDefault();
@@ -179,7 +174,6 @@ function CanvasSurface() {
         }
       }
       if (event.key === "Escape") {
-        setFrameToolActive(false);
         if (fullscreen?.active) {
           void execute(
             "fullscreenFrame",
@@ -191,7 +185,7 @@ function CanvasSurface() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [commit, execute, fullscreen, nodes, readOnly, redo, setFrameToolActive, undo]);
+  }, [commit, execute, fullscreen, nodes, redo, undo]);
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -216,6 +210,20 @@ function CanvasSurface() {
           }
           next = next.map((node) => {
             const info = parseFlowNodeId(node.id);
+            if (info?.kind === "column") {
+              const column = snapshot.columns.find(
+                (entry) => entry.id === info.entityId,
+              );
+              if (column?.frameId === parsed.entityId) {
+                return {
+                  ...node,
+                  position: {
+                    x: node.position.x + dx,
+                    y: node.position.y + dy,
+                  },
+                };
+              }
+            }
             if (info?.kind !== "card") {
               return node;
             }
@@ -235,7 +243,7 @@ function CanvasSurface() {
         return next;
       });
     },
-    [snapshot.cards],
+    [snapshot.cards, snapshot.columns],
   );
 
   const defaultViewport = useMemo(
@@ -272,10 +280,6 @@ function CanvasSurface() {
     (event: { preventDefault: () => void; stopPropagation: () => void; clientX: number; clientY: number }, nodeId?: string) => {
       preventBrowserContextMenu(event);
       event.stopPropagation();
-      if (readOnly) {
-        setMenu(null);
-        return;
-      }
       const target = resolveContextMenuTarget(nodeId);
       const sourceHref =
         target.variant === "card"
@@ -305,7 +309,6 @@ function CanvasSurface() {
       });
     },
     [
-      readOnly,
       screenToFlowPosition,
       snapshot.canRedo,
       snapshot.canUndo,
@@ -332,8 +335,8 @@ function CanvasSurface() {
         );
         return;
       }
-      if (id === "create-frame" && canvas && world) {
-        void persistCreatedFrame(canvas.id, frameBoundsAtPoint(world), "Frame");
+      if (id === "create-column" && canvas && world) {
+        void persistCreatedColumn(canvas.id, world);
         return;
       }
       if (id === "new-watchbot") {
@@ -377,26 +380,13 @@ function CanvasSurface() {
         );
         return;
       }
-      if (id === "delete-frame" && target.variant === "frame") {
-        if (
-          window.confirm(
-            "Delete this Frame? Cards inside it will stay on the Canvas.",
-          )
-        ) {
-          void execute(
-            "deleteFrame",
-            { frameId: target.frameId },
-            { history: false },
-          );
-        }
-      }
     },
     [
       canvas,
       execute,
       fitView,
       openWatchBotCreate,
-      persistCreatedFrame,
+      persistCreatedColumn,
       persistCreatedNote,
       redo,
       snapshot.cards,
@@ -420,6 +410,38 @@ function CanvasSurface() {
           openContextMenu(event);
         }
       }}
+      onDragOver={(event) => {
+        if (event.dataTransfer.types.includes(COLUMN_CARD_DRAG_TYPE)) {
+          event.preventDefault();
+          event.dataTransfer.dropEffect = "move";
+        }
+      }}
+      onDrop={(event) => {
+        const cardId = event.dataTransfer.getData(COLUMN_CARD_DRAG_TYPE);
+        if (
+          !cardId ||
+          (event.target instanceof Element &&
+            event.target.closest("[data-column-id]"))
+        ) {
+          return;
+        }
+        event.preventDefault();
+        const card = snapshot.cards.find((entry) => entry.id === cardId);
+        const frame = snapshot.frames.find(
+          (entry) => entry.id === canvas.primaryFrameId,
+        );
+        if (!card?.columnId || !frame) return;
+        const world = screenToFlowPosition({
+          x: event.clientX,
+          y: event.clientY,
+        });
+        const position = {
+          x: world.x - card.size.width / 2,
+          y: world.y - 24,
+        };
+        if (!containsRect(frame.bounds, { ...position, ...card.size })) return;
+        void detachCardFromColumn(card.id, position, card.size);
+      }}
     >
       <ReactFlow
         key={canvas.id}
@@ -434,20 +456,20 @@ function CanvasSurface() {
         snapGrid={[16, 16]}
         nodesConnectable={false}
         edgesFocusable={false}
-        elementsSelectable={!readOnly}
-        nodesDraggable={!readOnly && !frameToolActive}
-        panOnDrag={!frameToolActive ? [0] : false}
-        panOnScroll
-        zoomOnScroll
-        zoomOnPinch
+        elementsSelectable
+        nodesDraggable
+        panOnDrag={fullscreenActive ? false : [0]}
+        panOnScroll={!fullscreenActive}
+        zoomOnScroll={!fullscreenActive}
+        zoomOnPinch={!fullscreenActive}
         selectionOnDrag={false}
         deleteKeyCode={null}
         zoomOnDoubleClick={false}
         onlyRenderVisibleElements
-        proOptions={{ hideAttribution: false }}
+        proOptions={{ hideAttribution: true }}
         onPaneClick={(event) => {
           // Do not stopPropagation / preventDefault — the pane keeps pan/zoom.
-          if (event.detail !== 2 || readOnly || frameToolActive) {
+          if (event.detail !== 2) {
             return;
           }
           createNoteAtClientPoint(event);
@@ -485,6 +507,14 @@ function CanvasSurface() {
                   await persistFrameMove(frame, node.position);
                 }
               }
+              if (parsed?.kind === "column") {
+                const column = snapshot.columns.find(
+                  (entry) => entry.id === parsed.entityId,
+                );
+                if (column) {
+                  await persistColumnMove(column, node.position);
+                }
+              }
             } finally {
               interactingRef.current = false;
               await session.endInteraction();
@@ -492,7 +522,7 @@ function CanvasSurface() {
           })();
         }}
         onMoveEnd={(_event, viewport) => {
-          if (readOnly) {
+          if (fullscreenActive) {
             return;
           }
           if (viewportTimer.current) {
@@ -517,8 +547,8 @@ function CanvasSurface() {
           if (
             !canvasDoubleClickShouldCreateNote({
               target: event.target,
-              readOnly,
-              frameToolActive,
+              readOnly: false,
+              frameToolActive: false,
             })
           ) {
             return;
@@ -535,13 +565,12 @@ function CanvasSurface() {
           bgColor={tokens.canvas.background}
         />
       </ReactFlow>
-      {frameToolActive && !readOnly ? <FrameDrawLayer /> : null}
       <CanvasContextMenu
         state={menu}
         onClose={closeContextMenu}
         onAction={onContextMenuAction}
       />
-      {readOnly ? (
+      {fullscreenActive ? (
         <button
           type="button"
           className="absolute right-3 top-3 z-30 rounded-md border border-zinc-700 bg-[#141820]/95 px-3 py-1.5 text-xs text-zinc-200 shadow-lg hover:bg-zinc-800"

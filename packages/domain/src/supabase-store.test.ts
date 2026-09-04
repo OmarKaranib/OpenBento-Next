@@ -237,7 +237,7 @@ describe("SupabaseDomainStore SQL-contract double", () => {
     ).rejects.toMatchObject({ code: "invalid_input" });
   });
 
-  it("mirrors Card SET NULL, Frame restrict/cleanup, and Canvas cascades", async () => {
+  it("protects the singleton primary Frame and preserves Canvas cascades", async () => {
     const { tables, storeA, a } = pair();
     const canvas = await a.createCanvas({ name: "Delete contract" });
     const card = await a.createCard({
@@ -268,15 +268,17 @@ describe("SupabaseDomainStore SQL-contract double", () => {
     });
 
     await expect(storeA.deleteFrame(frame.id)).rejects.toMatchObject({
-      code: "invalid_input",
+      code: "conflict",
     });
     const geometry = { position: card.position, size: card.size };
-    await a.deleteFrame({ frameId: frame.id });
-    expect(await storeA.getFrame(frame.id)).toBeNull();
-    const detached = await storeA.getCard(card.id);
-    expect(detached?.frameId ?? null).toBeNull();
-    expect(detached?.position).toEqual(geometry.position);
-    expect(detached?.size).toEqual(geometry.size);
+    await expect(a.deleteFrame({ frameId: frame.id })).rejects.toMatchObject({
+      code: "conflict",
+    });
+    expect(await storeA.getFrame(frame.id)).not.toBeNull();
+    const attached = await storeA.getCard(card.id);
+    expect(attached?.frameId).toBe(frame.id);
+    expect(attached?.position).toEqual(geometry.position);
+    expect(attached?.size).toEqual(geometry.size);
 
     await a.deleteCard({ cardId: card.id });
     expect(tables.watchBotEvents.get("event-delete")?.card_id).toBeNull();

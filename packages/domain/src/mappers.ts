@@ -3,6 +3,7 @@ import { DomainError } from "./errors";
 import type {
   CanvasRecord,
   CardRecord,
+  ColumnRecord,
   FrameRecord,
   WatchBotEventRecord,
   WatchBotRecord,
@@ -13,6 +14,7 @@ import {
   WATCHBOT_STATUSES,
   type Canvas,
   type Card,
+  type Column,
   type CardType,
   type Frame,
   type WatchBot,
@@ -32,6 +34,7 @@ export function canvasFromRecord(row: CanvasRecord): Canvas {
   return {
     id: row.id,
     ownerId: row.owner_id,
+    primaryFrameId: row.primary_frame_id,
     name: row.name,
     viewport: {
       x: row.viewport_x,
@@ -48,6 +51,7 @@ export function canvasToRecord(canvas: Canvas): CanvasRecord {
   return {
     id: canvas.id,
     owner_id: canvas.ownerId,
+    primary_frame_id: canvas.primaryFrameId,
     name: canvas.name,
     viewport_x: canvas.viewport.x,
     viewport_y: canvas.viewport.y,
@@ -71,6 +75,7 @@ export function cardFromRecord(row: CardRecord): Card {
         id: row.id,
         canvasId: row.canvas_id,
         frameId: row.frame_id,
+        columnId: row.column_id,
         position: { x: row.x, y: row.y },
         size: { width: row.width, height: row.height },
         zIndex: row.z_index ?? undefined,
@@ -95,6 +100,7 @@ export function cardToRecord(card: Card): CardRecord {
     id: card.id,
     canvas_id: card.canvasId,
     frame_id: card.frameId ?? null,
+    column_id: card.columnId ?? null,
     type: card.type,
     payload: { ...card.payload },
     x: card.position.x,
@@ -139,6 +145,40 @@ export function frameToRecord(frame: Frame): FrameRecord {
   };
 }
 
+export function columnFromRecord(row: ColumnRecord): Column {
+  return {
+    id: row.id,
+    canvasId: row.canvas_id,
+    frameId: row.frame_id,
+    name: row.name,
+    bounds: {
+      x: row.x,
+      y: row.y,
+      width: row.width,
+      height: row.height,
+    },
+    zIndex: row.z_index ?? undefined,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+export function columnToRecord(column: Column): ColumnRecord {
+  return {
+    id: column.id,
+    canvas_id: column.canvasId,
+    frame_id: column.frameId,
+    name: column.name,
+    x: column.bounds.x,
+    y: column.bounds.y,
+    width: column.bounds.width,
+    height: column.bounds.height,
+    z_index: column.zIndex ?? null,
+    created_at: column.createdAt,
+    updated_at: column.updatedAt,
+  };
+}
+
 export function watchBotFromRecord(row: WatchBotRecord): WatchBot {
   if (
     !(WATCHBOT_STATUSES as readonly string[]).includes(row.status) ||
@@ -150,6 +190,7 @@ export function watchBotFromRecord(row: WatchBotRecord): WatchBot {
     id: row.id,
     ownerId: row.owner_id,
     canvasId: row.canvas_id,
+    columnId: row.column_id,
     name: row.name ?? undefined,
     instruction: row.instruction,
     status: row.status,
@@ -167,6 +208,7 @@ export function watchBotToRecord(watchBot: WatchBot): WatchBotRecord {
     id: watchBot.id,
     owner_id: watchBot.ownerId,
     canvas_id: watchBot.canvasId,
+    column_id: watchBot.columnId,
     name: watchBot.name ?? null,
     instruction: watchBot.instruction,
     status: watchBot.status,

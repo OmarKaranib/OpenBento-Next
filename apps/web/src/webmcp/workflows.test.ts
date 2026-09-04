@@ -299,7 +299,8 @@ describe("WebMCP adversarial evaluations", () => {
       size: { width: 80, height: 60 },
     });
 
-    expect(card.frameId).toBeNull();
+    expect(card.frameId).toBe(first.primaryFrameId);
+    expect(card.frameId).not.toBe(second.primaryFrameId);
   });
 
   it("returns not_found for another session's object IDs without leaking owner data", async () => {

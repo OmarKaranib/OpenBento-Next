@@ -3,7 +3,7 @@
 **Live judge reference:** [web-production-4d6c9e.up.railway.app/webmcp](https://web-production-4d6c9e.up.railway.app/webmcp)
 
 WebMCP lets an external agent work in the same durable OpenBento workspace as a
-person. It creates and organizes persistent Canvases, Cards, Frames, and
+person. It creates and organizes persistent Canvases, Cards, the primary Frame, and
 WatchBots through the same shared `ACTION_CATALOG` and domain executor used by
 the human UI and WatchBot pipeline—never a parallel demo store.
 
@@ -44,12 +44,16 @@ to a camelCase domain action; no unlisted or demo-only tools are registered.
   accepted from tool input, a browser, or a model.
 - `create_card` rejects direct `frameId` input. After `create_card`,
   `move_card`, or `resize_card`, Frame membership is recalculated from geometry
-  through the same bound executor. The smallest containing Frame wins;
+  through the same bound executor. The sole primary Frame is the only candidate;
   `fullscreen_frame` is view-only.
+- Compatibility: `create_frame` is retained but configures/returns the existing
+  primary Frame (or bootstraps it for a legacy zero-Frame Canvas); it cannot add
+  a second Frame. The sole primary Frame cannot be deleted.
 - Tools fail closed for missing authentication, unknown tools, schema-invalid
   input, and cross-owner resources.
-- Permanent delete actions and direct `set_card_frame` control remain outside
-  the model-facing WebMCP surface.
+- Permanent delete actions, direct membership actions, and all Phase 1 Column
+  mutation actions remain outside the model-facing WebMCP surface. The safe
+  19-tool registration therefore gains no destructive capability.
 - Chrome annotations mark read/view tools as read-only and results containing
   user-authored or externally sourced fields as untrusted content.
 - WebMCP tool calls act on the same persisted Canvas seen by the human UI, so

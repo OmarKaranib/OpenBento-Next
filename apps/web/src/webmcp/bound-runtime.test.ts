@@ -100,7 +100,7 @@ describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
       position: { x: 20, y: 20 },
       size: { width: 80, height: 60 },
     });
-    expect(card.frameId).toBeNull();
+    expect(card.frameId).toBe(canvas.primaryFrameId);
 
     await runtime.invoke("update_card", {
       cardId: card.id,

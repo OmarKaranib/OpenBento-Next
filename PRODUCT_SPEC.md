@@ -11,9 +11,10 @@ Canonical: [`docs/OPENBENTO_MASTER_CONTEXT.md`](./docs/OPENBENTO_MASTER_CONTEXT.
 | Primitive | Definition |
 | --- | --- |
 | **Canvas** | Persistent spatial workspace. Camera zoom only. Viewport persistable. |
-| **Card** | Positioned, resizable content. `type` + typed payload (Note first). Source types carry provenance; notes do not. |
-| **Frame** | Persisted bordered region. Fullscreen is view-only. |
-| **WatchBot** | Persistent monitor (`running` \| `paused` \| `error`). Requires an instruction. |
+| **Card** | Free-positioned content in the primary Frame or an ordered item in a Column. Source types carry provenance; notes do not. |
+| **Frame** | Exactly one persisted primary live-dashboard boundary per Canvas. Fullscreen changes presentation, never stored geometry. |
+| **Column** | Persisted, movable/resizable vertical Card stream inside the primary Frame. Newest Cards render first. |
+| **WatchBot** | Persistent monitor (`running` \| `paused` \| `error`) with one dedicated Column. Requires an instruction. |
 
 Interactive **Agent** (top-right) is not a WatchBot.
 
@@ -23,14 +24,14 @@ Human, WatchBot, and WebMCP use the full `@openbento/domain` catalog (see `ARCHI
 
 ## Users and loops
 
-- **Human:** create/switch Canvas, place Cards, draw Frames, fullscreen, talk to Agent, pause/resume WatchBots.
-- **WatchBot:** follow `instruction`, write sourced Cards through the catalog.
+- **Human:** create/switch Canvas, place Cards and Columns, detach a Column Card into free Frame space, fullscreen, talk to Agent, and pause/resume WatchBots.
+- **WatchBot:** follow `instruction` and write sourced Cards to the top of its dedicated Column through the catalog.
 - **Agent / WebMCP:** same catalog as tools.
 
 ## v1 intent vs this phase
 
-v1 includes Railway chrome, XYFlow canvas, Note + source Cards, Frames, WatchBot worker, WebMCP parity, local/dev Supabase.
+v1 includes Railway chrome, XYFlow canvas, Note + source Cards, a singleton primary Frame, Column streams, WatchBot worker, WebMCP parity, and local/dev Supabase.
 
-This phase is foundation only: catalog, docs, lint/typecheck/test/build. No product UI, pipeline, tools, billing, or production infra.
+Phase 1 establishes the live dashboard: a stable 1600×900 logical primary Frame, free Cards, first-class Columns, dedicated WatchBot delivery, parking outside the Frame, interactive fullscreen, and media-first YouTube Cards. Add/command-bar work, dragging arbitrary free Cards into Columns, X-video redesign, markets, billing, and production infra remain deferred.
 
 Legacy `OmarKaranib/OpenBento` is reference only.

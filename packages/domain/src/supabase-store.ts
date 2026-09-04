@@ -4,6 +4,8 @@ import {
   canvasToRecord,
   cardFromRecord,
   cardToRecord,
+  columnFromRecord,
+  columnToRecord,
   frameFromRecord,
   frameToRecord,
   watchBotEventFromRecord,
@@ -14,7 +16,7 @@ import {
 import type { DomainSqlAdapter } from "./sql-adapter";
 import type { DomainWriteOp } from "./sql-contract";
 import type { DomainStore } from "./store";
-import type { Canvas, Card, Frame, OwnerId, WatchBot, WatchBotEvent } from "./types";
+import type { Canvas, Card, Column, Frame, OwnerId, WatchBot, WatchBotEvent } from "./types";
 
 /**
  * Durable DomainStore. Runtime persist for UI, WebMCP, and the WatchBot
@@ -27,6 +29,7 @@ export class SupabaseDomainStore implements DomainStore {
   private overlayCanvases = new Map<string, Canvas>();
   private overlayCards = new Map<string, Card>();
   private overlayFrames = new Map<string, Frame>();
+  private overlayColumns = new Map<string, Column>();
   private overlayWatchBots = new Map<string, WatchBot>();
   private overlayEvents = new Map<string, WatchBotEvent>();
 
@@ -129,6 +132,43 @@ export class SupabaseDomainStore implements DomainStore {
     for (const frame of this.overlayFrames.values()) {
       if (frame.canvasId === canvasId) {
         byId.set(frame.id, structuredClone(frame));
+      }
+    }
+    return [...byId.values()];
+  }
+
+  async getColumn(id: string): Promise<Column | null> {
+    const overlay = this.overlayColumns.get(id);
+    if (overlay) {
+      return structuredClone(overlay);
+    }
+    const row = await this.adapter.getColumn(id);
+    return row ? columnFromRecord(row) : null;
+  }
+
+  async saveColumn(column: Column): Promise<void> {
+    const op: DomainWriteOp = {
+      op: "upsert_column",
+      row: columnToRecord(column),
+    };
+    if (this.buffering) {
+      this.overlayColumns.set(column.id, structuredClone(column));
+      this.buffer.push(op);
+      return;
+    }
+    await this.adapter.upsertColumn(op.row);
+  }
+
+  async deleteColumn(id: string): Promise<void> {
+    await this.adapter.deleteColumn(id);
+  }
+
+  async listColumnsByCanvas(canvasId: string): Promise<Column[]> {
+    const rows = await this.adapter.listColumnsByCanvas(canvasId);
+    const byId = new Map(rows.map((row) => [row.id, columnFromRecord(row)]));
+    for (const column of this.overlayColumns.values()) {
+      if (column.canvasId === canvasId) {
+        byId.set(column.id, structuredClone(column));
       }
     }
     return [...byId.values()];
@@ -241,6 +281,7 @@ export class SupabaseDomainStore implements DomainStore {
       this.overlayCanvases.clear();
       this.overlayCards.clear();
       this.overlayFrames.clear();
+      this.overlayColumns.clear();
       this.overlayWatchBots.clear();
       this.overlayEvents.clear();
     }
@@ -259,6 +300,7 @@ export class SupabaseDomainStore implements DomainStore {
         this.overlayCanvases.clear();
         this.overlayCards.clear();
         this.overlayFrames.clear();
+        this.overlayColumns.clear();
         this.overlayWatchBots.clear();
         this.overlayEvents.clear();
       }

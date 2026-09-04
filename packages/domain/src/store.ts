@@ -1,5 +1,5 @@
 import { DomainError } from "./errors";
-import type { Canvas, Card, Frame, OwnerId, WatchBot, WatchBotEvent } from "./types";
+import type { Canvas, Card, Column, Frame, OwnerId, WatchBot, WatchBotEvent } from "./types";
 
 /**
  * Persistence port. Handlers depend on this, not on a vendor SDK.
@@ -23,6 +23,11 @@ export interface DomainStore {
   saveFrame(frame: Frame): Promise<void>;
   deleteFrame(id: string): Promise<void>;
   listFramesByCanvas(canvasId: string): Promise<Frame[]>;
+
+  getColumn(id: string): Promise<Column | null>;
+  saveColumn(column: Column): Promise<void>;
+  deleteColumn(id: string): Promise<void>;
+  listColumnsByCanvas(canvasId: string): Promise<Column[]>;
 
   getWatchBot(id: string): Promise<WatchBot | null>;
   saveWatchBot(watchBot: WatchBot): Promise<void>;
@@ -76,6 +81,7 @@ export class InMemoryDomainStore implements DomainStore {
   private readonly canvases = new Map<string, Canvas>();
   private readonly cards = new Map<string, Card>();
   private readonly frames = new Map<string, Frame>();
+  private readonly columns = new Map<string, Column>();
   private readonly watchBots = new Map<string, WatchBot>();
   private readonly watchBotEvents = new Map<string, WatchBotEvent>();
 
@@ -98,6 +104,11 @@ export class InMemoryDomainStore implements DomainStore {
     for (const [frameId, frame] of this.frames) {
       if (frame.canvasId === id) {
         this.frames.delete(frameId);
+      }
+    }
+    for (const [columnId, column] of this.columns) {
+      if (column.canvasId === id) {
+        this.columns.delete(columnId);
       }
     }
     const deletedBots = new Set<string>();
@@ -126,6 +137,19 @@ export class InMemoryDomainStore implements DomainStore {
   }
 
   async saveCard(card: Card): Promise<void> {
+    if (card.columnId) {
+      const column = this.columns.get(card.columnId);
+      if (
+        !column ||
+        column.canvasId !== card.canvasId ||
+        column.frameId !== card.frameId
+      ) {
+        throw new DomainError(
+          "invalid_input",
+          "Card and Column must belong to the same Canvas and primary Frame",
+        );
+      }
+    }
     this.cards.set(card.id, clone(card));
   }
 
@@ -154,14 +178,9 @@ export class InMemoryDomainStore implements DomainStore {
   }
 
   async deleteFrame(id: string): Promise<void> {
-    const linked = [...this.cards.values()].some((card) => card.frameId === id);
-    if (linked) {
-      throw new DomainError(
-        "invalid_input",
-        "Frame cannot be deleted while Cards still reference it",
-      );
+    if (this.frames.has(id)) {
+      throw new DomainError("conflict", "The primary Frame cannot be deleted");
     }
-    this.frames.delete(id);
   }
 
   async listFramesByCanvas(canvasId: string): Promise<Frame[]> {
@@ -170,12 +189,63 @@ export class InMemoryDomainStore implements DomainStore {
       .map((frame) => clone(frame));
   }
 
+  async getColumn(id: string): Promise<Column | null> {
+    const row = this.columns.get(id);
+    return row ? clone(row) : null;
+  }
+
+  async saveColumn(column: Column): Promise<void> {
+    const canvas = this.canvases.get(column.canvasId);
+    const frame = this.frames.get(column.frameId);
+    if (
+      !canvas ||
+      !frame ||
+      frame.canvasId !== column.canvasId ||
+      canvas.primaryFrameId !== column.frameId
+    ) {
+      throw new DomainError(
+        "invalid_input",
+        "Column must reference the primary Frame on the same Canvas",
+      );
+    }
+    this.columns.set(column.id, clone(column));
+  }
+
+  async deleteColumn(id: string): Promise<void> {
+    if ([...this.cards.values()].some((card) => card.columnId === id)) {
+      throw new DomainError(
+        "invalid_input",
+        "Column cannot be deleted while Cards still reference it",
+      );
+    }
+    this.columns.delete(id);
+  }
+
+  async listColumnsByCanvas(canvasId: string): Promise<Column[]> {
+    return [...this.columns.values()]
+      .filter((column) => column.canvasId === canvasId)
+      .map((column) => clone(column));
+  }
+
   async getWatchBot(id: string): Promise<WatchBot | null> {
     const row = this.watchBots.get(id);
     return row ? clone(row) : null;
   }
 
   async saveWatchBot(watchBot: WatchBot): Promise<void> {
+    const column = this.columns.get(watchBot.columnId);
+    if (!column || column.canvasId !== watchBot.canvasId) {
+      throw new DomainError(
+        "invalid_input",
+        "WatchBot Column must belong to the same Canvas",
+      );
+    }
+    const duplicate = [...this.watchBots.values()].find(
+      (bot) => bot.id !== watchBot.id && bot.columnId === watchBot.columnId,
+    );
+    if (duplicate) {
+      throw new DomainError("conflict", "A Column can have at most one WatchBot");
+    }
     this.watchBots.set(watchBot.id, clone(watchBot));
   }
 
@@ -222,6 +292,7 @@ export class InMemoryDomainStore implements DomainStore {
       canvases: new Map(this.canvases),
       cards: new Map(this.cards),
       frames: new Map(this.frames),
+      columns: new Map(this.columns),
       watchBots: new Map(this.watchBots),
       watchBotEvents: new Map(this.watchBotEvents),
     };
@@ -231,6 +302,7 @@ export class InMemoryDomainStore implements DomainStore {
       this.canvases.clear();
       this.cards.clear();
       this.frames.clear();
+      this.columns.clear();
       this.watchBots.clear();
       this.watchBotEvents.clear();
       for (const [key, value] of snapshot.canvases) {
@@ -241,6 +313,9 @@ export class InMemoryDomainStore implements DomainStore {
       }
       for (const [key, value] of snapshot.frames) {
         this.frames.set(key, value);
+      }
+      for (const [key, value] of snapshot.columns) {
+        this.columns.set(key, value);
       }
       for (const [key, value] of snapshot.watchBots) {
         this.watchBots.set(key, value);

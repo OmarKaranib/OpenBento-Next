@@ -16,6 +16,13 @@ const sql = [
     ),
     "utf8",
   ),
+  readFileSync(
+    join(
+      repoRoot,
+      "supabase/migrations/20260904010000_primary_frame_columns.sql",
+    ),
+    "utf8",
+  ),
 ].join("\n");
 
 describe("local/dev schema SQL", () => {
@@ -48,6 +55,7 @@ describe("local/dev schema SQL", () => {
       "canvases",
       "cards",
       "frames",
+      "columns",
       "watch_bots",
       "watch_bot_events",
     ]) {
@@ -83,5 +91,24 @@ describe("local/dev schema SQL", () => {
     )?.[0];
     expect(fn).toBeDefined();
     expect(fn).not.toMatch(/security definer/i);
+  });
+
+  it("enforces singleton Frames, explicit Columns, and WatchBot one-to-one", () => {
+    expect(sql).toMatch(/primary_frame_id uuid/);
+    expect(sql).toMatch(/frames_one_per_canvas_key unique \(canvas_id\)/);
+    expect(sql).toMatch(/create table public\.columns/);
+    expect(sql).toMatch(/cards_column_same_primary_frame_fkey/);
+    expect(sql).toMatch(/watch_bots_one_per_column_key unique \(column_id\)/);
+    expect(sql).toMatch(/width between 280 and 1200/);
+    expect(sql).toMatch(/height between 320 and 900/);
+  });
+
+  it("backfills legacy Frames and WatchBot Columns without deleting Cards", () => {
+    expect(sql).toMatch(/order by f\.created_at asc, f\.id asc/);
+    expect(sql).toMatch(/update public\.cards card\s+set frame_id = null/i);
+    expect(sql).toMatch(/create temporary table watchbot_column_backfill/i);
+    expect(sql).toMatch(/alter column column_id set not null/i);
+    expect(sql).not.toMatch(/delete from public\.cards/i);
+    expect(sql).not.toMatch(/delete from public\.watch_bots/i);
   });
 });

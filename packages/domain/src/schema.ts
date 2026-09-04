@@ -19,6 +19,7 @@ import type {
 export interface CanvasRecord {
   id: string;
   owner_id: OwnerId;
+  primary_frame_id: string;
   name: string;
   viewport_x: number;
   viewport_y: number;
@@ -32,6 +33,7 @@ export interface CardRecord {
   id: string;
   canvas_id: string;
   frame_id: string | null;
+  column_id: string | null;
   type: CardType;
   /** Typed payload JSON for `type`. Not title/body columns. */
   payload: Record<string, unknown>;
@@ -57,10 +59,25 @@ export interface FrameRecord {
   updated_at: string;
 }
 
+export interface ColumnRecord {
+  id: string;
+  canvas_id: string;
+  frame_id: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  z_index: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface WatchBotRecord {
   id: string;
   owner_id: OwnerId;
   canvas_id: string;
+  column_id: string;
   name: string | null;
   instruction: string;
   status: WatchBotStatus;

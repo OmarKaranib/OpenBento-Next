@@ -12,7 +12,6 @@ import {
   planCardGeometry,
   planFrameGeometry,
   resolveCardFrameMembership,
-  translateFrameMembers,
 } from "./membership";
 import { buildCreateNoteCardInput } from "./note-card";
 
@@ -330,58 +329,27 @@ describe("Frame membership helper usage", () => {
     });
   });
 
-  it("assigns the smallest overlapping Frame after members translate with a dragged Frame", async () => {
+  it("reuses the singleton primary Frame when legacy createFrame is invoked again", async () => {
     const store = new InMemoryDomainStore();
     const executor = createActionExecutor({ store, ownerId: "local-session" });
     const canvas = await executor.createCanvas({ name: "Board" });
-    const large = await executor.createFrame({
+    const primary = await executor.createFrame({
       canvasId: canvas.id,
       bounds: { x: 0, y: 0, width: 300, height: 300 },
       name: "Large",
     });
-    const small = await executor.createFrame({
+    const configured = await executor.createFrame({
       canvasId: canvas.id,
       bounds: { x: 200, y: 200, width: 80, height: 80 },
       name: "Small",
     });
-    const card = await executor.createCard(
-      buildCreateNoteCardInput({
-        canvasId: canvas.id,
-        position: { x: 20, y: 20 },
-        size: { width: 20, height: 20 },
-        text: "Member",
-      }),
-    );
-    await executor.setCardFrame({ cardId: card.id, frameId: large.id });
+    const state = await executor.getCanvasState({ canvasId: canvas.id });
 
-    const delta = { x: 190, y: 190 };
-    const before = await executor.getCanvasState({ canvasId: canvas.id });
-    const nextCards = translateFrameMembers(before.cards, large.id, delta);
-    const moved = await executor.moveFrame({
-      frameId: large.id,
-      position: { x: large.bounds.x + delta.x, y: large.bounds.y + delta.y },
-    });
-    const translated = nextCards.find((entry) => entry.id === card.id);
-    expect(translated?.position).toEqual({ x: 210, y: 210 });
-    await executor.moveCard({
-      cardId: card.id,
-      position: translated!.position,
-    });
-
-    const nextFrames = before.frames.map((entry) =>
-      entry.id === moved.id ? moved : entry,
-    );
-    const onlyNonMembers = membershipCallsForCards(
-      nextCards.filter((entry) => entry.frameId !== large.id),
-      nextFrames,
-    );
-    expect(onlyNonMembers).toEqual([]);
-
-    const changes = membershipCallsForCards(nextCards, nextFrames);
-    expect(changes).toEqual([{ cardId: card.id, frameId: small.id }]);
-    const attached = await executor.setCardFrame(changes[0]!);
-    expect(attached.frameId).toBe(small.id);
-    expect(attached.position).toEqual({ x: 210, y: 210 });
+    expect(configured.id).toBe(primary.id);
+    expect(configured.id).toBe(canvas.primaryFrameId);
+    expect(configured.bounds).toEqual({ x: 200, y: 200, width: 80, height: 80 });
+    expect(configured.name).toBe("Small");
+    expect(state.frames).toEqual([configured]);
   });
 
   it("rejects setCardFrame across canvases in the shared executor", async () => {

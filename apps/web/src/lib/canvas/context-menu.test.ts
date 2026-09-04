@@ -18,7 +18,6 @@ import {
   clientToFlowPosition,
   contextMenuCatalogActions,
   contextMenuItems,
-  frameBoundsAtPoint,
   isKnownActionName,
   isTypingTarget,
   preventBrowserContextMenu,
@@ -93,7 +92,7 @@ describe("canvas context menu", () => {
     });
     expect(items.map((item) => item.id)).toEqual([
       "add-note",
-      "create-frame",
+      "create-column",
       "new-watchbot",
       "undo",
       "redo",
@@ -142,12 +141,8 @@ describe("canvas context menu", () => {
       canUndo: false,
       canRedo: false,
     });
-    expect(items.map((item) => item.id)).toEqual([
-      "fullscreen-frame",
-      "delete-frame",
-    ]);
+    expect(items.map((item) => item.id)).toEqual(["fullscreen-frame"]);
     expect(items[0]?.actionName).toBe("fullscreenFrame");
-    expect(items[1]?.actionName).toBe("deleteFrame");
   });
 
   it("converts pointer coords under pan and zoom", () => {
@@ -157,11 +152,6 @@ describe("canvas context menu", () => {
       { x: 10, y: 20 },
     );
     expect(world).toEqual({ x: 125, y: 110 });
-    const bounds = frameBoundsAtPoint(world);
-    expect(bounds.x).toBe(125);
-    expect(bounds.y).toBe(110);
-    expect(bounds.width).toBeGreaterThan(0);
-    expect(bounds.height).toBeGreaterThan(0);
   });
 
   it("clamps the menu inside the viewport", () => {
@@ -210,14 +200,14 @@ describe("canvas context menu", () => {
     expect(html).toContain('role="menu"');
     expect(html).toContain('role="menuitem"');
     expect(html).toContain("Add Note here");
-    expect(html).toContain("Create Frame here");
+    expect(html).toContain("Add Column here");
     expect(html).toContain("New WatchBot");
     expect(html).toContain("Fit view");
     expect(html).not.toContain("Delete");
   });
 
   it("uses catalog delete actions without exposing them through WebMCP", () => {
-    expect(ACTION_NAMES).toHaveLength(23);
+    expect(ACTION_NAMES).toHaveLength(29);
     expect(ACTION_NAMES).toContain("deleteCard");
     expect(ACTION_NAMES).toContain("deleteFrame");
     expect(ACTION_NAMES).toContain("deleteCanvas");
@@ -227,11 +217,16 @@ describe("canvas context menu", () => {
     expect(Object.values(WEBMCP_TOOL_TO_ACTION)).not.toContain("deleteCard");
     expect(Object.values(WEBMCP_TOOL_TO_ACTION)).not.toContain("deleteFrame");
     expect(Object.values(WEBMCP_TOOL_TO_ACTION)).not.toContain("deleteCanvas");
+    expect(Object.values(WEBMCP_TOOL_TO_ACTION)).not.toContain("createColumn");
+    expect(Object.values(WEBMCP_TOOL_TO_ACTION)).not.toContain("setCardColumn");
+    expect(Object.values(WEBMCP_TOOL_TO_ACTION)).not.toContain(
+      "detachCardFromColumn",
+    );
     expect(AGENT_ACTION_NAMES).not.toContain("deleteCard" as never);
     expect(AGENT_ACTION_NAMES).not.toContain("deleteFrame" as never);
     expect(AGENT_ACTION_NAMES).not.toContain("deleteCanvas" as never);
     const source = readFileSync(join(here, "context-menu.ts"), "utf8");
-    expect(source).toMatch(/deleteCard|deleteFrame/);
+    expect(source).toMatch(/deleteCard|createColumn/);
     const root = readFileSync(
       join(here, "../../components/canvas/CanvasRoot.tsx"),
       "utf8",
@@ -239,8 +234,8 @@ describe("canvas context menu", () => {
     expect(root).toContain("onPaneContextMenu");
     expect(root).toContain("preventBrowserContextMenu");
     expect(root).toContain("openWatchBotCreate");
-    expect(root).toMatch(/deleteCard|deleteFrame/);
-    expect(root).toContain("Cards inside it will stay on the Canvas");
+    expect(root).toContain("deleteCard");
+    expect(root).not.toContain('"deleteFrame"');
     expect(root).toContain('deleteKeyCode={null}');
     expect(root).not.toMatch(/supabase\.channel|realtime/i);
     const switcher = readFileSync(

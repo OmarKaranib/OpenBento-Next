@@ -54,7 +54,7 @@ describe("ActionExecutor catalog coverage", () => {
     for (const name of ACTION_NAMES) {
       expect(typeof a[name]).toBe("function");
     }
-    expect(ACTION_NAMES).toHaveLength(23);
+    expect(ACTION_NAMES).toHaveLength(29);
     expect(Object.keys(ACTION_CATALOG)).toEqual([...ACTION_NAMES]);
   });
 });
@@ -197,7 +197,7 @@ describe("destructive actions", () => {
     expect(event?.cardId).toBeUndefined();
   });
 
-  it("detaches Frame Cards without changing world geometry, including partial retries", async () => {
+  it("rejects primary Frame deletion without changing Card geometry", async () => {
     const { store, a, canvas, card, frame } = await seedOwned();
     const second = await a.createCard({
       canvasId: canvas.id,
@@ -217,15 +217,14 @@ describe("destructive actions", () => {
     const beforeFirst = await store.getCard(card.id);
     const beforeSecond = await store.getCard(second.id);
 
-    await expect(a.deleteFrame({ frameId: frame.id })).resolves.toEqual({
-      deletedFrameId: frame.id,
-      detachedCardIds: [second.id],
+    await expect(a.deleteFrame({ frameId: frame.id })).rejects.toMatchObject({
+      code: "conflict",
     });
-    expect(await store.getFrame(frame.id)).toBeNull();
+    expect(await store.getFrame(frame.id)).not.toBeNull();
     const afterFirst = await store.getCard(card.id);
     const afterSecond = await store.getCard(second.id);
     expect(afterFirst?.frameId ?? null).toBeNull();
-    expect(afterSecond?.frameId ?? null).toBeNull();
+    expect(afterSecond?.frameId).toBe(frame.id);
     expect(afterFirst?.position).toEqual(beforeFirst?.position);
     expect(afterFirst?.size).toEqual(beforeFirst?.size);
     expect(afterSecond?.position).toEqual(beforeSecond?.position);

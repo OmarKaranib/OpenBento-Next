@@ -6,11 +6,9 @@ import {
   DEFAULT_CARD_SIZE,
   FREE_CARD_GAP,
   FREE_CARD_ORIGIN,
-  aabbsOverlapWithGap,
   createActionExecutor,
   createSqlContractAdapter,
   DomainError,
-  findFreeCardPosition,
   InMemoryDomainStore,
   isValidCardPayload,
   SharedSqlTables,
@@ -2497,36 +2495,6 @@ const WATCHBOT_SOURCE_SIZE = {
   height: Math.max(DEFAULT_CARD_SIZE.height, 180),
 };
 
-function countBasedNextPosition(existingCount: number): { x: number; y: number } {
-  const col = existingCount % 3;
-  const row = Math.floor(existingCount / 3);
-  return {
-    x: 48 + col * (WATCHBOT_SOURCE_SIZE.width + 32),
-    y: 48 + row * (WATCHBOT_SOURCE_SIZE.height + 32),
-  };
-}
-
-function cardOverlapsAny(
-  position: { x: number; y: number },
-  size: { width: number; height: number },
-  occupied: ReadonlyArray<OccupiedCardGeometry>,
-  gap = FREE_CARD_GAP,
-): boolean {
-  return occupied.some((card) =>
-    aabbsOverlapWithGap(
-      position.x,
-      position.y,
-      size.width,
-      size.height,
-      card.position.x,
-      card.position.y,
-      card.size.width,
-      card.size.height,
-      gap,
-    ),
-  );
-}
-
 function geometryOf(card: OccupiedCardGeometry): OccupiedCardGeometry {
   return {
     position: { ...card.position },
@@ -2534,18 +2502,18 @@ function geometryOf(card: OccupiedCardGeometry): OccupiedCardGeometry {
   };
 }
 
-describe("WatchBot-created Card free-position", () => {
-  it("uses the shared domain helper and does not import apps/web", () => {
+describe("WatchBot-created Card Column placement", () => {
+  it("uses the shared Column action and does not import apps/web", () => {
     const src = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "pipeline.ts"),
       "utf8",
     );
-    expect(src).toMatch(/findFreeCardPosition/);
-    expect(src).not.toMatch(/nextCardPosition/);
+    expect(src).toMatch(/setCardColumn/);
+    expect(src).not.toMatch(/findFreeCardPosition|nextCardPosition/);
     expect(src).not.toMatch(/apps\/web|@\/lib\/find-free-card-position/);
   });
 
-  it("avoids overlapping an existing Card in a gap that count-stack would miss", async () => {
+  it("does not move an existing free Card when publishing to the Column", async () => {
     const { store, executor, canvas, watchBot, provider } = await seed([
       newsItem,
     ]);
@@ -2559,13 +2527,6 @@ describe("WatchBot-created Card free-position", () => {
       },
       size: { ...WATCHBOT_SOURCE_SIZE },
     });
-    const before = await executor.getCanvasState({ canvasId: canvas.id });
-    const occupied = before.cards.map(geometryOf);
-    const lengthStacked = countBasedNextPosition(before.cards.length);
-    expect(cardOverlapsAny(lengthStacked, WATCHBOT_SOURCE_SIZE, occupied, 0)).toBe(
-      true,
-    );
-
     const spies = spyExecutor(executor);
     const move = vi.spyOn(executor, "moveCard");
     const resize = vi.spyOn(executor, "resizeCard");
@@ -2588,15 +2549,12 @@ describe("WatchBot-created Card free-position", () => {
     const after = await executor.getCanvasState({ canvasId: canvas.id });
     const created = after.cards.find((card) => card.id !== occupying.id);
     expect(created).toBeDefined();
-    expect(created?.position).toEqual(FREE_CARD_ORIGIN);
-    expect(created?.position).not.toEqual(lengthStacked);
-    expect(
-      cardOverlapsAny(
-        created?.position ?? { x: 0, y: 0 },
-        created?.size ?? WATCHBOT_SOURCE_SIZE,
-        [geometryOf(occupying)],
-      ),
-    ).toBe(false);
+    const column = after.columns.find((entry) => entry.id === watchBot.columnId)!;
+    expect(created?.position).toEqual({
+      x: column.bounds.x + 12,
+      y: column.bounds.y + 52,
+    });
+    expect(created?.columnId).toBe(watchBot.columnId);
     expect(after.cards.find((card) => card.id === occupying.id)?.position).toEqual(
       occupying.position,
     );
@@ -2607,7 +2565,7 @@ describe("WatchBot-created Card free-position", () => {
     expect(created?.frameId).not.toBeNull();
   });
 
-  it("places multiple Cards in one cycle without overlapping each other", async () => {
+  it("keeps multiple results in one bounded stream instead of expanding Canvas geometry", async () => {
     const { store, executor, canvas, watchBot, provider, frame } = await seed([
       newsItem,
       webItem,
@@ -2638,17 +2596,6 @@ describe("WatchBot-created Card free-position", () => {
     const after = await executor.getCanvasState({ canvasId: canvas.id });
     const created = after.cards.filter((card) => card.id !== parked.id);
     expect(created).toHaveLength(2);
-    expect(
-      cardOverlapsAny(created[0]!.position, created[0]!.size, [
-        geometryOf(created[1]!),
-      ]),
-    ).toBe(false);
-    expect(
-      cardOverlapsAny(created[0]!.position, created[0]!.size, [parkedSnapshot]),
-    ).toBe(false);
-    expect(
-      cardOverlapsAny(created[1]!.position, created[1]!.size, [parkedSnapshot]),
-    ).toBe(false);
     expect(after.cards.find((card) => card.id === parked.id)?.position).toEqual(
       parkedSnapshot.position,
     );
@@ -2656,16 +2603,12 @@ describe("WatchBot-created Card free-position", () => {
       parkedSnapshot.size,
     );
     expect(created.every((card) => card.frameId === frame.id)).toBe(true);
-    expect(created.map((card) => card.position)).toEqual([
-      findFreeCardPosition([], WATCHBOT_SOURCE_SIZE),
-      findFreeCardPosition(
-        [{ position: created[0]!.position, size: created[0]!.size }],
-        WATCHBOT_SOURCE_SIZE,
-      ),
-    ]);
+    expect(created.every((card) => card.columnId === watchBot.columnId)).toBe(true);
+    expect(created[0]?.position).toEqual(created[1]?.position);
+    expect(after.frames[0]?.bounds).toEqual(frame.bounds);
   });
 
-  it("is deterministic for the same occupied geometries", async () => {
+  it("is deterministic for the same dedicated Column geometry", async () => {
     const occupyingPosition = {
       x: FREE_CARD_ORIGIN.x + WATCHBOT_SOURCE_SIZE.width + FREE_CARD_GAP,
       y: FREE_CARD_ORIGIN.y,
@@ -2707,12 +2650,13 @@ describe("WatchBot-created Card free-position", () => {
       await second.executor.getCanvasState({ canvasId: second.canvas.id })
     ).cards.find((card) => card.type !== "note");
     expect(firstCreated?.position).toEqual(secondCreated?.position);
-    expect(firstCreated?.position).toEqual(
-      findFreeCardPosition(
-        [{ position: occupyingPosition, size: WATCHBOT_SOURCE_SIZE }],
-        WATCHBOT_SOURCE_SIZE,
-      ),
-    );
+    const firstColumn = (
+      await first.executor.getCanvasState({ canvasId: first.canvas.id })
+    ).columns.find((column) => column.id === first.watchBot.columnId)!;
+    expect(firstCreated?.position).toEqual({
+      x: firstColumn.bounds.x + 12,
+      y: firstColumn.bounds.y + 52,
+    });
   });
 
   it("keeps provenance, two-call membership, and ordinary cycle outcomes", async () => {

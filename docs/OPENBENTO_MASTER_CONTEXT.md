@@ -20,6 +20,21 @@ This document captures decisions already made with the product owner. Do not sil
 
 If a later explicit owner decision conflicts with this file, the later owner decision wins and this file should be updated. Otherwise, this file is the canonical product context.
 
+## 0.1 September 2026 dashboard architecture decision
+
+This decision supersedes older multi-Frame/free-placement passages below:
+
+- each Canvas has exactly one 1600×900 logical primary Frame, created with the Canvas;
+- the primary Frame contains free Cards and first-class persisted Columns;
+- Column membership is explicit `card.columnId`; Column Cards render newest-first in a bounded vertical scroll stream;
+- each WatchBot owns exactly one dedicated Column and each such Column has at most one WatchBot;
+- WatchBot discoveries go to that Column, not global free-space placement; a parked Column suspends discovery before provider calls without becoming an error;
+- dragging a Column Card into free primary-Frame space clears `columnId` on the same Card and preserves geometry and provenance;
+- objects outside the primary Frame are parked: dimmed and frozen but still selectable/draggable; and
+- fullscreen fits and camera-locks the primary Frame while Cards, Columns, scrolling, links, media, selection, and geometry editing remain interactive. It never rewrites stored geometry.
+
+The human UI cannot create a second Frame or delete the sole primary Frame. Legacy `createFrame` callers configure the existing primary Frame. Column mutation actions are shared domain actions but are not added to the 19-tool WebMCP safe surface in Phase 1. The Add/command bar, arbitrary free-Card-to-Column dragging, automatic parked status transitions, and X-video media-first work are deferred.
+
 The core objective is not to recreate the old OpenBento dashboard. It is to build a new product from first principles.
 
 ---

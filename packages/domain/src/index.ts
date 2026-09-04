@@ -8,6 +8,7 @@ export {
   type ActionResultMap,
   type CreateCanvasInput,
   type CreateCardInput,
+  type CreateColumnInput,
   type CreateFrameInput,
   type CreateWatchBotInput,
   type DeleteCanvasInput,
@@ -16,22 +17,27 @@ export {
   type DeleteCardResult,
   type DeleteFrameInput,
   type DeleteFrameResult,
+  type DetachCardFromColumnInput,
   type DomainAction,
   type FullscreenFrameInput,
   type GetCanvasStateInput,
   type GetWatchBotStatusInput,
   type JsonSchema,
   type MoveCardInput,
+  type MoveColumnInput,
   type MoveFrameInput,
   type PauseWatchBotInput,
   type RenameCanvasInput,
   type ResizeCardInput,
+  type ResizeColumnInput,
   type ResizeFrameInput,
   type ResumeWatchBotInput,
   type SetCardFrameInput,
+  type SetCardColumnInput,
   type SwitchCanvasInput,
   type UpdateCanvasViewportInput,
   type UpdateCardInput,
+  type UpdateColumnInput,
   type UpdateFrameInput,
   type UpdateWatchBotInput,
 } from "./actions";
@@ -48,6 +54,12 @@ export {
   type SameCanvasMembershipCode,
   type SameCanvasMembershipInput,
 } from "./frames";
+
+export {
+  isColumnActive,
+  isFreeCardActive,
+  orderColumnCardsNewestFirst,
+} from "./columns";
 
 export {
   PAYLOAD_SCHEMA_ONE_OF,
@@ -92,7 +104,12 @@ export {
   ActionExecutor,
   createActionExecutor,
   DEFAULT_CARD_SIZE,
+  DEFAULT_COLUMN_SIZE,
   DEFAULT_VIEWPORT,
+  MIN_COLUMN_SIZE,
+  MAX_COLUMN_SIZE,
+  PRIMARY_FRAME_BOUNDS,
+  selectPrimaryFrame,
   type ActionExecutorDeps,
 } from "./executor";
 
@@ -101,6 +118,8 @@ export {
   canvasToRecord,
   cardFromRecord,
   cardToRecord,
+  columnFromRecord,
+  columnToRecord,
   frameFromRecord,
   frameToRecord,
   publishedAtToTimestamptz,
@@ -113,6 +132,7 @@ export {
 export type {
   CanvasRecord,
   CardRecord,
+  ColumnRecord,
   FrameRecord,
   WatchBotEventRecord,
   WatchBotRecord,
@@ -172,6 +192,7 @@ export {
   type Canvas,
   type CanvasState,
   type Card,
+  type Column,
   type CardPayload,
   type CardPayloadByType,
   type CardProvenance,
