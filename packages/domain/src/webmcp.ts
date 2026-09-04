@@ -1,18 +1,24 @@
 import { ACTION_CATALOG, type ActionName, type JsonSchema } from "./actions";
 
 /**
- * Single WebMCP tool map from Issue #1.
+ * Safe WebMCP tool map.
  * snake_case tool name → camelCase domain action.
- * Tools not listed are out of scope. No demo-only tools.
+ * Tools not listed are out of scope. No demo-only or destructive tools.
  */
 export const WEBMCP_TOOL_TO_ACTION = {
   get_canvas_state: "getCanvasState",
   create_canvas: "createCanvas",
+  rename_canvas: "renameCanvas",
   switch_canvas: "switchCanvas",
+  update_canvas_viewport: "updateCanvasViewport",
   create_card: "createCard",
+  update_card: "updateCard",
   move_card: "moveCard",
   resize_card: "resizeCard",
   create_frame: "createFrame",
+  update_frame: "updateFrame",
+  move_frame: "moveFrame",
+  resize_frame: "resizeFrame",
   fullscreen_frame: "fullscreenFrame",
   create_watchbot: "createWatchBot",
   update_watchbot: "updateWatchBot",
@@ -33,12 +39,39 @@ const READ_ONLY_ACTIONS = new Set<ActionName>([
   "fullscreenFrame",
 ]);
 
+/** Actions whose results can carry user-authored or externally sourced data. */
+const UNTRUSTED_CONTENT_ACTIONS = new Set<ActionName>([
+  "getCanvasState",
+  "createCanvas",
+  "renameCanvas",
+  "switchCanvas",
+  "updateCanvasViewport",
+  "createCard",
+  "updateCard",
+  "moveCard",
+  "resizeCard",
+  "createFrame",
+  "updateFrame",
+  "moveFrame",
+  "resizeFrame",
+  "createWatchBot",
+  "updateWatchBot",
+  "pauseWatchBot",
+  "resumeWatchBot",
+  "getWatchBotStatus",
+]);
+
+export type WebMcpToolAnnotations = {
+  readOnlyHint: boolean;
+  untrustedContentHint: boolean;
+};
+
 export type WebMcpToolDefinition = {
   name: WebMcpToolName;
   actionName: (typeof WEBMCP_TOOL_TO_ACTION)[WebMcpToolName];
   description: string;
   inputSchema: JsonSchema;
-  annotations: { readOnlyHint: boolean };
+  annotations: WebMcpToolAnnotations;
 };
 
 export function isWebMcpToolName(value: string): value is WebMcpToolName {
@@ -55,7 +88,10 @@ export function listWebMcpTools(): WebMcpToolDefinition[] {
       actionName,
       description: action.description,
       inputSchema: action.inputSchema,
-      annotations: { readOnlyHint: READ_ONLY_ACTIONS.has(actionName) },
+      annotations: {
+        readOnlyHint: READ_ONLY_ACTIONS.has(actionName),
+        untrustedContentHint: UNTRUSTED_CONTENT_ACTIONS.has(actionName),
+      },
     };
   });
 }

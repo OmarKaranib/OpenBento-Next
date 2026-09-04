@@ -6,7 +6,7 @@ import { runWebMcpTool } from "./actions";
 import { registerOpenBentoWebMcpTools } from "./register-browser";
 
 /**
- * Registers Issue #1 tools on `document.modelContext`.
+ * Registers the safe catalog-backed tools on `document.modelContext`.
  * Each execute calls `runWebMcpTool` → `runBoundAction` +
  * `requireOwnerIdFromRequest` with `getDomainStore()`.
  */

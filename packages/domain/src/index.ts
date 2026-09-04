@@ -71,6 +71,7 @@ export {
   WEBMCP_TOOL_TO_ACTION,
   isWebMcpToolName,
   listWebMcpTools,
+  type WebMcpToolAnnotations,
   type WebMcpToolDefinition,
   type WebMcpToolName,
 } from "./webmcp";

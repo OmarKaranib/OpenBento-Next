@@ -22,7 +22,7 @@ describe("WebMCP registered tools", () => {
   it("maps every registered tool onto a real ACTION_CATALOG action", () => {
     const tools = listWebMcpTools();
     expect(tools.map((tool) => tool.name)).toEqual([...WEBMCP_TOOL_NAMES]);
-    expect(tools).toHaveLength(13);
+    expect(tools).toHaveLength(19);
     for (const tool of tools) {
       expect(ACTION_NAMES).toContain(tool.actionName);
       expect(tool.actionName).toBe(WEBMCP_TOOL_TO_ACTION[tool.name]);
@@ -32,14 +32,31 @@ describe("WebMCP registered tools", () => {
     }
   });
 
-  it("does not register demo or extra tools", () => {
+  it("does not register demo, destructive, or direct-membership tools", () => {
     const tools = listWebMcpTools();
     expect(tools.map((tool) => tool.name)).toEqual([...WEBMCP_TOOL_NAMES]);
     for (const name of DEMO_TOOL_NAMES) {
       expect(tools.map((tool) => tool.name)).not.toContain(name);
     }
     expect(tools.map((tool) => tool.name)).not.toContain("set_card_frame");
-    expect(tools.map((tool) => tool.name)).not.toContain("rename_canvas");
+    expect(tools.map((tool) => tool.name)).not.toContain("delete_canvas");
+    expect(tools.map((tool) => tool.name)).not.toContain("delete_card");
+    expect(tools.map((tool) => tool.name)).not.toContain("delete_frame");
+  });
+
+  it("sets supported Chrome annotations from result semantics", () => {
+    const readOnly = new Set([
+      "get_canvas_state",
+      "get_watchbot_status",
+      "fullscreen_frame",
+    ]);
+
+    for (const tool of listWebMcpTools()) {
+      expect(tool.annotations).toEqual({
+        readOnlyHint: readOnly.has(tool.name),
+        untrustedContentHint: tool.name !== "fullscreen_frame",
+      });
+    }
   });
 });
 
@@ -124,6 +141,32 @@ describe("WebMCP wrapper rejects poisoned and unknown tools", () => {
       new DomainError("invalid_input", "The tool input is invalid."),
     );
   });
+
+  it("emits telemetry without tool inputs or secrets", async () => {
+    const events: unknown[] = [];
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "session-user" });
+    const runtime = createWebMcpRuntime({
+      execute: (name, input) => executor.execute(name, input),
+      onToolEvent: (event) => events.push(event),
+    });
+
+    const canvas = await runtime.invoke("create_canvas", {
+      name: "secret-body-value",
+    });
+
+    expect(events).toEqual([
+      {
+        name: "ob.webmcp.tool",
+        toolName: "create_canvas",
+        success: true,
+        canvasId: canvas.id,
+      },
+    ]);
+    expect(JSON.stringify(events)).not.toContain("secret-body-value");
+    expect(events[0]).not.toHaveProperty("input");
+    expect(events[0]).not.toHaveProperty("arguments");
+  });
 });
 
 describe("WebMCP invoke follows up setCardFrame from geometry", () => {
@@ -189,5 +232,38 @@ describe("WebMCP invoke follows up setCardFrame from geometry", () => {
     });
     expect(catalog).toEqual(["moveCard", "getCanvasState", "setCardFrame"]);
     expect(moved.frameId).toBe(frame.id);
+  });
+
+  it("runs resizeCard then setCardFrame after invoke(resize_card)", async () => {
+    const store = new InMemoryDomainStore();
+    const executor = createActionExecutor({ store, ownerId: "session-from-caller" });
+    const catalog: string[] = [];
+    const runtime = createWebMcpRuntime({
+      execute: (name, input) => executor.execute(name, input),
+      onCatalogCall: (name) => {
+        catalog.push(name);
+      },
+    });
+    const canvas = await runtime.invoke("create_canvas", { name: "Story" });
+    await runtime.invoke("create_frame", {
+      canvasId: canvas.id,
+      bounds: { x: 0, y: 0, width: 80, height: 80 },
+    });
+    const card = await runtime.invoke("create_card", {
+      canvasId: canvas.id,
+      type: "note",
+      payload: { text: "inside" },
+      position: { x: 10, y: 10 },
+      size: { width: 40, height: 40 },
+    });
+    expect(card.frameId).not.toBeNull();
+    catalog.length = 0;
+
+    const resized = await runtime.invoke("resize_card", {
+      cardId: card.id,
+      size: { width: 200, height: 200 },
+    });
+    expect(catalog).toEqual(["resizeCard", "getCanvasState", "setCardFrame"]);
+    expect(resized.frameId).toBeNull();
   });
 });
