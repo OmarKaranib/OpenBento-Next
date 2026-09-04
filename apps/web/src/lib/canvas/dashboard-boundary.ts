@@ -1,7 +1,8 @@
 import type { Point, Rect, Size } from "@openbento/domain";
 
-export const DASHBOARD_BREAK_FREE_SCREEN_PX = 120;
-export const DASHBOARD_BREAK_FREE_HOLD_MS = 150;
+export const DASHBOARD_BREAK_FREE_SCREEN_PX = 180;
+export const DASHBOARD_BREAK_FREE_HOLD_MS = 300;
+const DASHBOARD_LEGACY_DRIFT_WORLD_PX = 4;
 
 export type DashboardGeometry = { position: Point; size: Size };
 
@@ -37,11 +38,29 @@ export function cardDashboardActivity(
   return undefined;
 }
 
-/** Column parked state is the existing presentation of its delivery semantics. */
+/**
+ * Column membership is persisted as the primary-frame id. Parking is still
+ * geometry-derived, so only a small legacy overflow is treated as an active
+ * member for an interaction; deliberately parked Columns remain free.
+ */
 export function columnDashboardActivity(
-  parked: boolean | undefined,
+  frameId: string | null | undefined,
+  primaryFrameId: string,
+  geometry?: DashboardGeometry,
+  dashboard?: Rect | null,
 ): boolean | undefined {
-  return typeof parked === "boolean" ? !parked : undefined;
+  if (
+    frameId === null ||
+    (frameId !== primaryFrameId && frameId !== undefined)
+  ) {
+    return false;
+  }
+  if (frameId === undefined) {
+    return geometry ? isDashboardGeometryInside(geometry, dashboard) : undefined;
+  }
+  if (!geometry || !dashboard) return true;
+  return isDashboardGeometryInside(geometry, dashboard) ||
+    isWithinDashboardLegacyDrift(geometry, dashboard);
 }
 
 export function isDashboardGeometryInside(
@@ -54,6 +73,20 @@ export function isDashboardGeometryInside(
     geometry.position.y >= dashboard.y &&
     geometry.position.x + geometry.size.width <= dashboard.x + dashboard.width &&
     geometry.position.y + geometry.size.height <= dashboard.y + dashboard.height
+  );
+}
+
+function isWithinDashboardLegacyDrift(
+  geometry: DashboardGeometry,
+  dashboard: Rect,
+): boolean {
+  return (
+    geometry.position.x >= dashboard.x - DASHBOARD_LEGACY_DRIFT_WORLD_PX &&
+    geometry.position.y >= dashboard.y - DASHBOARD_LEGACY_DRIFT_WORLD_PX &&
+    geometry.position.x + geometry.size.width <=
+      dashboard.x + dashboard.width + DASHBOARD_LEGACY_DRIFT_WORLD_PX &&
+    geometry.position.y + geometry.size.height <=
+      dashboard.y + dashboard.height + DASHBOARD_LEGACY_DRIFT_WORLD_PX
   );
 }
 

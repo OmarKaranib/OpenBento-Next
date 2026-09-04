@@ -176,9 +176,10 @@ export function ColumnNode({ data, selected }: NodeProps<ColumnFlowNode>) {
 
   if (!column) return null;
 
-  const dashboard = snapshot.canvases && snapshot.frames
-    ? primaryDashboardFrame(snapshot)?.bounds
+  const dashboardFrame = snapshot.canvases && snapshot.frames
+    ? primaryDashboardFrame(snapshot)
     : null;
+  const dashboard = dashboardFrame?.bounds ?? null;
 
   function markScrolling() {
     setIsScrolling(true);
@@ -200,7 +201,15 @@ export function ColumnNode({ data, selected }: NodeProps<ColumnFlowNode>) {
         onResizeStart={() => {
           workspaceUi?.setDashboardEdgeActive(false);
           resizeStartedInside.current =
-            columnDashboardActivity(parked) ??
+            columnDashboardActivity(
+              column.frameId,
+              dashboardFrame?.id ?? "",
+              {
+                position: { x: column.bounds.x, y: column.bounds.y },
+                size: { width: column.bounds.width, height: column.bounds.height },
+              },
+              dashboard,
+            ) ??
             isDashboardGeometryInside(
               {
                 position: { x: column.bounds.x, y: column.bounds.y },
@@ -249,7 +258,7 @@ export function ColumnNode({ data, selected }: NodeProps<ColumnFlowNode>) {
           });
         }}
       />
-      <header className="flex h-11 shrink-0 items-center gap-2 border-b border-white/10 px-3">
+      <header className="openbento-column-drag-handle flex h-11 shrink-0 items-center gap-2 border-b border-white/10 px-3">
         <span className="h-2 w-2 rounded-full bg-indigo-400" />
         <input
           aria-label="Column name"

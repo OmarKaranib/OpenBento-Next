@@ -512,13 +512,12 @@ function CanvasSurface() {
             const semanticActive =
               parsed?.kind === "card"
                 ? cardDashboardActivity(source.frameId, primaryFrame.id)
-                : "parked" in node.data
-                  ? columnDashboardActivity(
-                      typeof node.data.parked === "boolean"
-                        ? node.data.parked
-                        : undefined,
-                    )
-                  : undefined;
+                : columnDashboardActivity(
+                    source.frameId,
+                    primaryFrame.id,
+                    { position: node.position, size },
+                    primaryFrame.bounds,
+                  );
             const state = beginDashboardDrag(
               { position: node.position, size },
               primaryFrame.bounds,
