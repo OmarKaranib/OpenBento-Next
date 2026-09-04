@@ -54,6 +54,38 @@ body {
   border-color: #64748b;
 }
 
+/* Native Column scrolling stays available without a persistent browser gutter. */
+.openbento-column-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.openbento-column-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.openbento-column-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.openbento-column-scroll::-webkit-scrollbar-thumb {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.openbento-column-scroll:hover,
+.openbento-column-scroll[data-scrolling] {
+  scrollbar-color: rgba(113, 113, 122, 0.72) transparent;
+}
+
+.openbento-column-scroll:hover::-webkit-scrollbar-thumb,
+.openbento-column-scroll[data-scrolling]::-webkit-scrollbar-thumb {
+  background: rgba(113, 113, 122, 0.72);
+  border: 1px solid rgba(20, 24, 32, 0.6);
+}
+
 /* The dashboard is a hard-edged active surface; the surrounding canvas parks. */
 .openbento-dashboard-surface {
   transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;

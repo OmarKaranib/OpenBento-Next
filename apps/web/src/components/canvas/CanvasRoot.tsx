@@ -41,7 +41,11 @@ import {
   dashboardFitRequest,
   primaryDashboardFrame,
 } from "@/lib/canvas/dashboard-view";
-import { isNearDashboardBoundary } from "@/lib/canvas/dashboard-boundary";
+import {
+  beginDashboardDrag,
+  resolveDashboardDrag,
+  type DashboardDragState,
+} from "@/lib/canvas/dashboard-boundary";
 
 import "@xyflow/react/dist/style.css";
 
@@ -49,6 +53,12 @@ const NODE_TYPES = {
   ...cardNodeTypes(),
   frame: FrameNode,
   column: ColumnNode,
+};
+
+type ActiveDashboardDrag = {
+  nodeId: string;
+  size: { width: number; height: number };
+  state: DashboardDragState;
 };
 
 function CanvasSurface() {
@@ -71,6 +81,7 @@ function CanvasSurface() {
   const { screenToFlowPosition, setViewport, fitBounds } = useReactFlow();
   const interactingRef = useRef(false);
   const viewportTimer = useRef<number | null>(null);
+  const dashboardDragRef = useRef<ActiveDashboardDrag | null>(null);
   const lastNoteCreateAt = useRef(0);
   const cameraKeyRef = useRef<{
     canvasId: string | undefined;
@@ -473,12 +484,9 @@ function CanvasSurface() {
         onSelectionContextMenu={(event) => {
           openContextMenu(event);
         }}
-        onNodeDragStart={() => {
+        onNodeDragStart={(_event, node) => {
           interactingRef.current = true;
           setDashboardEdgeActive(false);
-          session.beginInteraction();
-        }}
-        onNodeDrag={(_event, node) => {
           const parsed = parseFlowNodeId(node.id);
           const source =
             parsed?.kind === "card"
@@ -486,20 +494,56 @@ function CanvasSurface() {
               : parsed?.kind === "column"
                 ? snapshot.columns.find((entry) => entry.id === parsed.entityId)
                 : null;
-          if (!source || !primaryFrame) return;
-          const size =
-            "size" in source
-              ? source.size
-              : { width: source.bounds.width, height: source.bounds.height };
-          setDashboardEdgeActive(
-            isNearDashboardBoundary(
-              { position: node.position, size },
-              primaryFrame.bounds,
-            ),
+          if (source && primaryFrame) {
+            const size =
+              "size" in source
+                ? source.size
+                : { width: source.bounds.width, height: source.bounds.height };
+            dashboardDragRef.current = {
+              nodeId: node.id,
+              size,
+              state: beginDashboardDrag(
+                { position: node.position, size },
+                primaryFrame.bounds,
+              ),
+            };
+          } else {
+            dashboardDragRef.current = null;
+          }
+          session.beginInteraction();
+        }}
+        onNodeDrag={(_event, node) => {
+          const drag = dashboardDragRef.current;
+          if (!drag || drag.nodeId !== node.id || !primaryFrame) return;
+          const resolved = resolveDashboardDrag(
+            drag.state,
+            node.position,
+            drag.size,
+            primaryFrame.bounds,
           );
+          dashboardDragRef.current = { ...drag, state: resolved.state };
+          setDashboardEdgeActive(resolved.resisting);
+          if (
+            resolved.position.x !== node.position.x ||
+            resolved.position.y !== node.position.y
+          ) {
+            setNodes((current) =>
+              current.map((entry) =>
+                entry.id === node.id
+                  ? { ...entry, position: resolved.position }
+                  : entry,
+              ),
+            );
+          }
         }}
         onNodeDragStop={(_event, node) => {
           void (async () => {
+            const drag = dashboardDragRef.current;
+            const finalPosition =
+              drag?.nodeId === node.id
+                ? drag.state.displayedPosition
+                : node.position;
+            dashboardDragRef.current = null;
             try {
               const parsed = parseFlowNodeId(node.id);
               if (parsed?.kind === "card") {
@@ -507,7 +551,7 @@ function CanvasSurface() {
                   (entry) => entry.id === parsed.entityId,
                 );
                 if (card) {
-                  await persistCardGeometry(card, { position: node.position });
+                  await persistCardGeometry(card, { position: finalPosition });
                 }
               }
               if (parsed?.kind === "column") {
@@ -515,7 +559,7 @@ function CanvasSurface() {
                   (entry) => entry.id === parsed.entityId,
                 );
                 if (column) {
-                  await persistColumnMove(column, node.position);
+                  await persistColumnMove(column, finalPosition);
                 }
               }
             } finally {
