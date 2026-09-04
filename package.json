@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
+    "start": "pnpm --filter web start",
     "lint": "pnpm --filter web lint && eslint . --max-warnings 0",
     "typecheck": "tsc --noEmit -p tsconfig.json && pnpm --filter web exec next typegen && pnpm --filter web exec tsc --noEmit",
     "test": "vitest run"
