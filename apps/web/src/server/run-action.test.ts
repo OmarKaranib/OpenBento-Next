@@ -94,7 +94,7 @@ describe("session-bound server wrappers", () => {
     });
     const frame = await runBoundAction(deps, "createFrame", {
       canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 800, height: 600 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
     const column = await runBoundAction(deps, "createColumn", {
       canvasId: canvas.id,
@@ -157,14 +157,18 @@ describe("session-bound server wrappers", () => {
       frameId: frame.id,
       name: "F",
     });
-    await runBoundAction(deps, "moveFrame", {
-      frameId: frame.id,
-      position: { x: 2, y: 2 },
-    });
-    await runBoundAction(deps, "resizeFrame", {
-      frameId: frame.id,
-      size: { width: 40, height: 40 },
-    });
+    await expect(
+      runBoundAction(deps, "moveFrame", {
+        frameId: frame.id,
+        position: { x: 2, y: 2 },
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+    await expect(
+      runBoundAction(deps, "resizeFrame", {
+        frameId: frame.id,
+        size: { width: 40, height: 40 },
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
     await runBoundAction(deps, "updateWatchBot", {
       watchBotId: bot.id,
       name: "Bot",

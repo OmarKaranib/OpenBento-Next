@@ -38,6 +38,7 @@ import {
   type UpdateWatchBotInput,
 } from "./actions";
 import { cardContentOf, cardFromContent } from "./card-content";
+import { defaultColumnPosition } from "./columns";
 import { DomainError } from "./errors";
 import { assertSameCanvasMembership, containsRect } from "./frames";
 import { matchesJsonSchema, type JsonSchemaNode } from "./payloads";
@@ -284,8 +285,14 @@ export class ActionExecutor {
 
   async createFrame(input: CreateFrameInput): Promise<Frame> {
     this.validate("createFrame", input);
-    this.assertPositiveSize(input.bounds);
     const canvas = await this.requireOwnedCanvas(input.canvasId);
+    this.assertPositiveSize(input.bounds);
+    if (!isCanonicalPrimaryFrameBounds(input.bounds)) {
+      throw new DomainError(
+        "conflict",
+        "The primary Frame has fixed canonical 1600×900 geometry",
+      );
+    }
     const frames = await this.store.listFramesByCanvas(canvas.id);
     if (frames.length > 0) {
       const primary = selectPrimaryFrame(frames, canvas.primaryFrameId);
@@ -298,7 +305,7 @@ export class ActionExecutor {
       const next: Frame = {
         ...primary,
         name: input.name ?? primary.name,
-        bounds: { ...input.bounds },
+        bounds: { ...PRIMARY_FRAME_BOUNDS },
         updatedAt: this.now(),
       };
       await this.store.saveFrame(next);
@@ -309,7 +316,7 @@ export class ActionExecutor {
       id: canvas.primaryFrameId,
       canvasId: input.canvasId,
       name: input.name ?? "Dashboard",
-      bounds: { ...input.bounds },
+      bounds: { ...PRIMARY_FRAME_BOUNDS },
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -331,35 +338,21 @@ export class ActionExecutor {
 
   async moveFrame(input: MoveFrameInput): Promise<Frame> {
     this.validate("moveFrame", input);
-    const frame = await this.requireOwnedFrame(input.frameId);
-    const next: Frame = {
-      ...frame,
-      bounds: {
-        ...frame.bounds,
-        x: input.position.x,
-        y: input.position.y,
-      },
-      updatedAt: this.now(),
-    };
-    await this.store.saveFrame(next);
-    return next;
+    await this.requireOwnedFrame(input.frameId);
+    throw new DomainError(
+      "conflict",
+      "The canonical primary Frame cannot be moved",
+    );
   }
 
   async resizeFrame(input: ResizeFrameInput): Promise<Frame> {
     this.validate("resizeFrame", input);
     this.assertPositiveSize(input.size);
-    const frame = await this.requireOwnedFrame(input.frameId);
-    const next: Frame = {
-      ...frame,
-      bounds: {
-        ...frame.bounds,
-        width: input.size.width,
-        height: input.size.height,
-      },
-      updatedAt: this.now(),
-    };
-    await this.store.saveFrame(next);
-    return next;
+    await this.requireOwnedFrame(input.frameId);
+    throw new DomainError(
+      "conflict",
+      "The canonical primary Frame cannot be resized",
+    );
   }
 
   async deleteFrame(input: DeleteFrameInput): Promise<DeleteFrameResult> {
@@ -378,10 +371,8 @@ export class ActionExecutor {
     const columns = await this.store.listColumnsByCanvas(canvas.id);
     const size = input.size ?? { ...DEFAULT_COLUMN_SIZE };
     this.assertColumnSize(size);
-    const position = input.position ?? {
-      x: frame.bounds.x + 40 + columns.length * (DEFAULT_COLUMN_SIZE.width + 24),
-      y: frame.bounds.y + 80,
-    };
+    const position =
+      input.position ?? defaultColumnPosition(frame, columns, size);
     const timestamp = this.now();
     const column: Column = {
       id: this.id(),
@@ -636,7 +627,16 @@ export class ActionExecutor {
     const frames = await this.store.listFramesByCanvas(canvas.id);
     const primary = selectPrimaryFrame(frames, canvas.primaryFrameId);
     if (primary) {
-      return primary;
+      if (isCanonicalPrimaryFrameBounds(primary.bounds)) {
+        return primary;
+      }
+      const normalized = {
+        ...primary,
+        bounds: { ...PRIMARY_FRAME_BOUNDS },
+        updatedAt: this.now(),
+      };
+      await this.store.saveFrame(normalized);
+      return normalized;
     }
     const timestamp = this.now();
     const frame: Frame = {
@@ -681,7 +681,10 @@ export class ActionExecutor {
     if (!frame) {
       throw new DomainError("not_found", "Frame not found");
     }
-    await this.requireOwnedCanvas(frame.canvasId);
+    const canvas = await this.requireOwnedCanvas(frame.canvasId);
+    if (frame.id !== canvas.primaryFrameId) {
+      throw new DomainError("conflict", "Frame is not the Canvas primary Frame");
+    }
     return frame;
   }
 
@@ -721,6 +724,20 @@ export function selectPrimaryFrame(
     [...frames].sort(
       (a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
     )[0]
+  );
+}
+
+export function isCanonicalPrimaryFrameBounds(bounds: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}): boolean {
+  return (
+    bounds.x === PRIMARY_FRAME_BOUNDS.x &&
+    bounds.y === PRIMARY_FRAME_BOUNDS.y &&
+    bounds.width === PRIMARY_FRAME_BOUNDS.width &&
+    bounds.height === PRIMARY_FRAME_BOUNDS.height
   );
 }
 

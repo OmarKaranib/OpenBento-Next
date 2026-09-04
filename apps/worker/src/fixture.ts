@@ -19,7 +19,7 @@ export async function seedFixtureStore(store: DomainStore = new InMemoryDomainSt
   await executor.createFrame({
     canvasId: canvas.id,
     name: "Main Story",
-    bounds: { x: 0, y: 0, width: 1400, height: 900 },
+    bounds: { x: 0, y: 0, width: 1600, height: 900 },
   });
   const watchBot = await executor.createWatchBot({
     canvasId: canvas.id,

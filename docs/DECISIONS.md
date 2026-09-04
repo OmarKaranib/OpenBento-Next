@@ -28,7 +28,7 @@ Left rail: Canvases, WatchBots, Settings; Profile fixed at the bottom. Top-left:
 
 ## D-006 — Frames + fullscreen
 
-Frames are persisted bordered regions. Fullscreen is **view-only** (`fullscreenFrame`) and must **not** rewrite stored Frame or Card geometry.
+Each Canvas has one persisted canonical 1600×900 dashboard Frame. It cannot be created, moved, resized, or deleted through the UI or model-facing tools. Fullscreen is **view-only** (`fullscreenFrame`) and must **not** rewrite stored Frame or Card geometry.
 
 ## D-007 — Full shared domain catalog
 
@@ -40,7 +40,7 @@ One catalog in `packages/domain` (23 actions):
 - WatchBot: `createWatchBot` (requires `instruction`), `updateWatchBot`, `pauseWatchBot`, `resumeWatchBot`
 - Read/view: `getCanvasState`, `getWatchBotStatus`, `fullscreenFrame`
 
-`moveCard`, `resizeCard`, `updateCanvasViewport` are first-class. Destructive actions are human-UI-only and are excluded from WebMCP and the Interactive Agent. WebMCP tools use the safe snake_case → camelCase map only (`WEBMCP_SPEC.md`).
+`moveCard`, `resizeCard`, `updateCanvasViewport` are first-class. Destructive actions are human-UI-only and are excluded from WebMCP and the Interactive Agent. Frame create/update/move/resize are also excluded from both model-facing surfaces; only view-only fullscreen remains. WebMCP tools use the safe snake_case → camelCase map only (`WEBMCP_SPEC.md`).
 
 ## D-008 — MIT for WebMCP detectability
 

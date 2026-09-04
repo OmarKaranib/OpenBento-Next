@@ -59,7 +59,7 @@ export function nodesFromSnapshot(
       data: { frameId: frame.id },
       zIndex: frame.zIndex ?? 0,
       selectable: !active,
-      draggable: !active,
+      draggable: false,
     })),
     ...visibleColumns.map((column) => {
       const parked = primaryFrame ? !isColumnActive(column, primaryFrame) : true;

@@ -12,7 +12,7 @@ This package is types, catalog, payload schemas, a persistence **port**, `Supaba
 | --- | --- |
 | Canvas | `createCanvas`, `renameCanvas`, `switchCanvas`, `updateCanvasViewport`, `deleteCanvas` |
 | Card | `createCard`, `updateCard`, `moveCard`, `resizeCard`, `setCardFrame`, `deleteCard` |
-| Frame | `createFrame`, `updateFrame`, `moveFrame`, `resizeFrame`, `deleteFrame` |
+| Frame | `createFrame` (canonical compatibility only), `updateFrame` (name only), `moveFrame` / `resizeFrame` / `deleteFrame` (reject) |
 | WatchBot | `createWatchBot` (requires `instruction`), `updateWatchBot`, `pauseWatchBot`, `resumeWatchBot` |
 | Read/view | `getCanvasState`, `getWatchBotStatus`, `fullscreenFrame` (view-only) |
 
@@ -41,6 +41,6 @@ await executor.execute("createCanvas", { name: "Trump News" });
 
 WebMCP tools use `WEBMCP_TOOL_TO_ACTION` + `createWebMcpRuntime({ execute })`. Production `execute` is `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })` in `apps/web`. This package does not construct a session `ownerId`.
 
-The three destructive actions are intentionally absent from the WebMCP and Interactive Agent allowlists. The human UI invokes them through the same session-bound executor. Card deletion preserves WatchBot event history with a null Card link; Frame deletion first clears membership without changing Card geometry; Canvas deletion relies on the database's owned child cascades.
+Destructive actions and Frame create/update/move/resize are intentionally absent from the WebMCP and Interactive Agent allowlists. The human UI may safely rename the canonical Frame but has no geometry mutation path. Card deletion preserves WatchBot event history with a null Card link; Canvas deletion relies on the database's owned child cascades.
 
 SQL matching `src/schema.ts` lives in `supabase/migrations`. **Local/dev only. Do not apply to production.**

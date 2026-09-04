@@ -37,12 +37,16 @@ Left-rail WatchBots is global. Top-left status is current Canvas only.
 
 Railway-like **vertical** stack on the canvas:
 
-- grid/snap
-- zoom in / zoom out / fit (camera only)
-- Add Column
-- undo / redo
+- Zoom In
+- Zoom Out
+- Fit Dashboard
+- Return to Dashboard
+- Fullscreen Dashboard (active toggle; remains available while fullscreened)
+- Snap/Grid
+- Undo
+- Redo
 
-The primary Frame is created with its Canvas. Human UI does not offer a second-Frame or delete-Frame control.
+The primary Frame is created with its Canvas at fixed `{x:0,y:0,width:1600,height:900}` bounds. Human UI does not offer create, move, resize, or delete Frame controls. Columns are added from the Canvas context menu.
 
 ## Cards, Columns, and the primary Frame
 

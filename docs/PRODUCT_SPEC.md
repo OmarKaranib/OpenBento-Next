@@ -19,13 +19,13 @@ Interactive **Agent** (top-right) is not a WatchBot.
 
 ## Shared actions
 
-Human, WatchBot, and WebMCP use the full `@openbento/domain` catalog (see `ARCHITECTURE.md`). `ownerId` is never an action input. Provenance is required on source Cards only.
+Human UI, WatchBot, and model-facing surfaces reuse actions from `@openbento/domain` (see `ARCHITECTURE.md`). The Agent and WebMCP expose safe allowlisted subsets. `ownerId` is never an action input. Provenance is required on source Cards only.
 
 ## Users and loops
 
-- **Human:** create/switch Canvas, place Cards, draw Frames, fullscreen, talk to Agent, pause/resume WatchBots.
+- **Human:** create/switch Canvas, place Cards, navigate/fullscreen the fixed dashboard Frame, talk to Agent, pause/resume WatchBots.
 - **WatchBot:** follow `instruction`, write sourced Cards through the catalog.
-- **Agent / WebMCP:** same catalog as tools.
+- **Agent / WebMCP:** safe allowlisted catalog actions only; Frame geometry mutations are not model-facing.
 
 ## v1 intent vs this phase
 

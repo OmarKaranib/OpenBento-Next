@@ -493,7 +493,8 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
   },
   createFrame: {
     name: "createFrame",
-    description: "Create a persisted bordered Frame region on a Canvas.",
+    description:
+      "Compatibility action that accepts only the Canvas canonical primary Frame bounds.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -520,7 +521,7 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
   },
   moveFrame: {
     name: "moveFrame",
-    description: "Move a Frame in world coordinates.",
+    description: "Rejected compatibility action: primary Frame geometry is fixed.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -533,7 +534,7 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
   },
   resizeFrame: {
     name: "resizeFrame",
-    description: "Resize a Frame. Does not enter fullscreen or rewrite Cards.",
+    description: "Rejected compatibility action: primary Frame geometry is fixed.",
     inputSchema: {
       type: "object",
       additionalProperties: false,

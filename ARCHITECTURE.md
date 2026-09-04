@@ -47,14 +47,14 @@ Locked rules:
 - `ownerId` is **server-derived from the authenticated session** (`auth.uid()`). It must **not** appear on action inputs. Canvas and WatchBot **records** still carry `ownerId`.
 - Provenance is required on **externally discovered source Cards only**. Notes do not get a fake source URL. `moveCard` / `resizeCard` do not re-require provenance.
 - A Card is **discriminated `type` + matching `payload`**. Runtime validation uses shared `PAYLOAD_SCHEMAS`.
-- Every Canvas has exactly one primary Frame. Canvas creation persists both atomically at stable logical bounds `{x:0,y:0,width:1600,height:900}`. Compatibility `createFrame` configures the same Frame; `deleteFrame` rejects the sole primary.
+- Every Canvas has exactly one primary Frame. Canvas creation persists both atomically at stable logical bounds `{x:0,y:0,width:1600,height:900}`. Compatibility `createFrame` accepts only those bounds; `moveFrame`, `resizeFrame`, and `deleteFrame` reject. Only safe metadata rename remains.
 - Free Card activity is geometric full containment. Column membership is authoritative `card.columnId`; `setCardColumn` verifies the same Canvas and primary Frame. `detachCardFromColumn` clears only membership and persists the drop geometry on the same Card.
 - `fullscreenFrame` is **view state**. It must not rewrite stored Frame, Column, or Card geometry; the UI locks the camera while keeping dashboard contents interactive.
 - Zoom / `updateCanvasViewport` is **camera-only**. No semantic zoom.
 - WatchBot status: **`running` \| `paused` \| `error`** only.
 - `listWatchBots` is a store/worker scan, **not** an `ACTION_CATALOG` name. The worker stamps `ownerId` from the WatchBot record.
 
-WebMCP registers the Issue #1 snake_case map via `document.modelContext.registerTool`. `execute` is `runWebMcpTool` → `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })`. ownerId is never taken from tool arguments.
+WebMCP registers a 15-tool safe snake_case map via `document.modelContext.registerTool`. Frame create/update/move/resize are excluded; `fullscreen_frame` remains view-only. `execute` is `runWebMcpTool` → `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })`. ownerId is never taken from tool arguments.
 
 ## Shared executor and persist
 

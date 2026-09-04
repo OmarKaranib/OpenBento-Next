@@ -20,7 +20,7 @@ export default function WebMcpJudgePage() {
         <h1 className="mt-2 text-2xl font-medium">OpenBento WebMCP</h1>
         <p className="mt-3 text-sm leading-6 text-zinc-400">
           OpenBento is a living intelligence Canvas for following an evolving
-          story through original sources, Cards, Frames, and persistent
+          story through original sources, Cards, a canonical dashboard Frame, and persistent
           WatchBots. WebMCP lets an agent operate that visual workspace with a
           person instead of only returning a chat response.
         </p>
@@ -30,7 +30,7 @@ export default function WebMcpJudgePage() {
           <p className="mt-3 text-sm leading-6 text-zinc-400">
             A human can arrange and inspect the Canvas directly while an agent
             can create or rename a Canvas, move its camera, create or edit
-            Cards and Frames, enter a focused Frame view, and start or manage a
+            Cards, enter a focused dashboard view, and start or manage a
             WatchBot. Every tool uses the same domain operation as the human
             interface, so agent changes appear in the same workspace with the
             same ownership and geometry rules.
@@ -41,8 +41,8 @@ export default function WebMcpJudgePage() {
           <h2 className="text-sm font-medium text-zinc-200">Try this</h2>
           <ul className="list-disc space-y-1 pl-5">
             <li>“Create a Canvas called Climate Briefing.”</li>
-            <li>“Add a Note Card for the key question, then move it into a Frame named Evidence.”</li>
-            <li>“Fullscreen the Evidence Frame for a focused monitoring view.”</li>
+            <li>“Add a Note Card for the key question, then move it into the dashboard.”</li>
+            <li>“Fullscreen the dashboard for a focused monitoring view.”</li>
             <li>“Create a WatchBot that monitors meaningful developments and preserves sources.”</li>
           </ul>
         </section>
@@ -91,7 +91,7 @@ export default function WebMcpJudgePage() {
           </p>
           <h2 className="mt-6 text-sm font-medium text-zinc-200">What to verify</h2>
           <p>
-            Create a Card outside a Frame, then ask the agent to move it inside:
+            Create a Card outside the dashboard, then ask the agent to move it inside:
             membership updates automatically from geometry. Fullscreen a Frame:
             it is a view only, so the stored Canvas layout does not change.
             WatchBot changes use the same shared operations as the rest of the
@@ -100,8 +100,8 @@ export default function WebMcpJudgePage() {
           <p>
             Automated workflow and adversarial evaluations run with{" "}
             <code className="text-zinc-300">pnpm test</code>. Tools require an
-            authenticated session; they cannot accept a user identity or direct
-            Frame membership from agent input.
+            authenticated session; they cannot accept a user identity, direct
+            Frame membership, or Frame geometry mutations from agent input.
           </p>
         </section>
 

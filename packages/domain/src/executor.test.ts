@@ -38,7 +38,7 @@ async function seedOwned(ownerId: "user-a" | "user-b" = "user-a") {
   });
   const frame = await exec.createFrame({
     canvasId: canvas.id,
-    bounds: { x: 0, y: 0, width: 200, height: 200 },
+    bounds: { x: 0, y: 0, width: 1600, height: 900 },
     name: "Main",
   });
   const watchBot = await exec.createWatchBot({
@@ -254,7 +254,7 @@ describe("destructive actions", () => {
     });
     await a.createFrame({
       canvasId: current.id,
-      bounds: { x: 0, y: 0, width: 100, height: 100 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
     const bot = await a.createWatchBot({
       canvasId: current.id,
@@ -284,7 +284,7 @@ describe("setCardFrame same-canvas membership", () => {
     });
     const frame = await a.createFrame({
       canvasId: canvasB.id,
-      bounds: { x: 0, y: 0, width: 100, height: 100 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
 
     await expect(

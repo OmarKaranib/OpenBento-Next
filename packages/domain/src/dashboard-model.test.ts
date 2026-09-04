@@ -8,6 +8,7 @@ import {
   PRIMARY_FRAME_BOUNDS,
   selectPrimaryFrame,
   type Card,
+  type Column,
   type Frame,
 } from "./index";
 
@@ -38,7 +39,7 @@ describe("singleton primary Frame", () => {
     const canvas = await executor.createCanvas({ name: "Dashboard" });
     const frame = await executor.createFrame({
       canvasId: canvas.id,
-      bounds: { x: 10, y: 20, width: 800, height: 450 },
+      bounds: PRIMARY_FRAME_BOUNDS,
       name: "Primary",
     });
     expect(frame.id).toBe(canvas.primaryFrameId);
@@ -46,6 +47,32 @@ describe("singleton primary Frame", () => {
     await expect(executor.deleteFrame({ frameId: frame.id })).rejects.toMatchObject({
       code: "conflict",
     });
+  });
+
+  it("rejects create, move, and resize attempts that alter canonical geometry", async () => {
+    const { executor } = harness();
+    const canvas = await executor.createCanvas({ name: "Dashboard" });
+    await expect(
+      executor.createFrame({
+        canvasId: canvas.id,
+        bounds: { x: 10, y: 20, width: 800, height: 450 },
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+    await expect(
+      executor.moveFrame({
+        frameId: canvas.primaryFrameId,
+        position: { x: 10, y: 20 },
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+    await expect(
+      executor.resizeFrame({
+        frameId: canvas.primaryFrameId,
+        size: { width: 800, height: 450 },
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+    expect(
+      (await executor.getCanvasState({ canvasId: canvas.id })).frames[0]?.bounds,
+    ).toEqual(PRIMARY_FRAME_BOUNDS);
   });
 
   it("bootstraps a legacy zero-Frame Canvas and selects legacy Frames deterministically", async () => {
@@ -69,6 +96,40 @@ describe("singleton primary Frame", () => {
     ];
     expect(selectPrimaryFrame(frames)?.id).toBe("old-a");
     expect(selectPrimaryFrame(frames, "new")?.id).toBe("new");
+  });
+
+  it("normalizes a legacy primary Frame without translating Cards", async () => {
+    const { store, executor } = harness();
+    await store.saveCanvas({
+      id: "legacy-canvas",
+      ownerId: "owner-a",
+      primaryFrameId: "legacy-frame",
+      name: "Legacy",
+      viewport: { x: 0, y: 0, zoom: 1 },
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    await store.saveFrame({
+      id: "legacy-frame",
+      canvasId: "legacy-canvas",
+      name: "Old dashboard",
+      bounds: { x: 99, y: 88, width: 700, height: 500 },
+      createdAt: "2026-01-01T00:00:00.000Z",
+      updatedAt: "2026-01-01T00:00:00.000Z",
+    });
+    const card = await executor.createCard({
+      canvasId: "legacy-canvas",
+      type: "note",
+      payload: { text: "Keep me put" },
+      position: { x: 1700, y: 950 },
+    });
+
+    const state = await executor.getCanvasState({ canvasId: "legacy-canvas" });
+    expect(state.frames[0]?.bounds).toEqual(PRIMARY_FRAME_BOUNDS);
+    expect(state.cards.find((entry) => entry.id === card.id)?.position).toEqual({
+      x: 1700,
+      y: 950,
+    });
   });
 });
 
@@ -100,6 +161,26 @@ describe("Column membership, ordering, and detach", () => {
     await expect(
       executor.setCardColumn({ cardId: card.id, columnId: column.id }),
     ).rejects.toMatchObject({ code: "invalid_input" });
+  });
+
+  it("fills active dashboard slots before deterministic parking slots", async () => {
+    const { executor } = harness();
+    const canvas = await executor.createCanvas({ name: "Slots" });
+    const columns: Column[] = [];
+    for (let index = 0; index < 6; index += 1) {
+      columns.push(await executor.createColumn({ canvasId: canvas.id }));
+    }
+    expect(columns.map((column) => column.bounds)).toEqual([
+      { x: 40, y: 60, width: 320, height: 780 },
+      { x: 384, y: 60, width: 320, height: 780 },
+      { x: 728, y: 60, width: 320, height: 780 },
+      { x: 1072, y: 60, width: 320, height: 780 },
+      { x: 1640, y: 60, width: 320, height: 780 },
+      { x: 1984, y: 60, width: 320, height: 780 },
+    ]);
+    const frame = (await executor.getCanvasState({ canvasId: canvas.id })).frames[0]!;
+    expect(columns.slice(0, 4).every((column) => isColumnActive(column, frame))).toBe(true);
+    expect(columns.slice(4).every((column) => !isColumnActive(column, frame))).toBe(true);
   });
 
   it("orders newest first with a stable id tie-break", () => {

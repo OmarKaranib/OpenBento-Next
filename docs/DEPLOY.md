@@ -14,6 +14,34 @@ Application + config for Railway web + worker against the existing
 
 This document does **not** deploy Railway, create a Railway worker service, apply production SQL, create another Supabase project, enable `OPENBENTO_WORKER_ENABLED`, enable `X_PROVIDER_ENABLED`, or call the X API. Public worker deploy and live providers remain **CR3**.
 
+## Dashboard migration/application cutover (owner-controlled)
+
+PR #57 is a coordinated cutover, not an application-only deploy. The new web
+and worker code require the Column schema, while the previous application does
+not understand its required relationships. Do not merge and allow an automatic
+Railway deploy before the reviewed migration is ready.
+
+When the owner authorizes the cutover, use one controlled maintenance window:
+
+1. Keep all WatchBot/provider gates disabled and stop or pause application
+   writes.
+2. Take and verify the intended environment backup, then confirm the exact
+   database and reviewed migration checksum.
+3. Apply `20260904010000_primary_frame_columns.sql` to that environment. This
+   normalizes the selected primary Frame to 1600×900 and deterministically
+   places active then fully parked overflow Columns without moving Cards.
+4. Deploy the exact reviewed PR merge commit to web and worker as one release;
+   do not run old application code against the migrated schema.
+5. Verify auth/RLS, Canvas restore, canonical Frame bounds, Column/WatchBot
+   links, `/health`, WebMCP registration, and a provider-free worker startup.
+6. Re-enable the worker and individual providers only after those checks pass
+   and only under their existing approvals and request budgets.
+
+If verification fails, keep writes and providers disabled. Because this
+migration adds required relationships and normalizes data, rollback must be a
+preplanned coordinated database restore plus application rollback—not an
+unreviewed partial downgrade.
+
 ## Two Railway services (same repo)
 
 Railway Config as Code (`railway.toml` / `railway.json`) describes **one service per file**. Create **two services** in the dashboard from this GitHub repo. Both must use **Root Directory = repo root** (`/` / empty). Do **not** set Root Directory to `apps/web` — the pnpm lockfile lives at the repo root.

@@ -96,6 +96,8 @@ describe("local/dev schema SQL", () => {
   it("enforces singleton Frames, explicit Columns, and WatchBot one-to-one", () => {
     expect(sql).toMatch(/primary_frame_id uuid/);
     expect(sql).toMatch(/frames_one_per_canvas_key unique \(canvas_id\)/);
+    expect(sql).toMatch(/frames_canonical_dashboard_bounds_check/);
+    expect(sql).toMatch(/x = 0 and y = 0 and width = 1600 and height = 900/);
     expect(sql).toMatch(/create table public\.columns/);
     expect(sql).toMatch(/cards_column_same_primary_frame_fkey/);
     expect(sql).toMatch(/watch_bots_one_per_column_key unique \(column_id\)/);
@@ -108,6 +110,8 @@ describe("local/dev schema SQL", () => {
     expect(sql).toMatch(/update public\.cards card\s+set frame_id = null/i);
     expect(sql).toMatch(/create temporary table watchbot_column_backfill/i);
     expect(sql).toMatch(/alter column column_id set not null/i);
+    expect(sql).toMatch(/when ordinal <= 4 then 40/);
+    expect(sql).toMatch(/else 1640/);
     expect(sql).not.toMatch(/delete from public\.cards/i);
     expect(sql).not.toMatch(/delete from public\.watch_bots/i);
   });

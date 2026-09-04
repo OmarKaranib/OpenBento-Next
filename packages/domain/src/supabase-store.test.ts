@@ -42,7 +42,7 @@ describe("SupabaseDomainStore SQL-contract double", () => {
     });
     const frame = await a.createFrame({
       canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 100, height: 100 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
     const bot = await a.createWatchBot({
       canvasId: canvas.id,
@@ -91,7 +91,7 @@ describe("SupabaseDomainStore SQL-contract double", () => {
     });
     const frame = await a.createFrame({
       canvasId: two.id,
-      bounds: { x: 0, y: 0, width: 80, height: 80 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
     await expect(
       a.setCardFrame({ cardId: card.id, frameId: frame.id }),
@@ -249,7 +249,7 @@ describe("SupabaseDomainStore SQL-contract double", () => {
     });
     const frame = await a.createFrame({
       canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 400, height: 300 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
     const bot = await a.createWatchBot({
       canvasId: canvas.id,
@@ -306,7 +306,7 @@ describe("SupabaseDomainStore SQL-contract double", () => {
     const frame = await a.createFrame({
       canvasId: canvas.id,
       name: "Main",
-      bounds: { x: 0, y: 0, width: 200, height: 160 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
     await a.setCardFrame({ cardId: card.id, frameId: frame.id });
     await a.createWatchBot({

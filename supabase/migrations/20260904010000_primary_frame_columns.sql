@@ -30,6 +30,13 @@ set primary_frame_id = ranked.id
 from ranked
 where ranked.canvas_id = c.id and ranked.ordinal = 1;
 
+-- The dashboard boundary is canonical. Existing Card geometry is deliberately
+-- not translated; anything outside these bounds becomes parked.
+update public.frames frame
+set x = 0, y = 0, width = 1600, height = 900, updated_at = now()
+from public.canvases canvas
+where frame.id = canvas.primary_frame_id;
+
 -- Cards from legacy extra Frames keep their content, provenance, and world
 -- geometry. They become free-floating/parked before those empty shells go away.
 update public.cards card
@@ -45,7 +52,9 @@ where frame.canvas_id = canvas.id
   and frame.id <> canvas.primary_frame_id;
 
 alter table public.frames
-  add constraint frames_one_per_canvas_key unique (canvas_id);
+  add constraint frames_one_per_canvas_key unique (canvas_id),
+  add constraint frames_canonical_dashboard_bounds_check
+    check (x = 0 and y = 0 and width = 1600 and height = 900);
 
 alter table public.canvases
   alter column primary_frame_id set not null,
@@ -106,8 +115,11 @@ select
   canvas_id,
   frame_id,
   name,
-  40 + ((ordinal - 1) * 344),
-  80,
+  case
+    when ordinal <= 4 then 40 + ((ordinal - 1) * 344)
+    else 1640 + ((ordinal - 5) * 344)
+  end,
+  60,
   320,
   780,
   created_at,

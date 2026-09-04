@@ -159,7 +159,7 @@ export function contextMenuItems(args: {
     }
     return {
       id,
-      label: "Fit view",
+      label: "Fit Dashboard",
       disabled: false,
       actionName: "fitView",
     };

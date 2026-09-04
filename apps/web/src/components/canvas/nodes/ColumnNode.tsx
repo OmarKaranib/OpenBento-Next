@@ -7,6 +7,7 @@ import {
 } from "@openbento/domain";
 import { GripVertical, Play } from "lucide-react";
 import { useEffect, useState } from "react";
+import { XCardContent } from "@/components/cards/XCardContent";
 import { useCanvasCommands } from "@/components/canvas/use-canvas-commands";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { cardSourceHref } from "@/lib/canvas/context-menu";
@@ -28,6 +29,15 @@ export type ColumnFlowNode = Node<
   { columnId: string; parked?: boolean },
   "column"
 >;
+
+export function setColumnCardDragData(
+  dataTransfer: Pick<DataTransfer, "effectAllowed" | "setData">,
+  cardId: string,
+): void {
+  dataTransfer.effectAllowed = "move";
+  dataTransfer.setData(COLUMN_CARD_DRAG_TYPE, cardId);
+  dataTransfer.setData("text/plain", cardId);
+}
 
 function ColumnCardTile({ card, parked }: { card: Card; parked: boolean }) {
   const [liveIds, setLiveIds] = useState<readonly string[]>([]);
@@ -55,15 +65,11 @@ function ColumnCardTile({ card, parked }: { card: Card; parked: boolean }) {
     <article
       data-column-card-id={card.id}
       data-card-interactive
-      draggable={!parked}
-      onDragStart={(event) => {
-        event.dataTransfer.effectAllowed = "move";
-        event.dataTransfer.setData(COLUMN_CARD_DRAG_TYPE, card.id);
-        event.dataTransfer.setData("text/plain", card.id);
-      }}
       className="group/card relative shrink-0 overflow-hidden rounded-lg border border-white/10 bg-[#11151c] shadow-sm"
     >
-      {videoId ? (
+      {card.type === "x" ? (
+        <XCardContent card={card} variant="column" />
+      ) : videoId ? (
         <div className="relative aspect-video w-full overflow-hidden bg-black">
           {mounted ? (
             <iframe
@@ -119,10 +125,21 @@ function ColumnCardTile({ card, parked }: { card: Card; parked: boolean }) {
           )}
         </div>
       )}
-      <GripVertical
-        className="pointer-events-none absolute right-2 top-2 h-4 w-4 text-white/50 opacity-0 transition-opacity group-hover/card:opacity-100"
-        aria-hidden="true"
-      />
+      <button
+        type="button"
+        draggable={!parked}
+        disabled={parked}
+        data-column-card-drag-handle
+        aria-label={`Drag ${sanitizeUntrustedDisplayText(title, 80)} out of Column`}
+        title="Drag out to dashboard"
+        className="nodrag nopan absolute right-1.5 top-1.5 z-20 flex h-7 w-7 cursor-grab items-center justify-center rounded-md border border-white/10 bg-black/65 text-white/75 shadow-sm hover:bg-black/85 hover:text-white active:cursor-grabbing disabled:cursor-default disabled:opacity-40"
+        onDragStart={(event) => {
+          event.stopPropagation();
+          setColumnCardDragData(event.dataTransfer, card.id);
+        }}
+      >
+        <GripVertical className="h-4 w-4" aria-hidden="true" />
+      </button>
     </article>
   );
 }

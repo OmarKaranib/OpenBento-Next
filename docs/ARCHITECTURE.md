@@ -46,13 +46,14 @@ Locked rules:
 - `ownerId` is **server-derived from the authenticated session** (`auth.uid()`). It must **not** appear on action inputs. Canvas and WatchBot **records** still carry `ownerId`.
 - Provenance is required on **externally discovered source Cards only**. Notes do not get a fake source URL. `moveCard` / `resizeCard` do not re-require provenance.
 - A Card is **discriminated `type` + matching `payload`**. Runtime validation uses shared `PAYLOAD_SCHEMAS`.
+- Every Canvas owns one fixed `{x:0,y:0,width:1600,height:900}` primary Frame. `createFrame` is canonical-bounds compatibility only; `moveFrame`, `resizeFrame`, and `deleteFrame` reject.
 - `setCardFrame` applies membership from spatial containment. Smallest area wins; **equal-area ties use newest `createdAt`**. Platform must call `canSetCardFrame` / `assertSameCanvasMembership` before persisting membership — **do not rely on RLS alone**. Two-call membership stays: write bounds, then `setCardFrame`. Do not fold membership into `createCard`.
 - `fullscreenFrame` is **view-only**. It must not rewrite stored Frame or Card geometry.
 - Zoom / `updateCanvasViewport` is **camera-only**. No semantic zoom.
 - WatchBot status: **`running` \| `paused` \| `error`** only.
 - `listWatchBots` is a store/worker scan, **not** an `ACTION_CATALOG` name. The worker stamps `ownerId` from the WatchBot record.
 
-WebMCP registers the safe snake_case map via `document.modelContext.registerTool`. `execute` is `runWebMcpTool` → `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })`. ownerId is never taken from tool arguments. Delete actions and direct `setCardFrame` remain unregistered.
+WebMCP registers the 15-tool safe snake_case map via `document.modelContext.registerTool`. `execute` is `runWebMcpTool` → `runBoundAction({ getOwnerId: requireOwnerIdFromRequest, store: getDomainStore() })`. ownerId is never taken from tool arguments. Delete actions, direct `setCardFrame`, and Frame create/update/move/resize remain unregistered.
 
 ## Shared executor and persist
 

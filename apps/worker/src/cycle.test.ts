@@ -661,7 +661,7 @@ describe("WatchBot intelligence Slice E OpenAI worker composition", () => {
     await executor.createFrame({
       canvasId: canvas.id,
       name: "Main Story",
-      bounds: { x: 0, y: 0, width: 1600, height: 1000 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
     await executor.createWatchBot({
       canvasId: canvas.id,

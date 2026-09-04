@@ -88,7 +88,7 @@ describe("workspace session uses the shared server executor path", () => {
     );
     const frame = await session.execute("createFrame", {
       canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 200, height: 200 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
     await session.execute("setCardFrame", { cardId: card.id, frameId: frame.id });
 
@@ -203,7 +203,7 @@ describe("workspace session uses the shared server executor path", () => {
     expect(card.frameId ?? null).toBeNull();
     const frame = await session.execute("createFrame", {
       canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 200, height: 200 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
     const updated = await session.execute("setCardFrame", {
       cardId: card.id,
@@ -233,7 +233,7 @@ describe("workspace session uses the shared server executor path", () => {
       "createFrame",
       {
         canvasId: canvas.id,
-        bounds: { x: 0, y: 0, width: 400, height: 300 },
+        bounds: { x: 0, y: 0, width: 1600, height: 900 },
       },
       { history: false },
     );
@@ -277,7 +277,7 @@ describe("workspace session uses the shared server executor path", () => {
     );
     await session.execute("createFrame", {
       canvasId: second.id,
-      bounds: { x: 0, y: 0, width: 100, height: 100 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
     await session.execute("createWatchBot", {
       canvasId: second.id,

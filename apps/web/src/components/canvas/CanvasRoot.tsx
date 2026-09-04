@@ -37,6 +37,10 @@ import { parseFlowNodeId } from "./flow-ids";
 import { useCanvasCommands } from "./use-canvas-commands";
 import { nodesFromSnapshot } from "@/lib/canvas/flow-nodes";
 import { useCanvasMonitor } from "@/components/workspace/canvas-monitor";
+import {
+  dashboardFitRequest,
+  primaryDashboardFrame,
+} from "@/lib/canvas/dashboard-view";
 
 import "@xyflow/react/dist/style.css";
 
@@ -52,13 +56,12 @@ function CanvasSurface() {
   const {
     persistCardGeometry,
     persistCreatedNote,
-    persistFrameMove,
     persistCreatedColumn,
     persistColumnMove,
     detachCardFromColumn,
   } = useCanvasCommands();
   const { cardVisible, filter } = useCanvasMonitor();
-  const { screenToFlowPosition, setViewport, fitView } = useReactFlow();
+  const { screenToFlowPosition, setViewport, fitBounds } = useReactFlow();
   const interactingRef = useRef(false);
   const viewportTimer = useRef<number | null>(null);
   const lastNoteCreateAt = useRef(0);
@@ -75,6 +78,7 @@ function CanvasSurface() {
   const canvasRef = useRef(canvas);
   const fullscreen = snapshot.fullscreen;
   const fullscreenActive = Boolean(fullscreen?.active);
+  const primaryFrame = primaryDashboardFrame(snapshot);
 
   const [nodes, setNodes] = useState<Node[]>(() =>
     nodesFromSnapshot(snapshot.cards, snapshot.frames, snapshot.columns, snapshot.fullscreen, {
@@ -133,7 +137,10 @@ function CanvasSurface() {
       fullscreen: Boolean(fullscreen?.active),
     };
     if (decision === "fit") {
-      void fitView({ padding: 0.14, duration: 180 });
+      if (primaryFrame) {
+        const request = dashboardFitRequest(primaryFrame, "fullscreen");
+        void fitBounds(request.bounds, request.options);
+      }
       return;
     }
     if (decision === "restore") {
@@ -142,7 +149,14 @@ function CanvasSurface() {
         void setViewport(current.viewport, { duration: 0 });
       }
     }
-  }, [canvas?.id, fitView, fullscreen?.active, fullscreen?.frameId, setViewport]);
+  }, [
+    canvas?.id,
+    fitBounds,
+    fullscreen?.active,
+    fullscreen?.frameId,
+    primaryFrame,
+    setViewport,
+  ]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -189,61 +203,9 @@ function CanvasSurface() {
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      setNodes((current) => {
-        let next = applyNodeChanges(changes, current);
-        for (const change of changes) {
-          if (change.type !== "position" || !change.position) {
-            continue;
-          }
-          const parsed = parseFlowNodeId(change.id);
-          if (parsed?.kind !== "frame") {
-            continue;
-          }
-          const previous = current.find((node) => node.id === change.id);
-          if (!previous) {
-            continue;
-          }
-          const dx = change.position.x - previous.position.x;
-          const dy = change.position.y - previous.position.y;
-          if (dx === 0 && dy === 0) {
-            continue;
-          }
-          next = next.map((node) => {
-            const info = parseFlowNodeId(node.id);
-            if (info?.kind === "column") {
-              const column = snapshot.columns.find(
-                (entry) => entry.id === info.entityId,
-              );
-              if (column?.frameId === parsed.entityId) {
-                return {
-                  ...node,
-                  position: {
-                    x: node.position.x + dx,
-                    y: node.position.y + dy,
-                  },
-                };
-              }
-            }
-            if (info?.kind !== "card") {
-              return node;
-            }
-            const card = snapshot.cards.find((entry) => entry.id === info.entityId);
-            if (card?.frameId !== parsed.entityId) {
-              return node;
-            }
-            return {
-              ...node,
-              position: {
-                x: node.position.x + dx,
-                y: node.position.y + dy,
-              },
-            };
-          });
-        }
-        return next;
-      });
+      setNodes((current) => applyNodeChanges(changes, current));
     },
-    [snapshot.cards, snapshot.columns],
+    [],
   );
 
   const defaultViewport = useMemo(
@@ -352,7 +314,10 @@ function CanvasSurface() {
         return;
       }
       if (id === "fit-view") {
-        void fitView({ padding: 0.2, duration: 200 });
+        if (primaryFrame) {
+          const request = dashboardFitRequest(primaryFrame, "return");
+          void fitBounds(request.bounds, request.options);
+        }
         return;
       }
       if (id === "open-source" && target.variant === "card") {
@@ -384,8 +349,9 @@ function CanvasSurface() {
     [
       canvas,
       execute,
-      fitView,
+      fitBounds,
       openWatchBotCreate,
+      primaryFrame,
       persistCreatedColumn,
       persistCreatedNote,
       redo,
@@ -499,14 +465,6 @@ function CanvasSurface() {
                   await persistCardGeometry(card, { position: node.position });
                 }
               }
-              if (parsed?.kind === "frame") {
-                const frame = snapshot.frames.find(
-                  (entry) => entry.id === parsed.entityId,
-                );
-                if (frame) {
-                  await persistFrameMove(frame, node.position);
-                }
-              }
               if (parsed?.kind === "column") {
                 const column = snapshot.columns.find(
                   (entry) => entry.id === parsed.entityId,
@@ -570,23 +528,7 @@ function CanvasSurface() {
         onClose={closeContextMenu}
         onAction={onContextMenuAction}
       />
-      {fullscreenActive ? (
-        <button
-          type="button"
-          className="absolute right-3 top-3 z-30 rounded-md border border-zinc-700 bg-[#141820]/95 px-3 py-1.5 text-xs text-zinc-200 shadow-lg hover:bg-zinc-800"
-          onClick={() => {
-            void execute(
-              "fullscreenFrame",
-              { frameId: fullscreen!.frameId, active: false },
-              { history: false },
-            );
-          }}
-        >
-          Exit fullscreen
-        </button>
-      ) : (
-        <CanvasToolbar />
-      )}
+      <CanvasToolbar />
     </div>
   );
 }

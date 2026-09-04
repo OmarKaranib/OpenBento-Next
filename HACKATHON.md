@@ -20,10 +20,11 @@ the same 23-action `ACTION_CATALOG` and domain executor, so permitted agent
 changes obey the same authentication, ownership, Card, Frame, and WatchBot
 rules. The destructive actions remain human-UI-only.
 
-The implemented WebMCP surface has 13 tools:
+The implemented WebMCP surface has 15 tools:
 
-`get_canvas_state`, `create_canvas`, `switch_canvas`, `create_card`,
-`move_card`, `resize_card`, `create_frame`, `fullscreen_frame`,
+`get_canvas_state`, `create_canvas`, `rename_canvas`, `switch_canvas`,
+`update_canvas_viewport`, `create_card`, `update_card`, `move_card`,
+`resize_card`, `fullscreen_frame`,
 `create_watchbot`, `update_watchbot`, `pause_watchbot`, `resume_watchbot`, and
 `get_watchbot_status`.
 
@@ -32,11 +33,11 @@ The implemented WebMCP surface has 13 tools:
 1. Open the [hosted Canvas](https://web-production-4d6c9e.up.railway.app) and
    authenticate.
 2. Create a Canvas or select one, then add and freely arrange a Note Card.
-3. Draw a Frame, move the Card inside it, and fullscreen the Frame. Fullscreen
-   is view-only; it does not change saved geometry.
-4. In a WebMCP-capable host, ask an agent to create a Card, move it, create a
-   Frame, or create/manage a WatchBot. Confirm the result appears in the same
-   Canvas.
+3. Move the Card into the fixed dashboard Frame and fullscreen the dashboard.
+   Fullscreen is view-only; it does not change saved geometry.
+4. In a WebMCP-capable host, ask an agent to create or move a Card, fullscreen
+   the dashboard, or create/manage a WatchBot. Confirm the result appears in
+   the same Canvas.
 5. Inspect source provenance and current-Canvas monitoring controls.
 
 WebMCP registration is available in ChatGPT’s in-app browser or Chrome 149+

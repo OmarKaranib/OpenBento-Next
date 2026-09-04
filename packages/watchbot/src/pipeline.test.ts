@@ -66,7 +66,7 @@ async function seed(items: DiscoveredItem[] = [newsItem]) {
   const frame = await executor.createFrame({
     canvasId: canvas.id,
     name: "Main Story",
-    bounds: { x: 0, y: 0, width: 1600, height: 1000 },
+    bounds: { x: 0, y: 0, width: 1600, height: 900 },
   });
   const watchBot = await executor.createWatchBot({
     canvasId: canvas.id,
@@ -340,7 +340,7 @@ describe("WatchBot pipeline with fake provider", () => {
     await executor.createFrame({
       canvasId: canvas.id,
       name: "Main Story",
-      bounds: { x: 0, y: 0, width: 1600, height: 1000 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
     const watchBot = await executor.createWatchBot({
       canvasId: canvas.id,
@@ -806,7 +806,7 @@ async function seedXWatchBot(
   await executor.createFrame({
     canvasId: canvas.id,
     name: "Main Story",
-    bounds: { x: 0, y: 0, width: 1600, height: 1000 },
+    bounds: { x: 0, y: 0, width: 1600, height: 900 },
   });
   const watchBot = await executor.createWatchBot({
     canvasId: canvas.id,

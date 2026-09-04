@@ -11,7 +11,7 @@ the human UI and WatchBot pipeline—never a parallel demo store.
 
 ## Registered tools
 
-The 19 snake_case tools are the complete WebMCP surface. Each maps one-to-one
+The 15 snake_case tools are the complete WebMCP surface. Each maps one-to-one
 to a camelCase domain action; no unlisted or demo-only tools are registered.
 
 | WebMCP tool | Domain action |
@@ -25,10 +25,6 @@ to a camelCase domain action; no unlisted or demo-only tools are registered.
 | `update_card` | `updateCard` |
 | `move_card` | `moveCard` |
 | `resize_card` | `resizeCard` |
-| `create_frame` | `createFrame` |
-| `update_frame` | `updateFrame` |
-| `move_frame` | `moveFrame` |
-| `resize_frame` | `resizeFrame` |
 | `fullscreen_frame` | `fullscreenFrame` |
 | `create_watchbot` | `createWatchBot` |
 | `update_watchbot` | `updateWatchBot` |
@@ -46,14 +42,14 @@ to a camelCase domain action; no unlisted or demo-only tools are registered.
   `move_card`, or `resize_card`, Frame membership is recalculated from geometry
   through the same bound executor. The sole primary Frame is the only candidate;
   `fullscreen_frame` is view-only.
-- Compatibility: `create_frame` is retained but configures/returns the existing
-  primary Frame (or bootstraps it for a legacy zero-Frame Canvas); it cannot add
-  a second Frame. The sole primary Frame cannot be deleted.
+- The canonical primary Frame is created with its Canvas at fixed 1600×900
+  geometry. Frame creation, metadata mutation, movement, and resizing are not
+  model-facing; `fullscreen_frame` is the only Frame tool and is view-only.
 - Tools fail closed for missing authentication, unknown tools, schema-invalid
   input, and cross-owner resources.
 - Permanent delete actions, direct membership actions, and all Phase 1 Column
   mutation actions remain outside the model-facing WebMCP surface. The safe
-  19-tool registration therefore gains no destructive capability.
+  15-tool registration therefore gains no destructive capability.
 - Chrome annotations mark read/view tools as read-only and results containing
   user-authored or externally sourced fields as untrusted content.
 - WebMCP tool calls act on the same persisted Canvas seen by the human UI, so
@@ -66,7 +62,7 @@ to a camelCase domain action; no unlisted or demo-only tools are registered.
 2. Use ChatGPT’s in-app browser or Chrome 149+ with
    `chrome://flags/#enable-webmcp-testing`.
 3. Ask the host agent to create and rename a Canvas, move its camera, create or
-   edit Cards and Frames, fullscreen a Frame, or create/manage a WatchBot.
+   edit Cards, fullscreen the dashboard, or create/manage a WatchBot.
 4. Verify every change appears in the same Canvas and survives normal refresh
    and authenticated persistence behavior.
 

@@ -76,6 +76,10 @@ describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
     expect(runtime.toolNames).not.toContain("delete_card");
     expect(runtime.toolNames).not.toContain("delete_frame");
     expect(runtime.toolNames).not.toContain("set_card_frame");
+    expect(runtime.toolNames).not.toContain("create_frame");
+    expect(runtime.toolNames).not.toContain("update_frame");
+    expect(runtime.toolNames).not.toContain("move_frame");
+    expect(runtime.toolNames).not.toContain("resize_frame");
   });
 
   it("invokes every registered tool through the session-bound executor", async () => {
@@ -117,24 +121,6 @@ describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
       size: { width: 90, height: 70 },
     });
 
-    const frame = await runtime.invoke("create_frame", {
-      canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 400, height: 300 },
-      name: "Main",
-    });
-    await runtime.invoke("update_frame", {
-      frameId: frame.id,
-      name: "Main evidence",
-    });
-    await runtime.invoke("move_frame", {
-      frameId: frame.id,
-      position: { x: 10, y: 15 },
-    });
-    await runtime.invoke("resize_frame", {
-      frameId: frame.id,
-      size: { width: 420, height: 320 },
-    });
-
     const bot = await runtime.invoke("create_watchbot", {
       canvasId: canvas.id,
       instruction: "Monitor meaningful developments",
@@ -161,7 +147,7 @@ describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
     expect(state.frames).toHaveLength(1);
 
     const view = await runtime.invoke("fullscreen_frame", {
-      frameId: frame.id,
+      frameId: canvas.primaryFrameId,
       active: true,
     });
     expect(view.active).toBe(true);
@@ -195,11 +181,6 @@ describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
       type: "note",
       payload: { text: "Original card" },
     });
-    const frame = await runtime.invoke("create_frame", {
-      canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 300, height: 200 },
-      name: "Original frame",
-    });
     catalog.length = 0;
 
     const renamed = await runtime.invoke("rename_canvas", {
@@ -215,32 +196,13 @@ describe("WebMCP binds to runBoundAction + requireOwnerIdFromRequest", () => {
       type: "note",
       payload: { text: "Updated card" },
     });
-    const updatedFrame = await runtime.invoke("update_frame", {
-      frameId: frame.id,
-      name: "Updated frame",
-    });
-    const movedFrame = await runtime.invoke("move_frame", {
-      frameId: frame.id,
-      position: { x: 80, y: 90 },
-    });
-    const resizedFrame = await runtime.invoke("resize_frame", {
-      frameId: frame.id,
-      size: { width: 500, height: 350 },
-    });
-
     expect(renamed.name).toBe("Renamed");
     expect(viewport.viewport).toEqual({ x: 40, y: 60, zoom: 1.5 });
     expect(updatedCard.payload).toEqual({ text: "Updated card" });
-    expect(updatedFrame.name).toBe("Updated frame");
-    expect(movedFrame.bounds).toMatchObject({ x: 80, y: 90 });
-    expect(resizedFrame.bounds).toMatchObject({ width: 500, height: 350 });
     expect(catalog).toEqual([
       "renameCanvas",
       "updateCanvasViewport",
       "updateCard",
-      "updateFrame",
-      "moveFrame",
-      "resizeFrame",
     ]);
   });
 });
@@ -249,11 +211,7 @@ describe("invoke applies setCardFrame follow-up from geometry", () => {
   it("create_card then setCardFrame through the same runBoundAction execute", async () => {
     const { runtime, catalog, store } = sessionRuntime();
     const canvas = await runtime.invoke("create_canvas", { name: "Membership" });
-    const frame = await runtime.invoke("create_frame", {
-      canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 200, height: 200 },
-      name: "Inner",
-    });
+    const frameId = canvas.primaryFrameId;
     catalog.length = 0;
 
     const card = await runtime.invoke("create_card", {
@@ -265,22 +223,19 @@ describe("invoke applies setCardFrame follow-up from geometry", () => {
     });
 
     expect(catalog).toEqual(["createCard", "getCanvasState", "setCardFrame"]);
-    expect(card.frameId).toBe(frame.id);
-    expect((await store.getCard(card.id))?.frameId).toBe(frame.id);
+    expect(card.frameId).toBe(frameId);
+    expect((await store.getCard(card.id))?.frameId).toBe(frameId);
   });
 
   it("move_card then setCardFrame when geometry enters a frame", async () => {
     const { runtime, catalog } = sessionRuntime();
     const canvas = await runtime.invoke("create_canvas", { name: "Move" });
-    const frame = await runtime.invoke("create_frame", {
-      canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 200, height: 200 },
-    });
+    const frameId = canvas.primaryFrameId;
     const card = await runtime.invoke("create_card", {
       canvasId: canvas.id,
       type: "note",
       payload: { text: "outside" },
-      position: { x: 400, y: 400 },
+      position: { x: 1700, y: 1000 },
       size: { width: 40, height: 40 },
     });
     expect(card.frameId).toBeNull();
@@ -291,21 +246,17 @@ describe("invoke applies setCardFrame follow-up from geometry", () => {
       position: { x: 12, y: 12 },
     });
     expect(catalog).toEqual(["moveCard", "getCanvasState", "setCardFrame"]);
-    expect(moved.frameId).toBe(frame.id);
+    expect(moved.frameId).toBe(frameId);
   });
 
   it("resize_card then setCardFrame when geometry leaves a frame", async () => {
     const { runtime, catalog } = sessionRuntime();
     const canvas = await runtime.invoke("create_canvas", { name: "Resize" });
-    await runtime.invoke("create_frame", {
-      canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 80, height: 80 },
-    });
     const card = await runtime.invoke("create_card", {
       canvasId: canvas.id,
       type: "note",
       payload: { text: "fit" },
-      position: { x: 10, y: 10 },
+      position: { x: 1500, y: 800 },
       size: { width: 40, height: 40 },
     });
     expect(card.frameId).not.toBeNull();
@@ -324,10 +275,7 @@ describe("fullscreen_frame is view-only", () => {
   it("does not rewrite stored geometry on fullscreen_frame", async () => {
     const { runtime, store } = sessionRuntime();
     const canvas = await runtime.invoke("create_canvas", { name: "View" });
-    const frame = await runtime.invoke("create_frame", {
-      canvasId: canvas.id,
-      bounds: { x: 8, y: 12, width: 220, height: 180 },
-    });
+    const frameId = canvas.primaryFrameId;
     const card = await runtime.invoke("create_card", {
       canvasId: canvas.id,
       type: "note",
@@ -335,19 +283,19 @@ describe("fullscreen_frame is view-only", () => {
       position: { x: 16, y: 20 },
       size: { width: 50, height: 40 },
     });
-    const beforeFrame = await store.getFrame(frame.id);
+    const beforeFrame = await store.getFrame(frameId);
     const beforeCard = await store.getCard(card.id);
 
     await runtime.invoke("fullscreen_frame", {
-      frameId: frame.id,
+      frameId,
       active: true,
     });
     await runtime.invoke("fullscreen_frame", {
-      frameId: frame.id,
+      frameId,
       active: false,
     });
 
-    expect(await store.getFrame(frame.id)).toEqual(beforeFrame);
+    expect(await store.getFrame(frameId)).toEqual(beforeFrame);
     expect(await store.getCard(card.id)).toEqual(beforeCard);
   });
 });

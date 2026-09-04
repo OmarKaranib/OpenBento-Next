@@ -202,7 +202,7 @@ describe("canvas context menu", () => {
     expect(html).toContain("Add Note here");
     expect(html).toContain("Add Column here");
     expect(html).toContain("New WatchBot");
-    expect(html).toContain("Fit view");
+    expect(html).toContain("Fit Dashboard");
     expect(html).not.toContain("Delete");
   });
 

@@ -61,16 +61,12 @@ describe("WebMCP agent workflow evaluations", () => {
   it("FLOW B — creates, moves, resizes, and frames a Card from geometry", async () => {
     const { runtime, catalog } = workflowRuntime();
     const canvas = await runtime.invoke("create_canvas", { name: "Spatial" });
-    const frame = await runtime.invoke("create_frame", {
-      canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 320, height: 240 },
-      name: "Evidence",
-    });
+    const frameId = canvas.primaryFrameId;
     const card = await runtime.invoke("create_card", {
       canvasId: canvas.id,
       type: "note",
       payload: { text: "Move me into the evidence frame." },
-      position: { x: 600, y: 600 },
+      position: { x: 1700, y: 1000 },
       size: { width: 80, height: 60 },
     });
     expect(card.frameId).toBeNull();
@@ -85,8 +81,8 @@ describe("WebMCP agent workflow evaluations", () => {
       size: { width: 120, height: 90 },
     });
 
-    expect(moved.frameId).toBe(frame.id);
-    expect(resized.frameId).toBe(frame.id);
+    expect(moved.frameId).toBe(frameId);
+    expect(resized.frameId).toBe(frameId);
     expect(catalog).toEqual([
       "moveCard",
       "getCanvasState",
@@ -100,7 +96,7 @@ describe("WebMCP agent workflow evaluations", () => {
         canvasId: canvas.id,
         type: "note",
         payload: { text: "No direct membership." },
-        frameId: frame.id,
+        frameId,
       }),
     ).rejects.toMatchObject({ code: "invalid_input" });
   });
@@ -108,11 +104,7 @@ describe("WebMCP agent workflow evaluations", () => {
   it("FLOW C — frames content and fullscreen remains view-only", async () => {
     const { runtime, store } = workflowRuntime();
     const canvas = await runtime.invoke("create_canvas", { name: "Present" });
-    const frame = await runtime.invoke("create_frame", {
-      canvasId: canvas.id,
-      bounds: { x: 10, y: 20, width: 300, height: 200 },
-      name: "Briefing",
-    });
+    const frameId = canvas.primaryFrameId;
     const card = await runtime.invoke("create_card", {
       canvasId: canvas.id,
       type: "note",
@@ -120,17 +112,17 @@ describe("WebMCP agent workflow evaluations", () => {
       position: { x: 40, y: 50 },
       size: { width: 100, height: 80 },
     });
-    const beforeFrame = await store.getFrame(frame.id);
+    const beforeFrame = await store.getFrame(frameId);
     const beforeCard = await store.getCard(card.id);
 
     const view = await runtime.invoke("fullscreen_frame", {
-      frameId: frame.id,
+      frameId,
       active: true,
     });
 
-    expect(card.frameId).toBe(frame.id);
-    expect(view).toEqual({ frameId: frame.id, canvasId: canvas.id, active: true });
-    expect(await store.getFrame(frame.id)).toEqual(beforeFrame);
+    expect(card.frameId).toBe(frameId);
+    expect(view).toEqual({ frameId, canvasId: canvas.id, active: true });
+    expect(await store.getFrame(frameId)).toEqual(beforeFrame);
     expect(await store.getCard(card.id)).toEqual(beforeCard);
   });
 
@@ -180,7 +172,7 @@ describe("WebMCP adversarial evaluations", () => {
     });
   });
 
-  it("rejects unknown properties, client identity, direct membership, and invalid geometry", async () => {
+  it("rejects unknown properties, client identity, and direct membership", async () => {
     const { runtime } = workflowRuntime();
     const canvas = await runtime.invoke("create_canvas", { name: "Guarded" });
 
@@ -199,10 +191,6 @@ describe("WebMCP adversarial evaluations", () => {
         payload: { text: "No frame argument" },
         frameId: "forbidden",
       }),
-      runtime.invoke("create_frame", {
-        canvasId: canvas.id,
-        bounds: { x: 0, y: 0, width: 0, height: 100 },
-      }),
     ];
 
     for (const attempt of rejected) {
@@ -211,6 +199,11 @@ describe("WebMCP adversarial evaluations", () => {
         message: "The tool input is invalid.",
       });
     }
+
+    await expect(runtime.invoke("create_frame" as never, {})).rejects.toMatchObject({
+      code: "invalid_input",
+      message: "Unknown WebMCP tool create_frame",
+    });
   });
 
   it("rejects malformed, mismatched, and unsafe source Card payloads", async () => {
@@ -285,12 +278,6 @@ describe("WebMCP adversarial evaluations", () => {
     const { runtime } = workflowRuntime();
     const first = await runtime.invoke("create_canvas", { name: "First" });
     const second = await runtime.invoke("create_canvas", { name: "Second" });
-    await runtime.invoke("create_frame", {
-      canvasId: second.id,
-      bounds: { x: 0, y: 0, width: 400, height: 400 },
-      name: "Foreign frame",
-    });
-
     const card = await runtime.invoke("create_card", {
       canvasId: first.id,
       type: "note",
