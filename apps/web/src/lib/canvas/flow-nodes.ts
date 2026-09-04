@@ -73,6 +73,7 @@ export function nodesFromSnapshot(
         zIndex: column.zIndex ?? 1,
         selectable: true,
         draggable: true,
+        dragHandle: ".openbento-column-drag-handle",
       };
     }),
     ...visibleCards.map((card) => {

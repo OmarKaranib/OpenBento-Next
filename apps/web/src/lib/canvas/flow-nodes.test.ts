@@ -132,6 +132,7 @@ describe("presentation-only Canvas filter projection", () => {
     expect(nodes.find((node) => node.id === "column:column-active")).toMatchObject({
       draggable: true,
       selectable: true,
+      dragHandle: ".openbento-column-drag-handle",
       data: { parked: false },
     });
     expect(nodes.find((node) => node.id === "column:column-parked")).toMatchObject({
@@ -175,6 +176,8 @@ describe("presentation-only Canvas filter projection", () => {
     expect(columnSource).toContain("overflow-y-auto");
     expect(columnSource).toContain("overscroll-contain");
     expect(columnSource).toContain("openbento-column-scroll");
+    expect(columnSource).toContain("openbento-column-drag-handle");
+    expect(columnSource).toContain('className="nodrag nopan min-w-0 flex-1');
     expect(columnSource).toContain("data-scrolling={isScrolling || undefined}");
     expect(columnSource).toContain("setTimeout(() => setIsScrolling(false), 850)");
     expect(globals).toContain(".openbento-column-scroll");
@@ -185,6 +188,10 @@ describe("presentation-only Canvas filter projection", () => {
     expect(canvasSource).toContain("zoomOnScroll={!fullscreenActive}");
     expect(canvasSource).toContain("proOptions={{ hideAttribution: true }}");
     expect(canvasSource).toContain("onNodeDrag={(_event, node) =>");
+    expect(canvasSource).toContain("onNodeDragStart={(_event, node) =>");
+    expect(canvasSource).toContain("onNodeDragStop={(_event, node) =>");
+    expect(canvasSource).toContain("source.frameId,");
+    expect(canvasSource).toContain("persistColumnMove(column, finalPosition)");
     expect(canvasSource).toContain("resolveDashboardDrag(");
     expect(canvasSource).toContain("setNodes((current) =>");
   });
