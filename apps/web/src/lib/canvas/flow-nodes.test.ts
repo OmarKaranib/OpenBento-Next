@@ -170,12 +170,22 @@ describe("presentation-only Canvas filter projection", () => {
       join(here, "../../components/canvas/CanvasRoot.tsx"),
       "utf8",
     );
+    const globals = readFileSync(join(here, "../../app/globals.css"), "utf8");
     expect(columnSource).toContain("min-h-0 flex-1");
     expect(columnSource).toContain("overflow-y-auto");
     expect(columnSource).toContain("overscroll-contain");
+    expect(columnSource).toContain("openbento-column-scroll");
+    expect(columnSource).toContain("data-scrolling={isScrolling || undefined}");
+    expect(columnSource).toContain("setTimeout(() => setIsScrolling(false), 850)");
+    expect(globals).toContain(".openbento-column-scroll");
+    expect(globals).toContain("scrollbar-color: transparent transparent");
+    expect(globals).toContain("::-webkit-scrollbar-thumb");
     expect(canvasSource).toContain("panOnDrag={fullscreenActive ? false : [0]}");
     expect(canvasSource).toContain("panOnScroll={!fullscreenActive}");
     expect(canvasSource).toContain("zoomOnScroll={!fullscreenActive}");
     expect(canvasSource).toContain("proOptions={{ hideAttribution: true }}");
+    expect(canvasSource).toContain("onNodeDrag={(_event, node) =>");
+    expect(canvasSource).toContain("resolveDashboardDrag(");
+    expect(canvasSource).toContain("setNodes((current) =>");
   });
 });

@@ -6,7 +6,7 @@ import {
   type Card,
 } from "@openbento/domain";
 import { GripVertical, Play } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { XCardContent } from "@/components/cards/XCardContent";
 import { useCanvasCommands } from "@/components/canvas/use-canvas-commands";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
@@ -23,7 +23,11 @@ import {
 } from "@/lib/youtube";
 import { sanitizeUntrustedDisplayText } from "@/lib/untrusted";
 import { useWorkspaceUiOptional } from "@/components/workspace/workspace-ui";
-import { isNearDashboardBoundary } from "@/lib/canvas/dashboard-boundary";
+import {
+  clampDashboardResize,
+  isDashboardGeometryInside,
+  type DashboardGeometry,
+} from "@/lib/canvas/dashboard-boundary";
 import { primaryDashboardFrame } from "@/lib/canvas/dashboard-view";
 
 export const COLUMN_CARD_DRAG_TYPE = "application/x-openbento-column-card";
@@ -156,9 +160,30 @@ export function ColumnNode({ data, selected }: NodeProps<ColumnFlowNode>) {
     snapshot.cards.filter((card) => card.columnId === data.columnId),
   );
   const [name, setName] = useState<string | null>(null);
+  const [isScrolling, setIsScrolling] = useState(false);
+  const scrollTimer = useRef<number | null>(null);
+  const resizeStartedInside = useRef(false);
+  const resizeGeometry = useRef<DashboardGeometry | null>(null);
   const parked = Boolean(data.parked);
 
+  useEffect(
+    () => () => {
+      if (scrollTimer.current) window.clearTimeout(scrollTimer.current);
+    },
+    [],
+  );
+
   if (!column) return null;
+
+  const dashboard = snapshot.canvases && snapshot.frames
+    ? primaryDashboardFrame(snapshot)?.bounds
+    : null;
+
+  function markScrolling() {
+    setIsScrolling(true);
+    if (scrollTimer.current) window.clearTimeout(scrollTimer.current);
+    scrollTimer.current = window.setTimeout(() => setIsScrolling(false), 850);
+  }
 
   return (
     <section
@@ -173,26 +198,49 @@ export function ColumnNode({ data, selected }: NodeProps<ColumnFlowNode>) {
         color="#818cf8"
         onResizeStart={() => {
           workspaceUi?.setDashboardEdgeActive(false);
+          resizeStartedInside.current = isDashboardGeometryInside(
+            {
+              position: { x: column.bounds.x, y: column.bounds.y },
+              size: { width: column.bounds.width, height: column.bounds.height },
+            },
+            dashboard,
+          );
+          resizeGeometry.current = null;
           session.beginInteraction();
         }}
-        onResize={(_event, params) => {
-          workspaceUi?.setDashboardEdgeActive(
-            isNearDashboardBoundary(
-              {
-                position: { x: params.x, y: params.y },
-                size: { width: params.width, height: params.height },
-              },
-              snapshot.canvases && snapshot.frames
-                ? primaryDashboardFrame(snapshot)?.bounds
-                : null,
-            ),
-          );
-        }}
-        onResizeEnd={(_event, params) => {
-          void persistColumnResize(column, {
+        shouldResize={(_event, params) => {
+          const desired = {
             position: { x: params.x, y: params.y },
             size: { width: params.width, height: params.height },
+          };
+          const constrained = resizeStartedInside.current
+            ? clampDashboardResize(desired, dashboard, { width: 280, height: 320 })
+            : desired;
+          resizeGeometry.current = constrained;
+          workspaceUi?.setDashboardEdgeActive(
+            constrained.position.x !== desired.position.x ||
+              constrained.position.y !== desired.position.y ||
+              constrained.size.width !== desired.size.width ||
+              constrained.size.height !== desired.size.height,
+          );
+          return constrained === desired;
+        }}
+        onResize={(_event, params) => {
+          resizeGeometry.current = {
+            position: { x: params.x, y: params.y },
+            size: { width: params.width, height: params.height },
+          };
+        }}
+        onResizeEnd={(_event, params) => {
+          const geometry = resizeGeometry.current ?? {
+            position: { x: params.x, y: params.y },
+            size: { width: params.width, height: params.height },
+          };
+          void persistColumnResize(column, {
+            position: geometry.position,
+            size: geometry.size,
           }).finally(() => {
+            resizeGeometry.current = null;
             workspaceUi?.setDashboardEdgeActive(false);
             void session.endInteraction();
           });
@@ -223,9 +271,11 @@ export function ColumnNode({ data, selected }: NodeProps<ColumnFlowNode>) {
         <span className="text-[10px] tabular-nums text-zinc-500">{cards.length}</span>
       </header>
       <div
-        className={`nodrag nopan nowheel min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2 ${
+        className={`openbento-column-scroll nodrag nopan nowheel min-h-0 flex-1 space-y-2 overflow-y-auto overscroll-contain p-2 ${
           parked ? "pointer-events-none select-none" : ""
         }`}
+        data-scrolling={isScrolling || undefined}
+        onScroll={markScrolling}
       >
         {cards.length ? (
           cards.map((card) => (

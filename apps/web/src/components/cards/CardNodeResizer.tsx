@@ -2,10 +2,15 @@
 
 import type { Card } from "@openbento/domain";
 import { NodeResizer } from "@xyflow/react";
+import { useRef } from "react";
 import { useCanvasCommands } from "@/components/canvas/use-canvas-commands";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
 import { useWorkspaceUiOptional } from "@/components/workspace/workspace-ui";
-import { isNearDashboardBoundary } from "@/lib/canvas/dashboard-boundary";
+import {
+  clampDashboardResize,
+  isDashboardGeometryInside,
+  type DashboardGeometry,
+} from "@/lib/canvas/dashboard-boundary";
 import { primaryDashboardFrame } from "@/lib/canvas/dashboard-view";
 
 export function CardNodeResizer({
@@ -22,6 +27,9 @@ export function CardNodeResizer({
   const { session, snapshot } = useWorkspace();
   const { persistCardGeometry } = useCanvasCommands();
   const workspaceUi = useWorkspaceUiOptional();
+  const resizeStartedInside = useRef(false);
+  const resizeGeometry = useRef<DashboardGeometry | null>(null);
+  const minimumSize = { width: minWidth, height: minHeight };
   const dashboard = snapshot.canvases && snapshot.frames
     ? primaryDashboardFrame(snapshot)?.bounds
     : null;
@@ -36,24 +44,46 @@ export function CardNodeResizer({
       lineClassName="nodrag nopan !border-2 !border-indigo-400"
       onResizeStart={() => {
         workspaceUi?.setDashboardEdgeActive(false);
+        resizeStartedInside.current = isDashboardGeometryInside(
+          { position: card.position, size: card.size },
+          dashboard,
+        );
+        resizeGeometry.current = null;
         session.beginInteraction();
       }}
-      onResize={(_event, params) => {
-        workspaceUi?.setDashboardEdgeActive(
-          isNearDashboardBoundary(
-            {
-              position: { x: params.x, y: params.y },
-              size: { width: params.width, height: params.height },
-            },
-            dashboard,
-          ),
-        );
-      }}
-      onResizeEnd={(_event, params) => {
-        void persistCardGeometry(card, {
+      shouldResize={(_event, params) => {
+        const desired = {
           position: { x: params.x, y: params.y },
           size: { width: params.width, height: params.height },
+        };
+        const constrained = resizeStartedInside.current
+          ? clampDashboardResize(desired, dashboard, minimumSize)
+          : desired;
+        resizeGeometry.current = constrained;
+        workspaceUi?.setDashboardEdgeActive(
+          constrained.position.x !== desired.position.x ||
+            constrained.position.y !== desired.position.y ||
+            constrained.size.width !== desired.size.width ||
+            constrained.size.height !== desired.size.height,
+        );
+        return constrained === desired;
+      }}
+      onResize={(_event, params) => {
+        resizeGeometry.current = {
+          position: { x: params.x, y: params.y },
+          size: { width: params.width, height: params.height },
+        };
+      }}
+      onResizeEnd={(_event, params) => {
+        const geometry = resizeGeometry.current ?? {
+          position: { x: params.x, y: params.y },
+          size: { width: params.width, height: params.height },
+        };
+        void persistCardGeometry(card, {
+          position: geometry.position,
+          size: geometry.size,
         }).finally(() => {
+          resizeGeometry.current = null;
           workspaceUi?.setDashboardEdgeActive(false);
           void session.endInteraction();
         });
