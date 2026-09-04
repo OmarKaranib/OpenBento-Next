@@ -25,7 +25,6 @@ export type ContextMenuItemId =
   | "redo"
   | "fit-view"
   | "open-source"
-  | "fullscreen-frame"
   | "delete-card";
 
 export type ContextMenuItem = {
@@ -106,16 +105,7 @@ export function contextMenuItems(args: {
     });
     return items;
   }
-  if (target.variant === "frame") {
-    return [
-      {
-        id: "fullscreen-frame",
-        label: "Fullscreen Frame",
-        disabled: false,
-        actionName: "fullscreenFrame",
-      },
-    ];
-  }
+  if (target.variant === "frame") return [];
   return CANVAS_ITEMS.map((id) => {
     if (id === "undo") {
       return {
@@ -214,7 +204,6 @@ export function contextMenuCatalogActions(): ActionName[] {
       [
         "createCard",
         "createColumn",
-        "fullscreenFrame",
         "deleteCard",
       ] as ActionName[]
     ).includes(name),

@@ -1,4 +1,4 @@
-import type { Point, Size } from "./types";
+import type { Point, Rect, Size } from "./types";
 
 /** World-space origin for automatic Card placement. Camera zoom is ignored. */
 export const FREE_CARD_ORIGIN: Point = { x: 80, y: 80 };
@@ -18,6 +18,8 @@ export type FindFreeCardPositionOptions = {
   origin?: Point;
   gap?: number;
   columns?: number;
+  /** Restrict placement to a dashboard Frame without moving existing Cards. */
+  bounds?: Rect;
 };
 
 /**
@@ -36,20 +38,47 @@ export function findFreeCardPosition(
   const origin = options.origin ?? FREE_CARD_ORIGIN;
   const gap = options.gap ?? FREE_CARD_GAP;
   const columns = options.columns ?? FREE_CARD_COLUMNS;
+  const bounds = options.bounds;
   const stepX = candidateSize.width + gap;
   const stepY = candidateSize.height + gap;
 
-  for (let row = 0; ; row += 1) {
-    for (let col = 0; col < columns; col += 1) {
+  if (
+    bounds &&
+    (candidateSize.width > bounds.width || candidateSize.height > bounds.height)
+  ) {
+    throw new Error("Card is larger than the available dashboard bounds");
+  }
+
+  const boundedColumns = bounds
+    ? Math.max(
+        1,
+        Math.floor((bounds.x + bounds.width - origin.x - candidateSize.width) / stepX) + 1,
+      )
+    : columns;
+  const scanColumns = bounds ? Math.min(columns, boundedColumns) : columns;
+
+  for (let row = 0; !bounds || origin.y + row * stepY + candidateSize.height <= bounds.y + bounds.height; row += 1) {
+    for (let col = 0; col < scanColumns; col += 1) {
       const candidate: Point = {
         x: origin.x + col * stepX,
         y: origin.y + row * stepY,
       };
+      if (
+        bounds &&
+        (candidate.x < bounds.x ||
+          candidate.y < bounds.y ||
+          candidate.x + candidateSize.width > bounds.x + bounds.width ||
+          candidate.y + candidateSize.height > bounds.y + bounds.height)
+      ) {
+        continue;
+      }
       if (!collidesWithOccupied(candidate, candidateSize, occupied, gap)) {
         return candidate;
       }
     }
   }
+
+  throw new Error("No free space remains in the dashboard for this Card");
 }
 
 function collidesWithOccupied(

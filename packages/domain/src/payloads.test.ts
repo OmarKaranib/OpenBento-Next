@@ -99,6 +99,18 @@ describe("PAYLOAD_SCHEMAS", () => {
 
     expect(isValidCardPayload("chart", { kind: "line" })).toBe(true);
     expect(isValidCardPayload("chart", {})).toBe(false);
+    expect(
+      isValidCardPayload("chart", {
+        kind: "stock",
+        symbol: "AAPL",
+        price: 214.5,
+        currency: "USD",
+        asOf: "2026-09-04T00:00:00.000Z",
+        points: [{ t: "2026-09-03T00:00:00.000Z", value: 210 }],
+      }),
+    ).toBe(true);
+    expect(isValidCardPayload("chart", { kind: "stock" })).toBe(false);
+    expect(isValidCardPayload("chart", { kind: "stock", symbol: "aapl" })).toBe(false);
   });
 
   it("accepts only safe http(s) source URLs in source payloads", () => {

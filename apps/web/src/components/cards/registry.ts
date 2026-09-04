@@ -19,8 +19,10 @@ import {
 } from "@/components/canvas/nodes/ArticleCardNode";
 import { XCardNode } from "@/components/canvas/nodes/XCardNode";
 import { YoutubeCardNode } from "@/components/canvas/nodes/YoutubeCardNode";
+import { StockCardNode } from "@/components/canvas/nodes/StockCardNode";
+import { STOCK_DEFAULT_SIZE } from "@/lib/domain/stock-card";
 
-export type CardCreateMode = "note" | "source";
+export type CardCreateMode = "note" | "source" | "stock";
 
 export type CardTypeModule = {
   type: CardType;
@@ -60,6 +62,15 @@ registerCardType({
   createMode: "note",
   defaultSize: NOTE_DEFAULT_SIZE,
   Node: NoteCardNode as ComponentType<NodeProps>,
+});
+
+registerCardType({
+  type: "chart",
+  label: "Stock",
+  creatable: true,
+  createMode: "stock",
+  defaultSize: STOCK_DEFAULT_SIZE,
+  Node: StockCardNode as ComponentType<NodeProps>,
 });
 
 registerCardType({

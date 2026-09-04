@@ -12,6 +12,7 @@ import {
   getCardType,
   listCreatableCardTypes,
 } from "./registry";
+import { StockCardNode } from "@/components/canvas/nodes/StockCardNode";
 import { provenanceDisplay } from "@/lib/canvas/provenance-display";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -38,6 +39,17 @@ const persistedNewsCard: Extract<Card, { type: "news" }> = {
 };
 
 describe("News Card registry", () => {
+  it("registers Stock through the existing chart Card type", () => {
+    expect(getCardType("chart")).toMatchObject({
+      type: "chart",
+      label: "Stock",
+      creatable: true,
+      createMode: "stock",
+    });
+    expect(getCardType("chart")?.Node).toBe(StockCardNode);
+    expect(cardNodeTypes().chart).toBe(StockCardNode);
+  });
+
   it("registers News as a non-creatable source Card with the source renderer", () => {
     expect(getCardType("news")).toMatchObject({
       type: "news",

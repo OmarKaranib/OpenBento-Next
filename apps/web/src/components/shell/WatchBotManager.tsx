@@ -37,7 +37,7 @@ export function WatchBotCanvasPanel({
   className?: string;
 }) {
   const { snapshot, execute } = useWorkspace();
-  const { watchBotCreateEpoch } = useWorkspaceUi();
+  const { watchBotCreateEpoch, watchBotCreateInstruction } = useWorkspaceUi();
   const canvasId = snapshot.currentCanvasId;
   const watchBots = snapshot.watchBots;
   const cards = snapshot.cards;
@@ -64,7 +64,7 @@ export function WatchBotCanvasPanel({
   if (watchBotCreateEpoch > seenCreateEpoch) {
     setSeenCreateEpoch(watchBotCreateEpoch);
     setName("");
-    setInstruction("");
+    setInstruction(watchBotCreateInstruction ?? "");
     setSourceTypes([...DEFAULT_CREATE_SOURCE_TYPES]);
     setError(null);
     setEditing(null);

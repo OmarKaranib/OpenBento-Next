@@ -33,12 +33,17 @@ type WorkspaceUiValue = {
   snapToGrid: boolean;
   /** Incremented when the Canvas menu asks to open the existing create UI. */
   watchBotCreateEpoch: number;
+  watchBotCreateInstruction: string;
+  workspaceElement: HTMLElement | null;
+  dashboardEdgeActive: boolean;
   setRailPanel: (panel: RailPanel) => void;
   toggleRailPanel: (panel: Exclude<RailPanel, null>) => void;
   setAgentOpen: (open: boolean) => void;
   setFrameToolActive: (active: boolean) => void;
   setSnapToGrid: (snap: boolean) => void;
-  openWatchBotCreate: () => void;
+  openWatchBotCreate: (instruction?: string) => void;
+  setWorkspaceElement: (element: HTMLElement | null) => void;
+  setDashboardEdgeActive: (active: boolean) => void;
 };
 
 const WorkspaceUiContext = createContext<WorkspaceUiValue | null>(null);
@@ -49,13 +54,17 @@ export function WorkspaceUiProvider({ children }: { children: ReactNode }) {
   const [frameToolActive, setFrameToolActive] = useState(false);
   const [snapToGrid, setSnapToGrid] = useState(false);
   const [watchBotCreateEpoch, setWatchBotCreateEpoch] = useState(0);
+  const [watchBotCreateInstruction, setWatchBotCreateInstruction] = useState("");
+  const [workspaceElement, setWorkspaceElement] = useState<HTMLElement | null>(null);
+  const [dashboardEdgeActive, setDashboardEdgeActive] = useState(false);
 
   const toggleRailPanel = useCallback((panel: Exclude<RailPanel, null>) => {
     setRailPanel((current) => nextRailPanel(current, panel));
   }, []);
 
-  const openWatchBotCreate = useCallback(() => {
+  const openWatchBotCreate = useCallback((instruction = "") => {
     setRailPanel("watchbots");
+    setWatchBotCreateInstruction(instruction);
     setWatchBotCreateEpoch((current) => current + 1);
   }, []);
 
@@ -66,12 +75,17 @@ export function WorkspaceUiProvider({ children }: { children: ReactNode }) {
       frameToolActive,
       snapToGrid,
       watchBotCreateEpoch,
+      watchBotCreateInstruction,
+      workspaceElement,
+      dashboardEdgeActive,
       setRailPanel,
       toggleRailPanel,
       setAgentOpen,
       setFrameToolActive,
       setSnapToGrid,
       openWatchBotCreate,
+      setWorkspaceElement,
+      setDashboardEdgeActive,
     }),
     [
       railPanel,
@@ -79,6 +93,9 @@ export function WorkspaceUiProvider({ children }: { children: ReactNode }) {
       frameToolActive,
       snapToGrid,
       watchBotCreateEpoch,
+      watchBotCreateInstruction,
+      workspaceElement,
+      dashboardEdgeActive,
       toggleRailPanel,
       openWatchBotCreate,
     ],
@@ -92,9 +109,14 @@ export function WorkspaceUiProvider({ children }: { children: ReactNode }) {
 }
 
 export function useWorkspaceUi(): WorkspaceUiValue {
-  const value = useContext(WorkspaceUiContext);
+  const value = useWorkspaceUiOptional();
   if (!value) {
     throw new Error("useWorkspaceUi must be used within WorkspaceUiProvider");
   }
   return value;
+}
+
+/** Node tests and isolated renderers may omit workspace chrome. */
+export function useWorkspaceUiOptional(): WorkspaceUiValue | null {
+  return useContext(WorkspaceUiContext);
 }

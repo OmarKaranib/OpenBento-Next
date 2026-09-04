@@ -17,7 +17,7 @@ export type DashboardViewMode = "fit" | "return" | "fullscreen";
 const VIEW_OPTIONS = {
   fit: { padding: 0.06, duration: 200 },
   return: { padding: 0.14, duration: 240 },
-  fullscreen: { padding: 0.02, duration: 180 },
+  fullscreen: { padding: 0, duration: 0 },
 } as const;
 
 export function primaryDashboardFrame(
