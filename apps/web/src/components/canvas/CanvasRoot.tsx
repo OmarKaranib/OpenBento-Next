@@ -41,6 +41,7 @@ import {
   dashboardFitRequest,
   primaryDashboardFrame,
 } from "@/lib/canvas/dashboard-view";
+import { isNearDashboardBoundary } from "@/lib/canvas/dashboard-boundary";
 
 import "@xyflow/react/dist/style.css";
 
@@ -52,7 +53,13 @@ const NODE_TYPES = {
 
 function CanvasSurface() {
   const { session, snapshot, execute, commit, undo, redo } = useWorkspace();
-  const { snapToGrid, openWatchBotCreate } = useWorkspaceUi();
+  const {
+    snapToGrid,
+    openWatchBotCreate,
+    workspaceElement,
+    dashboardEdgeActive,
+    setDashboardEdgeActive,
+  } = useWorkspaceUi();
   const {
     persistCardGeometry,
     persistCreatedNote,
@@ -157,6 +164,27 @@ function CanvasSurface() {
     primaryFrame,
     setViewport,
   ]);
+
+  /** Browser fullscreen changes the container after the domain view activates. */
+  useEffect(() => {
+    if (!fullscreenActive || !primaryFrame || !workspaceElement) return;
+    const refit = () => {
+      window.requestAnimationFrame(() => {
+        const request = dashboardFitRequest(primaryFrame, "fullscreen");
+        void fitBounds(request.bounds, request.options);
+      });
+    };
+    const observer = new ResizeObserver(refit);
+    observer.observe(workspaceElement);
+    document.addEventListener("fullscreenchange", refit);
+    window.addEventListener("resize", refit);
+    refit();
+    return () => {
+      observer.disconnect();
+      document.removeEventListener("fullscreenchange", refit);
+      window.removeEventListener("resize", refit);
+    };
+  }, [fitBounds, fullscreenActive, primaryFrame, workspaceElement]);
 
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
@@ -337,14 +365,6 @@ function CanvasSurface() {
         );
         return;
       }
-      if (id === "fullscreen-frame" && target.variant === "frame") {
-        void execute(
-          "fullscreenFrame",
-          { frameId: target.frameId, active: true },
-          { history: false },
-        );
-        return;
-      }
     },
     [
       canvas,
@@ -370,7 +390,11 @@ function CanvasSurface() {
 
   return (
     <div
-      className="relative h-full w-full"
+      className={
+        dashboardEdgeActive
+          ? "dashboard-edge-active relative h-full w-full"
+          : "relative h-full w-full"
+      }
       onContextMenu={(event) => {
         if (!event.defaultPrevented) {
           openContextMenu(event);
@@ -451,7 +475,28 @@ function CanvasSurface() {
         }}
         onNodeDragStart={() => {
           interactingRef.current = true;
+          setDashboardEdgeActive(false);
           session.beginInteraction();
+        }}
+        onNodeDrag={(_event, node) => {
+          const parsed = parseFlowNodeId(node.id);
+          const source =
+            parsed?.kind === "card"
+              ? snapshot.cards.find((entry) => entry.id === parsed.entityId)
+              : parsed?.kind === "column"
+                ? snapshot.columns.find((entry) => entry.id === parsed.entityId)
+                : null;
+          if (!source || !primaryFrame) return;
+          const size =
+            "size" in source
+              ? source.size
+              : { width: source.bounds.width, height: source.bounds.height };
+          setDashboardEdgeActive(
+            isNearDashboardBoundary(
+              { position: node.position, size },
+              primaryFrame.bounds,
+            ),
+          );
         }}
         onNodeDragStop={(_event, node) => {
           void (async () => {
@@ -475,6 +520,7 @@ function CanvasSurface() {
               }
             } finally {
               interactingRef.current = false;
+              setDashboardEdgeActive(false);
               await session.endInteraction();
             }
           })();
@@ -514,21 +560,21 @@ function CanvasSurface() {
           createNoteAtClientPoint(event);
         }}
       >
-        <Background
+        {fullscreenActive ? null : <Background
           id="openbento-dots"
           variant={BackgroundVariant.Dots}
           gap={22}
           size={1.4}
           color={tokens.canvas.dot}
           bgColor={tokens.canvas.background}
-        />
+        />}
       </ReactFlow>
       <CanvasContextMenu
         state={menu}
         onClose={closeContextMenu}
         onAction={onContextMenuAction}
       />
-      <CanvasToolbar />
+      {fullscreenActive ? null : <CanvasToolbar />}
     </div>
   );
 }

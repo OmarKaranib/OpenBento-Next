@@ -135,14 +135,13 @@ describe("canvas context menu", () => {
     expect(unsafe.map((item) => item.id)).toEqual(["delete-card"]);
   });
 
-  it("exposes Fullscreen Frame on the Frame variant", () => {
+  it("does not expose a duplicate human fullscreen action on the Frame variant", () => {
     const items = contextMenuItems({
       target: { variant: "frame", frameId: "f1" },
       canUndo: false,
       canRedo: false,
     });
-    expect(items.map((item) => item.id)).toEqual(["fullscreen-frame"]);
-    expect(items[0]?.actionName).toBe("fullscreenFrame");
+    expect(items).toEqual([]);
   });
 
   it("converts pointer coords under pan and zoom", () => {

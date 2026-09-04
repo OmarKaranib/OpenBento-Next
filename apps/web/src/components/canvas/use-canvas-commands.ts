@@ -7,13 +7,22 @@ import { cardWorldBounds, planCardGeometry } from "@/lib/domain/membership";
 import { persistCreatedCard } from "@/lib/domain/persist-created-card";
 import { persistCreatedNoteCard } from "@/lib/domain/persist-created-note";
 import { useWorkspace } from "@/components/workspace/WorkspaceProvider";
+import { primaryDashboardFrame } from "@/lib/canvas/dashboard-view";
+import { snapDashboardGeometry } from "@/lib/canvas/dashboard-boundary";
 
 export function useCanvasCommands() {
   const { snapshot, commit } = useWorkspace();
 
   const persistCardGeometry = useCallback(
     async (card: Card, next: { position?: Point; size?: Size }) => {
-      const plan = planCardGeometry(card, next, snapshot.frames);
+      const snapped = snapDashboardGeometry(
+        {
+          position: next.position ?? card.position,
+          size: next.size ?? card.size,
+        },
+        primaryDashboardFrame(snapshot)?.bounds,
+      );
+      const plan = planCardGeometry(card, snapped, snapshot.frames);
       const calls: CatalogCall[] = [];
       if (plan.move) {
         calls.push({ name: "moveCard", input: plan.move });
@@ -28,7 +37,7 @@ export function useCanvasCommands() {
         await commit(calls);
       }
     },
-    [commit, snapshot.frames],
+    [commit, snapshot],
   );
 
   const persistCreatedNote = useCallback(
@@ -55,44 +64,57 @@ export function useCanvasCommands() {
 
   const persistColumnMove = useCallback(
     async (column: Column, position: Point) => {
+      const snapped = snapDashboardGeometry(
+        {
+          position,
+          size: { width: column.bounds.width, height: column.bounds.height },
+        },
+        primaryDashboardFrame(snapshot)?.bounds,
+      ).position;
       if (
-        position.x === column.bounds.x &&
-        position.y === column.bounds.y
+        snapped.x === column.bounds.x &&
+        snapped.y === column.bounds.y
       ) {
         return;
       }
       await commit([
-        { name: "moveColumn", input: { columnId: column.id, position } },
+        { name: "moveColumn", input: { columnId: column.id, position: snapped } },
       ]);
     },
-    [commit],
+    [commit, snapshot],
   );
 
   const persistColumnResize = useCallback(
     async (column: Column, next: { position?: Point; size: Size }) => {
+      const snapped = snapDashboardGeometry(
+        {
+          position: next.position ?? { x: column.bounds.x, y: column.bounds.y },
+          size: next.size,
+        },
+        primaryDashboardFrame(snapshot)?.bounds,
+      );
       const calls: CatalogCall[] = [];
       if (
-        next.position &&
-        (next.position.x !== column.bounds.x ||
-          next.position.y !== column.bounds.y)
+        (snapped.position.x !== column.bounds.x ||
+          snapped.position.y !== column.bounds.y)
       ) {
         calls.push({
           name: "moveColumn",
-          input: { columnId: column.id, position: next.position },
+          input: { columnId: column.id, position: snapped.position },
         });
       }
       if (
-        next.size.width !== column.bounds.width ||
-        next.size.height !== column.bounds.height
+        snapped.size.width !== column.bounds.width ||
+        snapped.size.height !== column.bounds.height
       ) {
         calls.push({
           name: "resizeColumn",
-          input: { columnId: column.id, size: next.size },
+          input: { columnId: column.id, size: snapped.size },
         });
       }
       if (calls.length) await commit(calls);
     },
-    [commit],
+    [commit, snapshot],
   );
 
   const detachCardFromColumn = useCallback(

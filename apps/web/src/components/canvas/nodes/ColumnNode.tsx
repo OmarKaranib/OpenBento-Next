@@ -22,6 +22,9 @@ import {
   parseYouTubeVideoId,
 } from "@/lib/youtube";
 import { sanitizeUntrustedDisplayText } from "@/lib/untrusted";
+import { useWorkspaceUiOptional } from "@/components/workspace/workspace-ui";
+import { isNearDashboardBoundary } from "@/lib/canvas/dashboard-boundary";
+import { primaryDashboardFrame } from "@/lib/canvas/dashboard-view";
 
 export const COLUMN_CARD_DRAG_TYPE = "application/x-openbento-column-card";
 
@@ -146,6 +149,7 @@ function ColumnCardTile({ card, parked }: { card: Card; parked: boolean }) {
 
 export function ColumnNode({ data, selected }: NodeProps<ColumnFlowNode>) {
   const { session, snapshot, execute } = useWorkspace();
+  const workspaceUi = useWorkspaceUiOptional();
   const { persistColumnResize } = useCanvasCommands();
   const column = snapshot.columns.find((entry) => entry.id === data.columnId);
   const cards = orderColumnCardsNewestFirst(
@@ -167,12 +171,31 @@ export function ColumnNode({ data, selected }: NodeProps<ColumnFlowNode>) {
         minWidth={280}
         minHeight={320}
         color="#818cf8"
-        onResizeStart={() => session.beginInteraction()}
+        onResizeStart={() => {
+          workspaceUi?.setDashboardEdgeActive(false);
+          session.beginInteraction();
+        }}
+        onResize={(_event, params) => {
+          workspaceUi?.setDashboardEdgeActive(
+            isNearDashboardBoundary(
+              {
+                position: { x: params.x, y: params.y },
+                size: { width: params.width, height: params.height },
+              },
+              snapshot.canvases && snapshot.frames
+                ? primaryDashboardFrame(snapshot)?.bounds
+                : null,
+            ),
+          );
+        }}
         onResizeEnd={(_event, params) => {
           void persistColumnResize(column, {
             position: { x: params.x, y: params.y },
             size: { width: params.width, height: params.height },
-          }).finally(() => void session.endInteraction());
+          }).finally(() => {
+            workspaceUi?.setDashboardEdgeActive(false);
+            void session.endInteraction();
+          });
         }}
       />
       <header className="flex h-11 shrink-0 items-center gap-2 border-b border-white/10 px-3">

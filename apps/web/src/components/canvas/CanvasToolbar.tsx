@@ -24,6 +24,10 @@ import {
   dashboardFullscreenInput,
   primaryDashboardFrame,
 } from "@/lib/canvas/dashboard-view";
+import {
+  exitWorkspaceFullscreen,
+  requestWorkspaceFullscreen,
+} from "@/lib/canvas/browser-fullscreen";
 
 const TOOLS = [
   { id: "zoom-in", label: "Zoom In", icon: Plus },
@@ -41,7 +45,7 @@ export const CANVAS_VIEW_TOOL_IDS = TOOLS.map((tool) => tool.id);
 export function CanvasToolbar() {
   const { zoomIn, zoomOut, fitBounds } = useReactFlow();
   const { snapshot, execute, undo, redo } = useWorkspace();
-  const { snapToGrid, setSnapToGrid } = useWorkspaceUi();
+  const { snapToGrid, setSnapToGrid, workspaceElement } = useWorkspaceUi();
   const frame = primaryDashboardFrame(snapshot);
   const fullscreenActive = Boolean(
     frame && snapshot.fullscreen?.active && snapshot.fullscreen.frameId === frame.id,
@@ -85,9 +89,15 @@ export function CanvasToolbar() {
                     void fitBounds(request.bounds, request.options);
                   }
                   if (frame && tool.id === "fullscreen-dashboard") {
+                    const next = dashboardFullscreenInput(frame, snapshot.fullscreen);
+                    if (next.active) {
+                      void requestWorkspaceFullscreen(workspaceElement);
+                    } else {
+                      void exitWorkspaceFullscreen(document, workspaceElement);
+                    }
                     void execute(
                       "fullscreenFrame",
-                      dashboardFullscreenInput(frame, snapshot.fullscreen),
+                      next,
                       { history: false },
                     );
                   }

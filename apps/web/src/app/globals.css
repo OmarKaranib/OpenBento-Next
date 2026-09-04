@@ -53,3 +53,20 @@ body {
 .react-flow__resize-control {
   border-color: #64748b;
 }
+
+/* The dashboard is a hard-edged active surface; the surrounding canvas parks. */
+.openbento-dashboard-surface {
+  transition: border-color 120ms ease, box-shadow 120ms ease, background-color 120ms ease;
+}
+
+.dashboard-edge-active .openbento-dashboard-surface {
+  border-color: #7c8ba4;
+  box-shadow: inset 0 0 0 1px rgba(180, 198, 220, 0.24), 0 0 30px rgba(95, 123, 164, 0.16);
+}
+
+[data-openbento-workspace]:fullscreen,
+[data-openbento-workspace]:-webkit-full-screen {
+  height: 100vh;
+  width: 100vw;
+  background: #0b0d10;
+}

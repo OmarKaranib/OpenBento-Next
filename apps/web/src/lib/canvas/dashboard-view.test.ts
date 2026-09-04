@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { Canvas, Frame } from "@openbento/domain";
 import { CANVAS_VIEW_TOOL_IDS } from "@/components/canvas/CanvasToolbar";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import {
   dashboardFitRequest,
   dashboardFullscreenInput,
@@ -48,6 +51,10 @@ describe("dashboard view controls", () => {
       bounds: primary.bounds,
       options: { padding: 0.14, duration: 240 },
     });
+    expect(dashboardFitRequest(frame!, "fullscreen")).toEqual({
+      bounds: primary.bounds,
+      options: { padding: 0, duration: 0 },
+    });
   });
 
   it("toggles fullscreen for the primary dashboard", () => {
@@ -76,5 +83,15 @@ describe("dashboard view controls", () => {
       "redo",
     ]);
     expect(CANVAS_VIEW_TOOL_IDS).not.toContain("column");
+  });
+
+  it("uses the browser Fullscreen API from the toolbar and removes toolbar chrome in the view", () => {
+    const here = dirname(fileURLToPath(import.meta.url));
+    const toolbar = readFileSync(join(here, "../../components/canvas/CanvasToolbar.tsx"), "utf8");
+    const root = readFileSync(join(here, "../../components/canvas/CanvasRoot.tsx"), "utf8");
+    expect(toolbar).toContain("requestWorkspaceFullscreen(workspaceElement)");
+    expect(toolbar).toContain("exitWorkspaceFullscreen(document, workspaceElement)");
+    expect(root).toContain("{fullscreenActive ? null : <CanvasToolbar />}");
+    expect(root).toContain("new ResizeObserver(refit)");
   });
 });
