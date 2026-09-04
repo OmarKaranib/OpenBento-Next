@@ -1,18 +1,18 @@
+import { cn } from "@/lib/utils";
+
+/**
+ * Stable shell brand slot. Replace only this component when the final
+ * OpenBento asset is ready; the rail supplies placement and sizing.
+ */
 export function OpenBentoMark({ className }: { className?: string }) {
   return (
     <div
-      className={className}
+      className={cn(
+        "grid h-7 w-7 grid-cols-2 gap-0.5 rounded-md bg-[#1c212b] p-1",
+        className,
+      )}
       aria-hidden
-      style={{
-        display: "grid",
-        gridTemplateColumns: "1fr 1fr",
-        gap: 2,
-        width: 28,
-        height: 28,
-        padding: 4,
-        borderRadius: 7,
-        background: "#1c212b",
-      }}
+      data-brand-slot="openbento-mark"
     >
       <span className="rounded-[2px] bg-zinc-100" />
       <span className="rounded-[2px] bg-zinc-500" />
