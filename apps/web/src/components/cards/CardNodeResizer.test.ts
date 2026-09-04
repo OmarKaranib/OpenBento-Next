@@ -124,6 +124,7 @@ describe("shared Card resize controls", () => {
     const note = readFileSync(join(webSrc, "components/canvas/nodes/NoteCardNode.tsx"), "utf8");
     const sourceNodes = readFileSync(join(webSrc, "components/canvas/nodes/ArticleCardNode.tsx"), "utf8");
     const youtube = readFileSync(join(webSrc, "components/canvas/nodes/YoutubeCardNode.tsx"), "utf8");
+    const x = readFileSync(join(webSrc, "components/canvas/nodes/XCardNode.tsx"), "utf8");
 
     expect(chrome.indexOf("<CardNodeResizer")).toBeLessThan(
       chrome.indexOf("data-card-visual-shell"),
@@ -132,9 +133,10 @@ describe("shared Card resize controls", () => {
     expect(chrome).toMatch(/data-card-visual-shell[\s\S]*overflow-hidden/);
     expect(note).toContain("<CardNodeResizer");
     expect(note).toMatch(/data-card-visual-shell[\s\S]*overflow-hidden/);
-    expect(sourceNodes).toContain('"article" | "web" | "x" | "news"');
-    expect(sourceNodes.match(/<SourceLinkBody/g)).toHaveLength(4);
+    expect(sourceNodes).toContain('"article" | "web" | "news"');
+    expect(sourceNodes.match(/<SourceLinkBody/g)).toHaveLength(3);
     expect(youtube).toContain("<SourceCardChrome");
     expect(youtube).toContain("aspect-video");
+    expect(x).toContain("<SourceCardChrome");
   });
 });

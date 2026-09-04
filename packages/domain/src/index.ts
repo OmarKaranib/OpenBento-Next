@@ -197,4 +197,9 @@ export {
   type WatchBotSourceType,
   type WatchBotStatus,
   type WatchBotStatusView,
+  type XCardMedia,
+  type XCardMediaType,
+  type XCardMetrics,
+  type XCardPayload,
+  type XCardPresentation,
 } from "./types";

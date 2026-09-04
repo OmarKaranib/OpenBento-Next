@@ -330,6 +330,7 @@ describe("source Card nodes do not execute untrusted HTML", () => {
       "components/cards/SafeExternalLink.tsx",
       "components/canvas/nodes/YoutubeCardNode.tsx",
       "components/canvas/nodes/ArticleCardNode.tsx",
+      "components/canvas/nodes/XCardNode.tsx",
       "components/cards/SourceProvenanceMeta.tsx",
       "lib/untrusted.ts",
       "lib/youtube.ts",

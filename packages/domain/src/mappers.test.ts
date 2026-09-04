@@ -93,6 +93,42 @@ describe("record mappers", () => {
     ).toEqual({ text: "ok" });
   });
 
+  it("round-trips optional rich X data through the JSONB Card record", () => {
+    const card = cardFromRecord({
+      id: "x-card",
+      canvas_id: "c1",
+      frame_id: null,
+      type: "x",
+      payload: {
+        provenance: {
+          sourceUrl: "https://x.com/openbento/status/123",
+          title: "Update",
+          publishedAt: "2026-09-03T12:00:00.000Z",
+          sourceType: "x",
+        },
+        postText: "Update",
+        username: "openbento",
+        media: [
+          {
+            mediaKey: "3_123",
+            type: "photo",
+            url: "https://pbs.twimg.com/media/update.jpg",
+          },
+        ],
+      },
+      x: 0,
+      y: 0,
+      width: 320,
+      height: 240,
+      z_index: null,
+      created_at: "2026-09-03T12:00:00.000Z",
+      updated_at: "2026-09-03T12:00:00.000Z",
+    });
+
+    expect(card.type).toBe("x");
+    expect(cardToRecord(card).payload).toEqual(card.payload);
+  });
+
   it("maps unknown publishedAt to SQL null on watch_bot_events only", () => {
     expect(publishedAtToTimestamptz("")).toBeNull();
     expect(publishedAtToTimestamptz("   ")).toBeNull();

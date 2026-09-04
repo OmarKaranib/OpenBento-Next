@@ -14,6 +14,7 @@ import {
   type CardType,
   type NotePayload,
   type SourceCardPayload,
+  type XCardPayload,
 } from "./types";
 
 export type JsonSchemaNode = {
@@ -33,6 +34,9 @@ export type JsonSchemaNode = {
   enum?: readonly unknown[];
   const?: unknown;
   minLength?: number;
+  maxLength?: number;
+  minimum?: number;
+  maxItems?: number;
   items?: JsonSchemaNode;
   oneOf?: readonly JsonSchemaNode[];
   anyOf?: readonly JsonSchemaNode[];
@@ -124,6 +128,21 @@ export function matchesJsonSchema(
       return false;
     }
   }
+  if (typeof value === "string" && schema.maxLength !== undefined) {
+    if (value.length > schema.maxLength) {
+      return false;
+    }
+  }
+  if (typeof value === "number" && schema.minimum !== undefined) {
+    if (value < schema.minimum) {
+      return false;
+    }
+  }
+  if (Array.isArray(value) && schema.maxItems !== undefined) {
+    if (value.length > schema.maxItems) {
+      return false;
+    }
+  }
   if (Array.isArray(value) && schema.items) {
     const itemSchema = schema.items;
     if (!value.every((item) => matchesJsonSchema(itemSchema, item))) {
@@ -183,6 +202,61 @@ const SOURCE_PAYLOAD_SCHEMA: ObjectJsonSchema = {
   },
 };
 
+const NON_NEGATIVE_NUMBER_SCHEMA: JsonSchemaNode = {
+  type: "number",
+  minimum: 0,
+};
+
+const X_METRICS_SCHEMA: ObjectJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: [],
+  properties: {
+    replyCount: NON_NEGATIVE_NUMBER_SCHEMA,
+    repostCount: NON_NEGATIVE_NUMBER_SCHEMA,
+    quoteCount: NON_NEGATIVE_NUMBER_SCHEMA,
+    likeCount: NON_NEGATIVE_NUMBER_SCHEMA,
+    viewCount: NON_NEGATIVE_NUMBER_SCHEMA,
+    bookmarkCount: NON_NEGATIVE_NUMBER_SCHEMA,
+  },
+};
+
+const X_MEDIA_SCHEMA: ObjectJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["mediaKey", "type"],
+  properties: {
+    mediaKey: { type: "string", minLength: 1, maxLength: 100 },
+    type: {
+      type: "string",
+      enum: ["photo", "video", "animated_gif"],
+    },
+    url: { type: "string", minLength: 1, maxLength: 2_000 },
+    previewImageUrl: { type: "string", minLength: 1, maxLength: 2_000 },
+    playbackUrl: { type: "string", minLength: 1, maxLength: 2_000 },
+    width: NON_NEGATIVE_NUMBER_SCHEMA,
+    height: NON_NEGATIVE_NUMBER_SCHEMA,
+    durationMs: NON_NEGATIVE_NUMBER_SCHEMA,
+    altText: { type: "string", maxLength: 1_000 },
+    viewCount: NON_NEGATIVE_NUMBER_SCHEMA,
+  },
+};
+
+const X_PAYLOAD_SCHEMA: ObjectJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["provenance"],
+  properties: {
+    provenance: PROVENANCE_SCHEMA,
+    postText: { type: "string", maxLength: 5_000 },
+    authorDisplayName: { type: "string", maxLength: 200 },
+    username: { type: "string", maxLength: 15 },
+    authorAvatarUrl: { type: "string", minLength: 1, maxLength: 2_000 },
+    metrics: X_METRICS_SCHEMA,
+    media: { type: "array", maxItems: 4, items: X_MEDIA_SCHEMA },
+  },
+};
+
 const NOTE_PAYLOAD_SCHEMA: ObjectJsonSchema = {
   type: "object",
   additionalProperties: false,
@@ -235,7 +309,7 @@ export const PAYLOAD_SCHEMAS: { [K in CardType]: ObjectJsonSchema } = {
   web: SOURCE_PAYLOAD_SCHEMA,
   news: SOURCE_PAYLOAD_SCHEMA,
   youtube: SOURCE_PAYLOAD_SCHEMA,
-  x: SOURCE_PAYLOAD_SCHEMA,
+  x: X_PAYLOAD_SCHEMA,
   reddit: SOURCE_PAYLOAD_SCHEMA,
   instagram: SOURCE_PAYLOAD_SCHEMA,
   ai_summary: AI_SUMMARY_PAYLOAD_SCHEMA,
@@ -287,6 +361,59 @@ export function isValidSourcePayload(
   return matchesJsonSchema(PAYLOAD_SCHEMAS.youtube, payload);
 }
 
+function isNonNegativeInteger(value: unknown): boolean {
+  return Number.isInteger(value) && (value as number) >= 0;
+}
+
+function isSafeAssetUrl(value: unknown): boolean {
+  if (typeof value !== "string") {
+    return false;
+  }
+  try {
+    const url = new URL(value);
+    return (
+      url.protocol === "https:" &&
+      url.username === "" &&
+      url.password === ""
+    );
+  } catch {
+    return false;
+  }
+}
+
+function isSemanticallyValidXPayload(payload: XCardPayload): boolean {
+  if (payload.authorAvatarUrl && !isSafeAssetUrl(payload.authorAvatarUrl)) {
+    return false;
+  }
+  if (payload.username && !/^[A-Za-z0-9_]{1,15}$/.test(payload.username)) {
+    return false;
+  }
+  if (
+    payload.metrics &&
+    Object.values(payload.metrics).some((value) => !isNonNegativeInteger(value))
+  ) {
+    return false;
+  }
+  return (payload.media ?? []).every((media) => {
+    if (
+      [media.width, media.height, media.durationMs, media.viewCount]
+        .filter((value) => value !== undefined)
+        .some((value) => !isNonNegativeInteger(value))
+    ) {
+      return false;
+    }
+    if (
+      (media.type === "photo" && !media.url) ||
+      (media.type !== "photo" && !media.previewImageUrl && !media.playbackUrl)
+    ) {
+      return false;
+    }
+    return [media.url, media.previewImageUrl, media.playbackUrl]
+      .filter((value) => value !== undefined)
+      .every(isSafeAssetUrl);
+  });
+}
+
 export function isValidCardPayload<T extends CardType>(
   type: T,
   payload: unknown,
@@ -297,7 +424,11 @@ export function isValidCardPayload<T extends CardType>(
   if (!(SOURCE_CARD_TYPES as readonly string[]).includes(type)) {
     return true;
   }
-  return isSafeSourceUrl(
+  const validSourceUrl = isSafeSourceUrl(
     (payload as { provenance: { sourceUrl: unknown } }).provenance.sourceUrl,
   );
+  if (!validSourceUrl) {
+    return false;
+  }
+  return type !== "x" || isSemanticallyValidXPayload(payload as XCardPayload);
 }

@@ -10,6 +10,7 @@ import {
   type DomainStore,
   type Size,
   type SourceCardPayload,
+  type XCardPayload,
   type WatchBot,
   type WatchBotEvent,
   type WatchBotEventKind,
@@ -154,8 +155,11 @@ function buildProvenance(
 function buildSourcePayload(
   item: NormalizedItem,
   watchBotId: string,
-): SourceCardPayload {
-  return { provenance: buildProvenance(item, watchBotId) };
+): SourceCardPayload | XCardPayload {
+  return {
+    provenance: buildProvenance(item, watchBotId),
+    ...(item.sourceType === "x" && item.x ? item.x : {}),
+  };
 }
 
 export function isWatchBotProviderEligible(

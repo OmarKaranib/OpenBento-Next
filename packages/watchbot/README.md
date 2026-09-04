@@ -84,7 +84,14 @@ disabled by default. It requires both `X_PROVIDER_ENABLED=true` and the
 worker-only `X_BEARER_TOKEN`; it never posts, replies, likes, follows, sends
 DMs, or mutates X. It enforces code-level query, request, page, result, and
 timeout limits. X stays `sourceType: "x"` through normalization and Card
-creation.
+creation. Provider discovery derives a compact deterministic query from the
+WatchBot instruction; the complete persisted instruction remains unchanged and
+continues to drive relevance and meaningfulness. The same recent-search request
+uses author/media expansions to capture optional display name, avatar, public
+metrics, images, posters, and the highest-bitrate safe official MP4 variant.
+These bounded fields are stored in the existing Card JSONB payload; no database
+migration or extra X request is required. Provenance-only X payloads remain
+valid.
 
 The official YouTube Data API v3 adapter is in `src/adapters/youtube.ts`.
 It is read-only, disabled by default, and requires both
@@ -95,6 +102,8 @@ pagination or retry loop. `YOUTUBE_MAX_REQUESTS_PER_TICK` is shared across all
 WatchBots using the provider; per-cycle results and request timeout are also
 hard-capped. Valid IDs become canonical `youtube.com/watch` URLs and stay
 `sourceType: "youtube"` through the existing pipeline and Card creation.
+YouTube discovery also uses the deterministic provider-query derivation layer;
+the original instruction is not rewritten.
 
 ## Pipeline
 

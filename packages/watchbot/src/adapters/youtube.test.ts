@@ -101,7 +101,23 @@ describe("official YouTube Data API v3 SourceProvider", () => {
     expect(request.searchParams.get("eventType")).toBe("live");
     expect(request.searchParams.get("videoEmbeddable")).toBe("true");
     expect(request.searchParams.get("videoSyndicated")).toBe("true");
-    expect(request.searchParams.get("q")).toBe(discoverInput.instruction);
+    expect(request.searchParams.get("q")).toBe(
+      "meaningful Lake Ontario developments",
+    );
+  });
+
+  it("uses a concise derived query while leaving the instruction untouched", async () => {
+    const instruction =
+      "Latest videos about Iran nuclear talks and notify me when something meaningful happens";
+    const fetchImpl = vi.fn(async () => response([videoItem(VIDEO_A)]));
+    const provider = enabledProvider(fetchImpl as typeof fetch);
+
+    await provider.discover({ ...discoverInput, instruction });
+
+    const calls = fetchImpl.mock.calls as unknown as Array<[string]>;
+    const request = new URL(String(calls[0]?.[0]));
+    expect(request.searchParams.get("q")).toBe("Iran nuclear talks");
+    expect(instruction).toContain("notify me");
   });
 
   it("falls back to recent normal videos when live search is empty", async () => {
