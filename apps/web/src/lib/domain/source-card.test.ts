@@ -219,7 +219,7 @@ describe("source Card create is two catalog calls", () => {
     const canvas = await executor.createCanvas({ name: "Board" });
     const frame = await executor.createFrame({
       canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 400, height: 300 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
       name: "Main",
     });
 
@@ -263,7 +263,7 @@ describe("source Card create is two catalog calls", () => {
     const canvas = await executor.createCanvas({ name: "Board" });
     const frame = await executor.createFrame({
       canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 200, height: 200 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
       name: "Main",
     });
     const created = await persistCreatedCard(
@@ -286,7 +286,7 @@ describe("source Card create is two catalog calls", () => {
     const card = member.cards.find((entry) => entry.id === created.id)!;
     expect(card.frameId).toBe(frame.id);
 
-    const nextPosition = { x: 240, y: 240 };
+    const nextPosition = { x: 1700, y: 1000 };
     const nextSize = { width: 40, height: 40 };
     const plan = planCardGeometry(
       card,

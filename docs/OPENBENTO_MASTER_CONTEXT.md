@@ -20,6 +20,21 @@ This document captures decisions already made with the product owner. Do not sil
 
 If a later explicit owner decision conflicts with this file, the later owner decision wins and this file should be updated. Otherwise, this file is the canonical product context.
 
+## 0.1 September 2026 dashboard architecture decision
+
+This decision supersedes older multi-Frame/free-placement passages below:
+
+- each Canvas has exactly one 1600×900 logical primary Frame, created with the Canvas;
+- the primary Frame contains free Cards and first-class persisted Columns;
+- Column membership is explicit `card.columnId`; Column Cards render newest-first in a bounded vertical scroll stream;
+- each WatchBot owns exactly one dedicated Column and each such Column has at most one WatchBot;
+- WatchBot discoveries go to that Column, not global free-space placement; a parked Column suspends discovery before provider calls without becoming an error;
+- dragging a Column Card into free primary-Frame space clears `columnId` on the same Card and preserves geometry and provenance;
+- objects outside the primary Frame are parked: dimmed and frozen but still selectable/draggable; and
+- fullscreen fits and camera-locks the primary Frame while Cards, Columns, scrolling, links, media, selection, and geometry editing remain interactive. It never rewrites stored geometry.
+
+The human UI cannot create, move, resize, or delete the sole primary Frame. Legacy `createFrame` accepts only the canonical bounds and cannot change geometry; `moveFrame` and `resizeFrame` reject. Frame create/update/move/resize actions are excluded from both model-facing catalogs, leaving a 15-tool WebMCP safe surface with view-only `fullscreen_frame`. Column mutation actions remain shared domain actions but are not model-facing in Phase 1. The Add/command bar, arbitrary free-Card-to-Column dragging, and automatic parked status transitions are deferred. X Cards use the same safe rich-media renderer in free and Column layouts.
+
 The core objective is not to recreate the old OpenBento dashboard. It is to build a new product from first principles.
 
 ---
@@ -187,21 +202,18 @@ WatchBot-discovered content must never implicitly become trusted code or privile
 
 ## 3.3 Frame
 
-A Frame is a **first-class persisted bordered region of a Canvas**.
+A Frame is the **first-class persisted 1600×900 dashboard region of a Canvas**.
 
 This is an important product feature and not merely decorative UI.
 
-The product owner specifically wants a control near the Canvas zoom/viewport tools that allows the user to create a bordered display region.
+Each Canvas creates exactly one canonical Frame. Users do not create or change its geometry.
 
 The user can:
 
-- activate the Frame tool,
-- draw a rectangular region on the Canvas,
-- name the Frame,
-- move it,
-- resize it,
+- use compact view controls to fit or return to the dashboard,
+- rename the Frame,
 - place Cards inside it,
-- and fullscreen the Frame.
+- and toggle fullscreen dashboard view.
 
 ### Frame membership
 
@@ -498,24 +510,23 @@ The compact vertical stack may include, where justified:
 - zoom in
 - zoom out
 - fit / fit-to-content
-- Frame creation tool
+- return to dashboard / fullscreen dashboard
 - undo
 - redo
 - overview/layers if useful
 
 Exact icons may evolve, but the control grouping and compact Railway-style presentation are important.
 
-### Frame creation interaction
+### Dashboard Frame interaction
 
 Expected interaction:
 
-1. click Frame tool,
-2. cursor enters drawing/crosshair mode,
-3. user drags a rectangular region,
-4. Frame is created,
-5. user can name/move/resize it.
+1. create or open a Canvas,
+2. use Fit Dashboard or Return to Dashboard to target its primary Frame,
+3. use Fullscreen Dashboard to enter or exit the focused view,
+4. use Escape as the fullscreen exit shortcut.
 
-The Frame tool should feel like part of Canvas navigation/editing, not a content Card.
+Dashboard controls are Canvas navigation, not content creation.
 
 ---
 
@@ -879,7 +890,6 @@ switch_canvas
 create_card
 move_card
 resize_card
-create_frame
 fullscreen_frame
 create_watchbot
 update_watchbot
@@ -1104,8 +1114,8 @@ The exact roadmap may be refined by Bento Lead, but the recommended dependency o
 - Note Card
 - drag/resize/persistence
 - bottom-left Railway-style controls
-- Frame tool
-- Frame move/resize/name
+- fixed canonical dashboard Frame with safe rename
+- fit/return/fullscreen dashboard controls
 - geometric-feeling membership + explicit frameId
 - fullscreen Frame
 
@@ -1287,7 +1297,7 @@ A rough structural reference, not a pixel specification:
 │    │  │ +   │  zoom in                                              │
 │    │  │ -   │  zoom out                                             │
 │    │  │ fit │  fit                                                   │
-│    │  │ □   │  Frame tool                                           │
+│    │  │ □   │  fullscreen dashboard                                 │
 │    │  │ ↶   │  undo                                                 │
 │    │  │ ↷   │  redo                                                 │
 │    │  └─────┘                                                        │
@@ -1309,12 +1319,11 @@ A future user should be able to do something close to the following:
 5. Create a WatchBot that keeps monitoring the story.
 6. See `● 1 WatchBot` or equivalent status in the top context area.
 7. Manually drag/resize Cards on the Canvas.
-8. Click the bottom-left Frame tool.
-9. Draw a Frame around the most important content.
-10. Ask the Agent to organize selected content into that Frame.
-11. Fullscreen the Frame into a clean monitoring display.
-12. Return later and see meaningful new WatchBot discoveries.
-13. Inspect original sources rather than relying only on an AI summary.
+8. Use Return to Dashboard to center the fixed primary Frame.
+9. Ask the Agent to organize selected content inside the dashboard.
+10. Fullscreen the dashboard into a clean monitoring display.
+11. Return later and see meaningful new WatchBot discoveries.
+12. Inspect original sources rather than relying only on an AI summary.
 
 If the implementation architecture makes this workflow awkward, the architecture is probably drifting away from the intended product.
 
@@ -1334,7 +1343,7 @@ Unless explicitly changed by the product owner:
 - Current Canvas WatchBot status near top-left context: **yes**
 - Interactive Agent top-right: **yes**
 - Railway-style compact bottom-left Canvas controls: **yes**
-- Frame tool grouped with Canvas controls: **yes**
+- Dashboard fit/return/fullscreen controls grouped with Canvas controls: **yes**
 - Semantic zoom hierarchy: **no**
 - Canvas engine: **XYFlow initially**
 - Frame persisted object: **yes**

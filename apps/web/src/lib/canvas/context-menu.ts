@@ -10,8 +10,6 @@ import { parseFlowNodeId } from "@/components/canvas/flow-ids";
 import { provenanceDisplay } from "@/lib/canvas/provenance-display";
 import { safeHttpUrl } from "@/lib/untrusted";
 
-export const FRAME_DEFAULT_SIZE = { width: 320, height: 200 } as const;
-
 export type ContextMenuVariant = "canvas" | "card" | "frame";
 
 export type ContextMenuTarget =
@@ -21,15 +19,14 @@ export type ContextMenuTarget =
 
 export type ContextMenuItemId =
   | "add-note"
-  | "create-frame"
+  | "create-column"
   | "new-watchbot"
   | "undo"
   | "redo"
   | "fit-view"
   | "open-source"
   | "fullscreen-frame"
-  | "delete-card"
-  | "delete-frame";
+  | "delete-card";
 
 export type ContextMenuItem = {
   id: ContextMenuItemId;
@@ -41,7 +38,7 @@ export type ContextMenuItem = {
 
 const CANVAS_ITEMS: ContextMenuItemId[] = [
   "add-note",
-  "create-frame",
+  "create-column",
   "new-watchbot",
   "undo",
   "redo",
@@ -117,12 +114,6 @@ export function contextMenuItems(args: {
         disabled: false,
         actionName: "fullscreenFrame",
       },
-      {
-        id: "delete-frame",
-        label: "Delete Frame",
-        disabled: false,
-        actionName: "deleteFrame",
-      },
     ];
   }
   return CANVAS_ITEMS.map((id) => {
@@ -150,12 +141,12 @@ export function contextMenuItems(args: {
         actionName: "createCard",
       };
     }
-    if (id === "create-frame") {
+    if (id === "create-column") {
       return {
         id,
-        label: "Create Frame here",
+        label: "Add Column here",
         disabled: false,
-        actionName: "createFrame",
+        actionName: "createColumn",
       };
     }
     if (id === "new-watchbot") {
@@ -168,7 +159,7 @@ export function contextMenuItems(args: {
     }
     return {
       id,
-      label: "Fit view",
+      label: "Fit Dashboard",
       disabled: false,
       actionName: "fitView",
     };
@@ -187,20 +178,6 @@ export function clientToFlowPosition(
   return {
     x: (client.x - origin.x - viewport.x) / viewport.zoom,
     y: (client.y - origin.y - viewport.y) / viewport.zoom,
-  };
-}
-
-export function frameBoundsAtPoint(position: Point): {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-} {
-  return {
-    x: position.x,
-    y: position.y,
-    width: FRAME_DEFAULT_SIZE.width,
-    height: FRAME_DEFAULT_SIZE.height,
   };
 }
 
@@ -236,10 +213,9 @@ export function contextMenuCatalogActions(): ActionName[] {
     (
       [
         "createCard",
-        "createFrame",
+        "createColumn",
         "fullscreenFrame",
         "deleteCard",
-        "deleteFrame",
       ] as ActionName[]
     ).includes(name),
   );

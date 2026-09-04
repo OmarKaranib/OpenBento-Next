@@ -32,6 +32,7 @@ function emptyCanvas(name = "Watch"): CanvasState {
     canvas: {
       id: "canvas-rel",
       ownerId: "owner-rel",
+      primaryFrameId: "frame-rel",
       name,
       viewport: { x: 0, y: 0, zoom: 1 },
       createdAt: "2026-08-29T00:00:00.000Z",
@@ -39,6 +40,7 @@ function emptyCanvas(name = "Watch"): CanvasState {
     },
     cards: [],
     frames: [],
+    columns: [],
     watchBots: [],
   };
 }

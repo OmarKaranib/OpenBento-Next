@@ -4,7 +4,7 @@
 
 OpenBento is a spatial workspace for following an evolving topic through
 source-backed Cards, persistent WatchBots, and AI assistance. Create a Canvas,
-place and resize Cards freely, group them in Frames, and return to a living
+place and resize Cards freely inside a canonical dashboard Frame, and return to a living
 view of what matters.
 
 > **AI organizes the story. Sources remain the story.**
@@ -13,8 +13,8 @@ view of what matters.
 
 ## What judges can explore
 
-- **Canvas, Cards, and Frames** — a Next.js 16 / React workspace on XYFlow
-  with free-positioned, resizable Cards, persisted Frames, and a view-only
+- **Canvas, Cards, and dashboard Frame** — a Next.js 16 / React workspace on XYFlow
+  with free-positioned, resizable Cards, one fixed 1600×900 Frame, and a view-only
   fullscreen Frame mode.
 - **Monitoring UX** — current-Canvas search and filtering, source provenance
   links, and truthful browser-local “New since last visit” indicators.
@@ -33,7 +33,7 @@ view of what matters.
 - Supabase Auth with durable PostgreSQL persistence and owner-scoped domain
   actions
 - Railway web service plus a separately deployed WatchBot worker
-- XYFlow Canvas; Cards can be moved and resized; Frames use geometric
+- XYFlow Canvas; Cards can be moved and resized; the primary Frame uses geometric
   membership and can be fullscreened without rewriting saved layout
 - Source provenance preserves truthful links and known timestamps; externally
   supplied text and URLs are treated as untrusted data
@@ -57,7 +57,7 @@ bounded; this repository does not claim always-on production monitoring.
 ## Why WebMCP matters
 
 WebMCP makes OpenBento more than a chatbot beside a canvas. An external agent
-uses the same persistent Canvas, Cards, Frames, WatchBots, and shared
+uses the same persistent Canvas, Cards, canonical Frame, WatchBots, and shared
 `ACTION_CATALOG` / domain executor as the human UI. Its changes are visible in
 the same workspace, follow the same ownership rules, and retain the same Frame
 membership behavior.
@@ -65,7 +65,7 @@ membership behavior.
 Implemented tools:
 
 `get_canvas_state` · `create_canvas` · `switch_canvas` · `create_card` ·
-`move_card` · `resize_card` · `create_frame` · `fullscreen_frame` ·
+`move_card` · `resize_card` · `fullscreen_frame` ·
 `create_watchbot` · `update_watchbot` · `pause_watchbot` ·
 `resume_watchbot` · `get_watchbot_status`
 

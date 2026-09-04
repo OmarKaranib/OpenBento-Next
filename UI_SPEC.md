@@ -8,7 +8,8 @@ North star: Railway’s **interaction language** (dark dotted workspace, compact
 
 ## Surface
 
-- Dark infinite dotted canvas. Cards are free-positioned surfaces, not a packed grid.
+- Dark infinite dotted world containing one 1600×900 logical primary Frame. The Frame is the live dashboard; the surrounding world is parking space.
+- Free Cards and first-class Columns are spatial surfaces. Column contents are a bounded, newest-first vertical stream with their own scroll container.
 - Engine: `@xyflow/react`. No graph edges, handles, or minimap.
 - **Zoom is camera-only.** No semantic zoom. The same Cards remain Cards at every zoom.
 - Viewport persistence uses `updateCanvasViewport`, not a different information layer.
@@ -36,21 +37,28 @@ Left-rail WatchBots is global. Top-left status is current Canvas only.
 
 Railway-like **vertical** stack on the canvas:
 
-- grid/snap
-- zoom in / zoom out / fit (camera only)
-- Frame tool (draw a bordered region)
-- undo / redo
+- Zoom In
+- Zoom Out
+- Fit Dashboard
+- Return to Dashboard
+- Fullscreen Dashboard (active toggle; remains available while fullscreened)
+- Snap/Grid
+- Undo
+- Redo
 
-Frame tool: click → crosshair → drag rectangle → name/move/resize.
+The primary Frame is created with its Canvas at fixed `{x:0,y:0,width:1600,height:900}` bounds. Human UI does not offer create, move, resize, or delete Frame controls. Columns are added from the Canvas context menu.
 
-## Cards and Frames
+## Cards, Columns, and the primary Frame
 
 - Cards are freely positioned and resizable via `moveCard` / `resizeCard`.
-- Frame membership **feels geometric**. Internally persist `card.frameId` through `setCardFrame` after `selectSmallestContainingFrame` + `canSetCardFrame`.
+- A Canvas has exactly one primary Frame. Its stable logical dimensions are independent of monitor pixels.
+- Free Card activity is determined by full geometric containment in the primary Frame. Column membership is explicit through `card.columnId`, never inferred from overlap.
+- Columns are persisted, movable, resizable (minimum 280×320, maximum 1200×900), and render Cards newest-first by `createdAt`, then `id` as the deterministic tie-break.
+- Dragging a Column Card into empty primary-Frame space invokes `detachCardFromColumn`: the same Card is retained, `columnId` is cleared, drop geometry is persisted, and source/WatchBot provenance remains unchanged.
 - Cards are `type` + typed payload (Note is first, via the card registry). Source types carry provenance on the payload; notes do not.
-- Overlapping Frames: smallest area wins; equal-area ties use newest `createdAt`.
-- **Fullscreen Frame** is view-only presentation (`fullscreenFrame`). Chrome hides; Frame + member Cards show; **stored geometry is not rewritten**.
+- Free Cards and Columns that are not fully contained are parked: dimmed, selectable, and draggable, while editing, links, and active media are frozen.
+- **Fullscreen Frame** fits the primary Frame, hides parked space, locks pan/zoom, and leaves active Cards, links, media, selection, geometry editing, and Column scrolling interactive. It never rewrites stored geometry.
 
 ## Shared executor
 
-The workspace calls `createActionExecutor` from `@openbento/domain` (`packages/domain/src/executor.ts`). Persistence is Platform's `DomainStore` port (`getDomainStore()` → `SupabaseDomainStore`). `apps/web` must not reimplement that store. Membership is written only via `setCardFrame`. Reload/login restore is required for PASS.
+The workspace calls `createActionExecutor` from `@openbento/domain` (`packages/domain/src/executor.ts`). Persistence is Platform's `DomainStore` port (`getDomainStore()` → `SupabaseDomainStore`). `apps/web` must not reimplement that store. Membership is written only through the shared `setCardFrame`, `setCardColumn`, and `detachCardFromColumn` actions. Reload/login restore is required for PASS.

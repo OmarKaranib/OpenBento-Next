@@ -58,6 +58,7 @@ const EMPTY_SNAPSHOT: SessionSnapshot = {
   currentCanvasId: null,
   cards: [],
   frames: [],
+  columns: [],
   watchBots: [],
   fullscreen: null,
   canUndo: false,

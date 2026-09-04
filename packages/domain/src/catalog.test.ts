@@ -23,6 +23,12 @@ const FULL_CATALOG = [
   "moveFrame",
   "resizeFrame",
   "deleteFrame",
+  "createColumn",
+  "updateColumn",
+  "moveColumn",
+  "resizeColumn",
+  "setCardColumn",
+  "detachCardFromColumn",
   "createWatchBot",
   "updateWatchBot",
   "pauseWatchBot",
@@ -35,8 +41,8 @@ const FULL_CATALOG = [
 describe("master action catalog", () => {
   it("exports the full locked catalog, not a 5-action stub", () => {
     expect([...ACTION_NAMES]).toEqual([...FULL_CATALOG]);
-    expect(ACTION_NAMES).toHaveLength(23);
-    expect(ACTION_CATALOG_LIST).toHaveLength(23);
+    expect(ACTION_NAMES).toHaveLength(29);
+    expect(ACTION_CATALOG_LIST).toHaveLength(29);
   });
 
   it("has a catalog entry for every action name", () => {

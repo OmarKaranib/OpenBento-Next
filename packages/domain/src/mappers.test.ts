@@ -19,6 +19,7 @@ describe("record mappers", () => {
     const canvas = canvasFromRecord({
       id: "c1",
       owner_id: "user-a",
+      primary_frame_id: "f1",
       name: "Board",
       viewport_x: 1,
       viewport_y: 2,
@@ -49,6 +50,7 @@ describe("record mappers", () => {
       id: "w1",
       owner_id: "user-a",
       canvas_id: "c1",
+      column_id: "col-1",
       name: null,
       instruction: "Watch",
       status: "running",
@@ -68,6 +70,7 @@ describe("record mappers", () => {
       id: "card-1",
       canvas_id: "c1",
       frame_id: null,
+      column_id: null,
       type: "note",
       payload: { provenance: { sourceUrl: "https://x.test" } },
       x: 0,
@@ -98,6 +101,7 @@ describe("record mappers", () => {
       id: "x-card",
       canvas_id: "c1",
       frame_id: null,
+      column_id: null,
       type: "x",
       payload: {
         provenance: {

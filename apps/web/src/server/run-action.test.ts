@@ -83,7 +83,7 @@ describe("session-bound server wrappers", () => {
   });
 
   it("covers every catalog action through the same runner", async () => {
-    expect(ACTION_NAMES).toHaveLength(23);
+    expect(ACTION_NAMES).toHaveLength(29);
     const store = new InMemoryDomainStore();
     const deps = { getOwnerId: async () => "session-user", store };
     const canvas = await runBoundAction(deps, "createCanvas", { name: "N" });
@@ -94,7 +94,13 @@ describe("session-bound server wrappers", () => {
     });
     const frame = await runBoundAction(deps, "createFrame", {
       canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 20, height: 20 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
+    });
+    const column = await runBoundAction(deps, "createColumn", {
+      canvasId: canvas.id,
+      name: "Feed",
+      position: { x: 20, y: 40 },
+      size: { width: 300, height: 400 },
     });
     const bot = await runBoundAction(deps, "createWatchBot", {
       canvasId: canvas.id,
@@ -127,18 +133,42 @@ describe("session-bound server wrappers", () => {
       cardId: card.id,
       frameId: frame.id,
     });
+    await runBoundAction(deps, "setCardColumn", {
+      cardId: card.id,
+      columnId: column.id,
+    });
+    await runBoundAction(deps, "updateColumn", {
+      columnId: column.id,
+      name: "Updated feed",
+    });
+    await runBoundAction(deps, "moveColumn", {
+      columnId: column.id,
+      position: { x: 30, y: 50 },
+    });
+    await runBoundAction(deps, "resizeColumn", {
+      columnId: column.id,
+      size: { width: 320, height: 420 },
+    });
+    await runBoundAction(deps, "detachCardFromColumn", {
+      cardId: card.id,
+      position: { x: 50, y: 50 },
+    });
     await runBoundAction(deps, "updateFrame", {
       frameId: frame.id,
       name: "F",
     });
-    await runBoundAction(deps, "moveFrame", {
-      frameId: frame.id,
-      position: { x: 2, y: 2 },
-    });
-    await runBoundAction(deps, "resizeFrame", {
-      frameId: frame.id,
-      size: { width: 40, height: 40 },
-    });
+    await expect(
+      runBoundAction(deps, "moveFrame", {
+        frameId: frame.id,
+        position: { x: 2, y: 2 },
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
+    await expect(
+      runBoundAction(deps, "resizeFrame", {
+        frameId: frame.id,
+        size: { width: 40, height: 40 },
+      }),
+    ).rejects.toMatchObject({ code: "conflict" });
     await runBoundAction(deps, "updateWatchBot", {
       watchBotId: bot.id,
       name: "Bot",
@@ -155,7 +185,9 @@ describe("session-bound server wrappers", () => {
       active: true,
     });
     expect(view.active).toBe(true);
-    await runBoundAction(deps, "deleteFrame", { frameId: frame.id });
+    await expect(
+      runBoundAction(deps, "deleteFrame", { frameId: frame.id }),
+    ).rejects.toMatchObject({ code: "conflict" });
     await runBoundAction(deps, "deleteCard", { cardId: card.id });
     await runBoundAction(deps, "deleteCanvas", { canvasId: canvas.id });
   });

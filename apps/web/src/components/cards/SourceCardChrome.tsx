@@ -1,6 +1,6 @@
 "use client";
 
-import type { Card } from "@openbento/domain";
+import { isFreeCardActive, type Card } from "@openbento/domain";
 import { CardNodeResizer } from "@/components/cards/CardNodeResizer";
 import { NewCardBadge } from "@/components/cards/NewCardBadge";
 import { WatchBotAttribution } from "@/components/cards/WatchBotAttribution";
@@ -31,6 +31,12 @@ export function SourceCardChrome({
   const isNew = monitor?.isCardNew(card.id) ?? false;
   const kind = label ?? sourceKindLabel(card) ?? "Source";
   const watchBotId = cardWatchBotId(card);
+  const primaryFrame = snapshot.frames.find(
+    (frame) => frame.id === snapshot.canvases.find(
+      (canvas) => canvas.id === snapshot.currentCanvasId,
+    )?.primaryFrameId,
+  );
+  const parked = primaryFrame ? !isFreeCardActive(card, primaryFrame) : true;
 
   return (
     <div
@@ -48,6 +54,7 @@ export function SourceCardChrome({
         className={cn(
           "flex h-full w-full flex-col overflow-hidden rounded-xl border border-[#2a3140] bg-[#161a22] shadow-[0_8px_24px_rgba(0,0,0,0.35)]",
           isNew && "ring-1 ring-indigo-400/70",
+          parked && "opacity-45 grayscale",
         )}
       >
         <div className="flex h-7 shrink-0 items-center gap-2 px-3 text-[10px] font-medium uppercase tracking-[0.14em] text-zinc-500">
@@ -62,7 +69,15 @@ export function SourceCardChrome({
             />
           </div>
         ) : null}
-        <div className="min-h-0 flex-1 px-3 pb-3">{children}</div>
+        <div
+          data-card-interactive
+          className={cn(
+            "min-h-0 flex-1 px-3 pb-3",
+            parked && "pointer-events-none select-none",
+          )}
+        >
+          {children}
+        </div>
       </div>
     </div>
   );

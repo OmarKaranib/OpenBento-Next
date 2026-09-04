@@ -3,6 +3,7 @@ import { DomainError } from "./errors";
 import type {
   CanvasRecord,
   CardRecord,
+  ColumnRecord,
   FrameRecord,
   WatchBotEventRecord,
   WatchBotRecord,
@@ -255,6 +256,42 @@ function createAdapter(
         mapPgError(error);
       }
       return (data as FrameRecord[] | null) ?? [];
+    },
+    async getColumn(id) {
+      const { data, error } = await (await client())
+        .from("columns")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (error) {
+        mapPgError(error);
+      }
+      return (data as ColumnRecord | null) ?? null;
+    },
+    async upsertColumn(row) {
+      const { error } = await (await client()).from("columns").upsert(row);
+      if (error) {
+        mapPgError(error);
+      }
+    },
+    async deleteColumn(id) {
+      const { error } = await (await client())
+        .from("columns")
+        .delete()
+        .eq("id", id);
+      if (error) {
+        mapPgError(error);
+      }
+    },
+    async listColumnsByCanvas(canvasId) {
+      const { data, error } = await (await client())
+        .from("columns")
+        .select("*")
+        .eq("canvas_id", canvasId);
+      if (error) {
+        mapPgError(error);
+      }
+      return (data as ColumnRecord[] | null) ?? [];
     },
     async getWatchBot(id) {
       const { data, error } = await (await client())

@@ -24,11 +24,8 @@ async function seedCanvas() {
   const store = new InMemoryDomainStore();
   const executor = createActionExecutor({ store, ownerId: "agent-user" });
   const canvas = await executor.createCanvas({ name: "Demo Canvas" });
-  const frame = await executor.createFrame({
-    canvasId: canvas.id,
-    name: "Official Sources",
-    bounds: { x: 0, y: 0, width: 800, height: 600 },
-  });
+  const frame = (await executor.getCanvasState({ canvasId: canvas.id })).frames[0]!;
+  await executor.updateFrame({ frameId: frame.id, name: "Official Sources" });
   const note = await executor.createCard({
     canvasId: canvas.id,
     type: "note",
@@ -95,6 +92,11 @@ describe("Interactive Agent tools/context", () => {
     expect(tools.some((tool) => tool.name === "deleteCanvas")).toBe(false);
     expect(tools.some((tool) => tool.name === "deleteCard")).toBe(false);
     expect(tools.some((tool) => tool.name === "deleteFrame")).toBe(false);
+    expect(tools.some((tool) => tool.name === "createFrame")).toBe(false);
+    expect(tools.some((tool) => tool.name === "updateFrame")).toBe(false);
+    expect(tools.some((tool) => tool.name === "moveFrame")).toBe(false);
+    expect(tools.some((tool) => tool.name === "resizeFrame")).toBe(false);
+    expect(tools.some((tool) => tool.name === "fullscreenFrame")).toBe(true);
   });
 
   it("marks source content as untrusted data in Canvas context", async () => {
@@ -138,7 +140,7 @@ describe("Interactive Agent runtime", () => {
     expect(provider.calls).toBe(1);
   });
 
-  it("creates a Frame through the catalog and shows tool activity", async () => {
+  it("rejects obsolete Frame mutation calls outside the Agent catalog", async () => {
     const { executor, canvas } = await seedCanvas();
     const provider = mockProvider([
       {
@@ -150,7 +152,7 @@ describe("Interactive Agent runtime", () => {
             arguments: JSON.stringify({
               canvasId: canvas.id,
               name: "Reactions",
-              bounds: { x: 900, y: 40, width: 500, height: 400 },
+              bounds: { x: 0, y: 0, width: 1600, height: 900 },
             }),
           },
         ],
@@ -162,13 +164,13 @@ describe("Interactive Agent runtime", () => {
             arguments: JSON.stringify({
               canvasId: canvas.id,
               name: "Reactions",
-              bounds: { x: 900, y: 40, width: 500, height: 400 },
+              bounds: { x: 0, y: 0, width: 1600, height: 900 },
             }),
           },
         ],
       },
       {
-        assistantText: "Created the Reactions Frame.",
+        assistantText: "The dashboard boundary cannot be changed.",
         functionCalls: [],
         continuationItems: [],
       },
@@ -184,10 +186,11 @@ describe("Interactive Agent runtime", () => {
     expect(result.toolCallCount).toBe(1);
     expect(result.toolActivity[0]).toMatchObject({
       name: "createFrame",
-      success: true,
+      success: false,
     });
     const state = await executor.getCanvasState({ canvasId: canvas.id });
-    expect(state.frames.some((frame) => frame.name === "Reactions")).toBe(true);
+    expect(state.frames).toHaveLength(1);
+    expect(state.frames[0]?.name).toBe("Official Sources");
   });
 
   it("rejects actions outside the Agent catalog", async () => {

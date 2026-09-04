@@ -53,7 +53,7 @@ describe("canvas camera sync", () => {
     expect(source).toContain("shouldApplyStoredViewport");
     expect(source).toContain("revision is intentionally omitted");
     expect(source).toMatch(
-      /\[canvas\?\.id, fitView, fullscreen\?\.active, fullscreen\?\.frameId, setViewport\]/,
+      /canvas\?\.id,[\s\S]*fitBounds,[\s\S]*fullscreen\?\.active,[\s\S]*fullscreen\?\.frameId,[\s\S]*primaryFrame,[\s\S]*setViewport/,
     );
     expect(source).not.toMatch(
       /shouldApplyStoredViewport[\s\S]{0,400}snapshot\.revision/,

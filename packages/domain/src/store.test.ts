@@ -77,10 +77,38 @@ describe("watch_bot_events unique (watch_bot_id, dedup_key)", () => {
 
   it("lists every WatchBot for the worker scan", async () => {
     const store = new InMemoryDomainStore();
+    for (const suffix of ["1", "2"]) {
+      await store.saveCanvas({
+        id: `canvas-${suffix}`,
+        ownerId: suffix === "1" ? "user-a" : "user-b",
+        primaryFrameId: `frame-${suffix}`,
+        name: "Canvas",
+        viewport: { x: 0, y: 0, zoom: 1 },
+        createdAt: "2026-08-29T00:00:00.000Z",
+        updatedAt: "2026-08-29T00:00:00.000Z",
+      });
+      await store.saveFrame({
+        id: `frame-${suffix}`,
+        canvasId: `canvas-${suffix}`,
+        bounds: { x: 0, y: 0, width: 1600, height: 900 },
+        createdAt: "2026-08-29T00:00:00.000Z",
+        updatedAt: "2026-08-29T00:00:00.000Z",
+      });
+      await store.saveColumn({
+        id: `column-${suffix}`,
+        canvasId: `canvas-${suffix}`,
+        frameId: `frame-${suffix}`,
+        name: "Feed",
+        bounds: { x: 40, y: 80, width: 320, height: 780 },
+        createdAt: "2026-08-29T00:00:00.000Z",
+        updatedAt: "2026-08-29T00:00:00.000Z",
+      });
+    }
     await store.saveWatchBot({
       id: "bot-1",
       ownerId: "user-a",
       canvasId: "canvas-1",
+      columnId: "column-1",
       instruction: "Watch",
       status: "running",
       sourceTypes: ["web"],
@@ -91,6 +119,7 @@ describe("watch_bot_events unique (watch_bot_id, dedup_key)", () => {
       id: "bot-2",
       ownerId: "user-b",
       canvasId: "canvas-2",
+      columnId: "column-2",
       instruction: "Watch",
       status: "paused",
       sourceTypes: ["news"],

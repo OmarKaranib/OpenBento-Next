@@ -2,6 +2,7 @@ import { DomainError } from "./errors";
 import type {
   CanvasRecord,
   CardRecord,
+  ColumnRecord,
   FrameRecord,
   WatchBotEventRecord,
   WatchBotRecord,
@@ -12,6 +13,7 @@ export type DomainWriteOp =
   | { op: "upsert_canvas"; row: CanvasRecord }
   | { op: "upsert_card"; row: CardRecord }
   | { op: "upsert_frame"; row: FrameRecord }
+  | { op: "upsert_column"; row: ColumnRecord }
   | { op: "upsert_watch_bot"; row: WatchBotRecord }
   | { op: "insert_watch_bot_event"; row: WatchBotEventRecord };
 
@@ -24,6 +26,7 @@ export class SharedSqlTables {
   canvases = new Map<string, CanvasRecord>();
   cards = new Map<string, CardRecord>();
   frames = new Map<string, FrameRecord>();
+  columns = new Map<string, ColumnRecord>();
   watchBots = new Map<string, WatchBotRecord>();
   watchBotEvents = new Map<string, WatchBotEventRecord>();
 
@@ -32,6 +35,7 @@ export class SharedSqlTables {
     copy.canvases = new Map(this.canvases);
     copy.cards = new Map(this.cards);
     copy.frames = new Map(this.frames);
+    copy.columns = new Map(this.columns);
     copy.watchBots = new Map(this.watchBots);
     copy.watchBotEvents = new Map(this.watchBotEvents);
     return copy;
@@ -41,6 +45,7 @@ export class SharedSqlTables {
     this.canvases = new Map(snapshot.canvases);
     this.cards = new Map(snapshot.cards);
     this.frames = new Map(snapshot.frames);
+    this.columns = new Map(snapshot.columns);
     this.watchBots = new Map(snapshot.watchBots);
     this.watchBotEvents = new Map(snapshot.watchBotEvents);
   }
@@ -126,6 +131,11 @@ export class SqlContractEngine {
         this.tables.frames.delete(frameId);
       }
     }
+    for (const [columnId, column] of this.tables.columns) {
+      if (column.canvas_id === id) {
+        this.tables.columns.delete(columnId);
+      }
+    }
     this.tables.canvases.delete(id);
   }
 
@@ -147,6 +157,19 @@ export class SqlContractEngine {
         throw new DomainError(
           "invalid_input",
           "cards.frame_id must reference a frame on the same canvas",
+        );
+      }
+    }
+    if (row.column_id) {
+      const column = this.tables.columns.get(row.column_id);
+      if (
+        !column ||
+        column.canvas_id !== row.canvas_id ||
+        column.frame_id !== row.frame_id
+      ) {
+        throw new DomainError(
+          "invalid_input",
+          "cards.column_id must reference a Column in the same primary Frame",
         );
       }
     }
@@ -187,6 +210,16 @@ export class SqlContractEngine {
     if (!this.canSeeCanvasId(row.canvas_id) && !this.session.bypassRls) {
       throw new DomainError("not_found", "Frame canvas not found");
     }
+    const canvas = this.tables.canvases.get(row.canvas_id);
+    if (canvas && canvas.primary_frame_id !== row.id) {
+      throw new DomainError("conflict", "Canvas already has a primary Frame");
+    }
+    const other = [...this.tables.frames.values()].find(
+      (frame) => frame.canvas_id === row.canvas_id && frame.id !== row.id,
+    );
+    if (other) {
+      throw new DomainError("conflict", "Canvas already has a primary Frame");
+    }
     this.tables.frames.set(row.id, clone(row));
   }
 
@@ -195,13 +228,7 @@ export class SqlContractEngine {
     if (!frame || (!this.canSeeCanvasId(frame.canvas_id) && !this.session.bypassRls)) {
       throw new DomainError("not_found", "Frame not found");
     }
-    if ([...this.tables.cards.values()].some((card) => card.frame_id === id)) {
-      throw new DomainError(
-        "invalid_input",
-        "Frame cannot be deleted while Cards still reference it",
-      );
-    }
-    this.tables.frames.delete(id);
+    throw new DomainError("conflict", "The primary Frame cannot be deleted");
   }
 
   listFramesByCanvas(canvasId: string): FrameRecord[] {
@@ -209,6 +236,66 @@ export class SqlContractEngine {
       return [];
     }
     return [...this.tables.frames.values()]
+      .filter((row) => row.canvas_id === canvasId)
+      .map((row) => clone(row));
+  }
+
+  getColumn(id: string): ColumnRecord | null {
+    const row = this.tables.columns.get(id);
+    if (!row || !this.canSeeCanvasId(row.canvas_id)) {
+      return null;
+    }
+    return clone(row);
+  }
+
+  upsertColumn(row: ColumnRecord): void {
+    if (!this.canSeeCanvasId(row.canvas_id) && !this.session.bypassRls) {
+      throw new DomainError("not_found", "Column canvas not found");
+    }
+    const canvas = this.tables.canvases.get(row.canvas_id);
+    const frame = this.tables.frames.get(row.frame_id);
+    if (
+      !canvas ||
+      !frame ||
+      frame.canvas_id !== row.canvas_id ||
+      canvas.primary_frame_id !== row.frame_id
+    ) {
+      throw new DomainError(
+        "invalid_input",
+        "Column must reference the primary Frame on the same Canvas",
+      );
+    }
+    this.tables.columns.set(row.id, clone(row));
+  }
+
+  deleteColumn(id: string): void {
+    const column = this.tables.columns.get(id);
+    if (
+      !column ||
+      (!this.canSeeCanvasId(column.canvas_id) && !this.session.bypassRls)
+    ) {
+      throw new DomainError("not_found", "Column not found");
+    }
+    if ([...this.tables.cards.values()].some((card) => card.column_id === id)) {
+      throw new DomainError(
+        "invalid_input",
+        "Column cannot be deleted while Cards still reference it",
+      );
+    }
+    if ([...this.tables.watchBots.values()].some((bot) => bot.column_id === id)) {
+      throw new DomainError(
+        "invalid_input",
+        "A dedicated WatchBot Column cannot be deleted",
+      );
+    }
+    this.tables.columns.delete(id);
+  }
+
+  listColumnsByCanvas(canvasId: string): ColumnRecord[] {
+    if (!this.canSeeCanvasId(canvasId) && !this.session.bypassRls) {
+      return [];
+    }
+    return [...this.tables.columns.values()]
       .filter((row) => row.canvas_id === canvasId)
       .map((row) => clone(row));
   }
@@ -237,6 +324,19 @@ export class SqlContractEngine {
         "invalid_input",
         "WatchBot owner must match the canvas owner",
       );
+    }
+    const column = this.tables.columns.get(row.column_id);
+    if (!column || column.canvas_id !== row.canvas_id) {
+      throw new DomainError(
+        "invalid_input",
+        "WatchBot Column must belong to the same Canvas",
+      );
+    }
+    const other = [...this.tables.watchBots.values()].find(
+      (bot) => bot.column_id === row.column_id && bot.id !== row.id,
+    );
+    if (other) {
+      throw new DomainError("conflict", "A Column can have at most one WatchBot");
     }
     if (
       !this.session.bypassRls &&
@@ -351,6 +451,9 @@ export class SqlContractEngine {
       case "upsert_frame":
         this.upsertFrame(op.row);
         return;
+      case "upsert_column":
+        this.upsertColumn(op.row);
+        return;
       case "upsert_watch_bot":
         this.upsertWatchBot(op.row);
         return;
@@ -366,9 +469,27 @@ export class SqlContractEngine {
       for (const op of ops) {
         this.applyOp(op);
       }
+      this.assertCanvasFrameInvariants();
     } catch (error) {
       this.tables.restore(snapshot);
       throw error;
+    }
+  }
+
+  private assertCanvasFrameInvariants(): void {
+    for (const canvas of this.tables.canvases.values()) {
+      const frames = [...this.tables.frames.values()].filter(
+        (frame) => frame.canvas_id === canvas.id,
+      );
+      if (
+        frames.length !== 1 ||
+        frames[0]?.id !== canvas.primary_frame_id
+      ) {
+        throw new DomainError(
+          "conflict",
+          "Every Canvas must have exactly one primary Frame",
+        );
+      }
     }
   }
 }

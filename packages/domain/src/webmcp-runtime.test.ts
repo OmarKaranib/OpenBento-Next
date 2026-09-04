@@ -22,7 +22,7 @@ describe("WebMCP registered tools", () => {
   it("maps every registered tool onto a real ACTION_CATALOG action", () => {
     const tools = listWebMcpTools();
     expect(tools.map((tool) => tool.name)).toEqual([...WEBMCP_TOOL_NAMES]);
-    expect(tools).toHaveLength(19);
+    expect(tools).toHaveLength(15);
     for (const tool of tools) {
       expect(ACTION_NAMES).toContain(tool.actionName);
       expect(tool.actionName).toBe(WEBMCP_TOOL_TO_ACTION[tool.name]);
@@ -42,6 +42,10 @@ describe("WebMCP registered tools", () => {
     expect(tools.map((tool) => tool.name)).not.toContain("delete_canvas");
     expect(tools.map((tool) => tool.name)).not.toContain("delete_card");
     expect(tools.map((tool) => tool.name)).not.toContain("delete_frame");
+    expect(tools.map((tool) => tool.name)).not.toContain("create_frame");
+    expect(tools.map((tool) => tool.name)).not.toContain("update_frame");
+    expect(tools.map((tool) => tool.name)).not.toContain("move_frame");
+    expect(tools.map((tool) => tool.name)).not.toContain("resize_frame");
   });
 
   it("sets supported Chrome annotations from result semantics", () => {
@@ -181,11 +185,7 @@ describe("WebMCP invoke follows up setCardFrame from geometry", () => {
       },
     });
     const canvas = await runtime.invoke("create_canvas", { name: "Story" });
-    const frame = await runtime.invoke("create_frame", {
-      canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 200, height: 200 },
-      name: "Inner",
-    });
+    const frameId = canvas.primaryFrameId;
     catalog.length = 0;
 
     const card = await runtime.invoke("create_card", {
@@ -197,8 +197,8 @@ describe("WebMCP invoke follows up setCardFrame from geometry", () => {
     });
 
     expect(catalog).toEqual(["createCard", "getCanvasState", "setCardFrame"]);
-    expect(card.frameId).toBe(frame.id);
-    expect((await store.getCard(card.id))?.frameId).toBe(frame.id);
+    expect(card.frameId).toBe(frameId);
+    expect((await store.getCard(card.id))?.frameId).toBe(frameId);
   });
 
   it("runs moveCard then setCardFrame after invoke(move_card)", async () => {
@@ -212,15 +212,12 @@ describe("WebMCP invoke follows up setCardFrame from geometry", () => {
       },
     });
     const canvas = await runtime.invoke("create_canvas", { name: "Story" });
-    const frame = await runtime.invoke("create_frame", {
-      canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 200, height: 200 },
-    });
+    const frameId = canvas.primaryFrameId;
     const card = await runtime.invoke("create_card", {
       canvasId: canvas.id,
       type: "note",
       payload: { text: "outside" },
-      position: { x: 400, y: 400 },
+      position: { x: 1700, y: 1000 },
       size: { width: 40, height: 40 },
     });
     expect(card.frameId).toBeNull();
@@ -231,7 +228,7 @@ describe("WebMCP invoke follows up setCardFrame from geometry", () => {
       position: { x: 12, y: 12 },
     });
     expect(catalog).toEqual(["moveCard", "getCanvasState", "setCardFrame"]);
-    expect(moved.frameId).toBe(frame.id);
+    expect(moved.frameId).toBe(frameId);
   });
 
   it("runs resizeCard then setCardFrame after invoke(resize_card)", async () => {
@@ -245,15 +242,11 @@ describe("WebMCP invoke follows up setCardFrame from geometry", () => {
       },
     });
     const canvas = await runtime.invoke("create_canvas", { name: "Story" });
-    await runtime.invoke("create_frame", {
-      canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 80, height: 80 },
-    });
     const card = await runtime.invoke("create_card", {
       canvasId: canvas.id,
       type: "note",
       payload: { text: "inside" },
-      position: { x: 10, y: 10 },
+      position: { x: 1500, y: 800 },
       size: { width: 40, height: 40 },
     });
     expect(card.frameId).not.toBeNull();

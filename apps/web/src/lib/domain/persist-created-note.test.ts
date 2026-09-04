@@ -14,7 +14,7 @@ describe("pane / toolbar Note create is two catalog calls", () => {
     const canvas = await executor.createCanvas({ name: "Board" });
     const frame = await executor.createFrame({
       canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 400, height: 300 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
       name: "Main",
     });
 
@@ -55,7 +55,7 @@ describe("pane / toolbar Note create is two catalog calls", () => {
     const canvas = await executor.createCanvas({ name: "Board" });
     const frame = await executor.createFrame({
       canvasId: canvas.id,
-      bounds: { x: 0, y: 0, width: 80, height: 80 },
+      bounds: { x: 0, y: 0, width: 1600, height: 900 },
     });
 
     const names: CatalogCall["name"][] = [];
@@ -68,7 +68,7 @@ describe("pane / toolbar Note create is two catalog calls", () => {
       return results;
     };
 
-    const world = { x: 500, y: 400 };
+    const world = { x: 1700, y: 1000 };
     const card = await persistCreatedNoteCard(
       commit,
       buildCreateNoteCardInput({

@@ -1,6 +1,7 @@
 import type {
   CanvasRecord,
   CardRecord,
+  ColumnRecord,
   FrameRecord,
   WatchBotEventRecord,
   WatchBotRecord,
@@ -27,6 +28,11 @@ export interface DomainSqlAdapter {
   upsertFrame(row: FrameRecord): Promise<void>;
   deleteFrame(id: string): Promise<void>;
   listFramesByCanvas(canvasId: string): Promise<FrameRecord[]>;
+
+  getColumn(id: string): Promise<ColumnRecord | null>;
+  upsertColumn(row: ColumnRecord): Promise<void>;
+  deleteColumn(id: string): Promise<void>;
+  listColumnsByCanvas(canvasId: string): Promise<ColumnRecord[]>;
 
   getWatchBot(id: string): Promise<WatchBotRecord | null>;
   upsertWatchBot(row: WatchBotRecord): Promise<void>;
@@ -80,6 +86,18 @@ export function createSqlContractAdapter(
     },
     async listFramesByCanvas(canvasId) {
       return engine.listFramesByCanvas(canvasId);
+    },
+    async getColumn(id) {
+      return engine.getColumn(id);
+    },
+    async upsertColumn(row) {
+      engine.upsertColumn(row);
+    },
+    async deleteColumn(id) {
+      engine.deleteColumn(id);
+    },
+    async listColumnsByCanvas(canvasId) {
+      return engine.listColumnsByCanvas(canvasId);
     },
     async getWatchBot(id) {
       return engine.getWatchBot(id);

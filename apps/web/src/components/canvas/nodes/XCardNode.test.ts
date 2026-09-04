@@ -143,7 +143,10 @@ describe("XCardNode", () => {
 
   it("contains no provider HTML execution sink", async () => {
     const { readFile } = await import("node:fs/promises");
-    const source = await readFile(new URL("./XCardNode.tsx", import.meta.url), "utf8");
+    const source = await readFile(
+      new URL("../../cards/XCardContent.tsx", import.meta.url),
+      "utf8",
+    );
     expect(source).not.toMatch(/dangerouslySetInnerHTML|srcDoc|\beval\s*\(/);
   });
 });

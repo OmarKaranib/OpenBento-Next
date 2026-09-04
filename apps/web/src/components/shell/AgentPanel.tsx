@@ -139,7 +139,7 @@ export function AgentPanel() {
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
         {messages.length === 0 ? (
           <p className="text-xs leading-5 text-zinc-500">
-            Ask me to organize this Canvas, create Frames or Notes, resize
+            Ask me to organize this Canvas, create Notes, resize
             source Cards, or manage WatchBots. I act through OpenBento&apos;s
             shared actions — sources stay the story.
           </p>

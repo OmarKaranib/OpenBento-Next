@@ -30,6 +30,11 @@ describe("WebMCP browser registerTool", () => {
     expect(names).not.toContain("delete_card");
     expect(names).not.toContain("delete_frame");
     expect(names).not.toContain("set_card_frame");
+    expect(names).not.toContain("create_frame");
+    expect(names).not.toContain("update_frame");
+    expect(names).not.toContain("move_frame");
+    expect(names).not.toContain("resize_frame");
+    expect(names).toContain("fullscreen_frame");
   });
 
   it("passes Chrome annotations through unchanged", async () => {
@@ -55,10 +60,7 @@ describe("WebMCP browser registerTool", () => {
       readOnlyHint: true,
       untrustedContentHint: false,
     });
-    expect(annotations.get("update_frame")).toEqual({
-      readOnlyHint: false,
-      untrustedContentHint: true,
-    });
+    expect(annotations.has("update_frame")).toBe(false);
   });
 
   it("forwards execute to the provided invoke (session-bound server action)", async () => {

@@ -38,12 +38,16 @@ Left-rail WatchBots is global. Top-left status is current Canvas only.
 
 Railway-like **vertical** stack on the canvas:
 
-- grid/snap
-- zoom in / zoom out / fit (camera only)
-- Frame tool (draw a bordered region)
-- undo / redo
+- Zoom In
+- Zoom Out
+- Fit Dashboard
+- Return to Dashboard
+- Fullscreen Dashboard (active toggle; remains available while fullscreened)
+- Snap/Grid
+- Undo
+- Redo
 
-Frame tool: click → crosshair → drag rectangle → name/move/resize.
+The one dashboard Frame is fixed at `{x:0,y:0,width:1600,height:900}`. The UI has no Frame draw, move, resize, or delete control. Columns are added from the Canvas context menu.
 
 ## Cards and Frames
 

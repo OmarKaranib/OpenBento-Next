@@ -187,6 +187,8 @@ export interface Canvas {
   id: string;
   /** Present on the record; never on action inputs. */
   ownerId: OwnerId;
+  /** Authoritative singleton dashboard Frame for this Canvas. */
+  primaryFrameId: string;
   name: string;
   viewport: Viewport;
   createdAt: string;
@@ -202,6 +204,8 @@ export type Card = {
    * Overlapping Frames: smallest area wins; equal area uses newest createdAt.
    */
   frameId?: string | null;
+  /** Explicit ordered-stream membership. Null means free-floating. */
+  columnId?: string | null;
   position: Point;
   size: Size;
   zIndex?: number;
@@ -220,11 +224,25 @@ export interface Frame {
   updatedAt: string;
 }
 
+/** A persisted vertical Card stream belonging to the primary Frame. */
+export interface Column {
+  id: string;
+  canvasId: string;
+  frameId: string;
+  name: string;
+  bounds: Rect;
+  zIndex?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface WatchBot {
   id: string;
   /** Present on the record; never on action inputs. */
   ownerId: OwnerId;
   canvasId: string;
+  /** Dedicated output Column. One-to-one, enforced by persistence. */
+  columnId: string;
   name?: string;
   instruction: string;
   status: WatchBotStatus;
@@ -265,6 +283,7 @@ export interface CanvasState {
   canvas: Canvas;
   cards: Card[];
   frames: Frame[];
+  columns: Column[];
   watchBots: WatchBot[];
 }
 

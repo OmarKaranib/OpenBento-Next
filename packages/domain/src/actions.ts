@@ -7,6 +7,7 @@ import type {
   Canvas,
   CanvasState,
   Card,
+  Column,
   DiscriminatedCardContent,
   Frame,
   FrameFullscreenView,
@@ -40,6 +41,12 @@ export const ACTION_NAMES = [
   "moveFrame",
   "resizeFrame",
   "deleteFrame",
+  "createColumn",
+  "updateColumn",
+  "moveColumn",
+  "resizeColumn",
+  "setCardColumn",
+  "detachCardFromColumn",
   "createWatchBot",
   "updateWatchBot",
   "pauseWatchBot",
@@ -143,6 +150,39 @@ export interface DeleteFrameResult {
   detachedCardIds: string[];
 }
 
+export interface CreateColumnInput {
+  canvasId: string;
+  name?: string;
+  position?: Point;
+  size?: Size;
+}
+
+export interface UpdateColumnInput {
+  columnId: string;
+  name: string;
+}
+
+export interface MoveColumnInput {
+  columnId: string;
+  position: Point;
+}
+
+export interface ResizeColumnInput {
+  columnId: string;
+  size: Size;
+}
+
+export interface SetCardColumnInput {
+  cardId: string;
+  columnId: string | null;
+}
+
+export interface DetachCardFromColumnInput {
+  cardId: string;
+  position: Point;
+  size?: Size;
+}
+
 export interface CreateWatchBotInput {
   canvasId: string;
   /** Required natural-language monitoring instruction. */
@@ -196,6 +236,12 @@ export interface ActionInputMap {
   moveFrame: MoveFrameInput;
   resizeFrame: ResizeFrameInput;
   deleteFrame: DeleteFrameInput;
+  createColumn: CreateColumnInput;
+  updateColumn: UpdateColumnInput;
+  moveColumn: MoveColumnInput;
+  resizeColumn: ResizeColumnInput;
+  setCardColumn: SetCardColumnInput;
+  detachCardFromColumn: DetachCardFromColumnInput;
   createWatchBot: CreateWatchBotInput;
   updateWatchBot: UpdateWatchBotInput;
   pauseWatchBot: PauseWatchBotInput;
@@ -222,6 +268,12 @@ export interface ActionResultMap {
   moveFrame: Frame;
   resizeFrame: Frame;
   deleteFrame: DeleteFrameResult;
+  createColumn: Column;
+  updateColumn: Column;
+  moveColumn: Column;
+  resizeColumn: Column;
+  setCardColumn: Card;
+  detachCardFromColumn: Card;
   createWatchBot: WatchBot;
   updateWatchBot: WatchBot;
   pauseWatchBot: WatchBot;
@@ -441,7 +493,8 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
   },
   createFrame: {
     name: "createFrame",
-    description: "Create a persisted bordered Frame region on a Canvas.",
+    description:
+      "Compatibility action that accepts only the Canvas canonical primary Frame bounds.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -468,7 +521,7 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
   },
   moveFrame: {
     name: "moveFrame",
-    description: "Move a Frame in world coordinates.",
+    description: "Rejected compatibility action: primary Frame geometry is fixed.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -481,7 +534,7 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
   },
   resizeFrame: {
     name: "resizeFrame",
-    description: "Resize a Frame. Does not enter fullscreen or rewrite Cards.",
+    description: "Rejected compatibility action: primary Frame geometry is fixed.",
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -501,6 +554,91 @@ export const ACTION_CATALOG: { [K in ActionName]: DomainAction<K> } = {
       additionalProperties: false,
       required: ["frameId"],
       properties: { frameId: { type: "string", minLength: 1 } },
+    },
+  },
+  createColumn: {
+    name: "createColumn",
+    description:
+      "Create a first-class vertical Card stream in the Canvas primary Frame.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["canvasId"],
+      properties: {
+        canvasId: { type: "string", minLength: 1 },
+        name: { type: "string" },
+        position: pointSchema,
+        size: sizeSchema,
+      },
+    },
+  },
+  updateColumn: {
+    name: "updateColumn",
+    description: "Rename a persisted Column.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["columnId", "name"],
+      properties: {
+        columnId: { type: "string", minLength: 1 },
+        name: { type: "string", minLength: 1 },
+      },
+    },
+  },
+  moveColumn: {
+    name: "moveColumn",
+    description:
+      "Move a Column in world coordinates; outside the primary Frame it is parked.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["columnId", "position"],
+      properties: {
+        columnId: { type: "string", minLength: 1 },
+        position: pointSchema,
+      },
+    },
+  },
+  resizeColumn: {
+    name: "resizeColumn",
+    description: "Resize a Column within logical primary-Frame size limits.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["columnId", "size"],
+      properties: {
+        columnId: { type: "string", minLength: 1 },
+        size: sizeSchema,
+      },
+    },
+  },
+  setCardColumn: {
+    name: "setCardColumn",
+    description:
+      "Set explicit Card Column membership after same-Canvas and primary-Frame validation.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["cardId", "columnId"],
+      properties: {
+        cardId: { type: "string", minLength: 1 },
+        columnId: { type: ["string", "null"] },
+      },
+    },
+  },
+  detachCardFromColumn: {
+    name: "detachCardFromColumn",
+    description:
+      "Detach one existing Column Card into free primary-Frame space without changing content or provenance.",
+    inputSchema: {
+      type: "object",
+      additionalProperties: false,
+      required: ["cardId", "position"],
+      properties: {
+        cardId: { type: "string", minLength: 1 },
+        position: pointSchema,
+        size: sizeSchema,
+      },
     },
   },
   createWatchBot: {

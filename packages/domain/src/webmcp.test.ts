@@ -14,10 +14,6 @@ describe("WebMCP tool map", () => {
       update_card: "updateCard",
       move_card: "moveCard",
       resize_card: "resizeCard",
-      create_frame: "createFrame",
-      update_frame: "updateFrame",
-      move_frame: "moveFrame",
-      resize_frame: "resizeFrame",
       fullscreen_frame: "fullscreenFrame",
       create_watchbot: "createWatchBot",
       update_watchbot: "updateWatchBot",
@@ -32,6 +28,14 @@ describe("WebMCP tool map", () => {
     expect(WEBMCP_TOOL_TO_ACTION).not.toHaveProperty("delete_card");
     expect(WEBMCP_TOOL_TO_ACTION).not.toHaveProperty("delete_frame");
     expect(WEBMCP_TOOL_TO_ACTION).not.toHaveProperty("set_card_frame");
+    expect(WEBMCP_TOOL_TO_ACTION).not.toHaveProperty("create_frame");
+    expect(WEBMCP_TOOL_TO_ACTION).not.toHaveProperty("update_frame");
+    expect(WEBMCP_TOOL_TO_ACTION).not.toHaveProperty("move_frame");
+    expect(WEBMCP_TOOL_TO_ACTION).not.toHaveProperty("resize_frame");
+    expect(WEBMCP_TOOL_TO_ACTION).toHaveProperty(
+      "fullscreen_frame",
+      "fullscreenFrame",
+    );
   });
 
   it("maps every tool onto an existing domain action", () => {

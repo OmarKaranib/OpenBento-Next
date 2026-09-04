@@ -20,7 +20,7 @@ Shared domain catalog in `@openbento/domain` (23 actions — **not** a 5-action 
 | --- | --- |
 | Canvas | `createCanvas`, `renameCanvas`, `switchCanvas`, `updateCanvasViewport`, `deleteCanvas` |
 | Card | `createCard`, `updateCard`, `moveCard`, `resizeCard`, `setCardFrame`, `deleteCard` |
-| Frame | `createFrame`, `updateFrame`, `moveFrame`, `resizeFrame`, `deleteFrame` |
+| Frame | `createFrame` (canonical compatibility), `updateFrame` (name), `moveFrame` / `resizeFrame` / `deleteFrame` (reject) |
 | WatchBot | `createWatchBot` (**requires `instruction`**), `updateWatchBot`, `pauseWatchBot`, `resumeWatchBot` |
 | Read/view | `getCanvasState`, `getWatchBotStatus`, `fullscreenFrame` (view-only; must not rewrite stored geometry) |
 
@@ -71,7 +71,7 @@ Omar assigned. PR #2. Do not merge until owner validation.
 - [ ] Multi-Canvas create/switch/rename via catalog
 - [ ] Note Card; drag/resize via `moveCard`/`resizeCard`
 - [ ] Bottom-left Railway-style controls
-- [ ] Frame tool; move/resize/name
+- [x] Fixed canonical dashboard Frame; safe rename; no geometry mutation UI
 - [ ] Geometric membership → `setCardFrame` (smallest containing Frame)
 - [ ] `fullscreenFrame` view-only (no geometry rewrite)
 
