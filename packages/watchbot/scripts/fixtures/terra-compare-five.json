@@ -1,0 +1,28 @@
+{
+  "label": "X Live Test WatchBot",
+  "instruction": "(OpenAI OR WebMCP) -is:retweet",
+  "sourceType": "x",
+  "note": "Titles are exact durable watch_bot_events.title values. snippet ≡ title at classify time. Edit this file to correct titles without changing harness code.",
+  "candidates": [
+    {
+      "url": "https://x.com/dailytechonx/status/2095134626800894439",
+      "title": "New lawsuits target OpenAI over the Tumbler Ridge tragedy — 30 more plaintiffs, including teachers and students, now allege aiding and abetting rather than mere negligence in its handling of early warning signs tied to ChatGPT. This marks a major escalation as OpenAI faces https://t.co/kINyQqBT4D"
+    },
+    {
+      "url": "https://x.com/louis4174/status/2095134636074586324",
+      "title": "@Keilthar Tu vis au paradis, dans la vraie vie, même dans la plus riche et organisée des entreprises avec le plus d’employés, c’est le bordel. Alors une boite qui a scale aussi vite que OpenAI je te laisse imaginer."
+    },
+    {
+      "url": "https://x.com/lmx2000/status/2095134611353588178",
+      "title": "@MaxForAI @theinformation @OpenAI 所以到底能不能看懂啊 这波澄清完感觉更慌了哈"
+    },
+    {
+      "url": "https://x.com/rakutsune_/status/2095134599471137170",
+      "title": "ChatGPTで複数の事業や案件を進めていると、 「今なに進めてたっけ？」が増えてきました。 そこで、チャットを事業ごとに整理して、次にやることまで一覧できるChrome拡張「ChatBoard」を作りました。 OpenAI API不要・ローカル保存です。 ↓配布はこちら https://t.co/86Umk4T9Ic"
+    },
+    {
+      "url": "https://x.com/linkcheng94/status/2095134574900920742",
+      "title": "@MaxForAI @theinformation @OpenAI 全场都会去转\"2 倍\"，但 \"fragile, and currently trending in a negative direction\" 才是新闻。前沿实验室一把手公开承认可监控性正在变差，这比任何架构八卦都重"
+    }
+  ]
+}

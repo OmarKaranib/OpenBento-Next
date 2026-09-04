@@ -10,7 +10,11 @@
   "files": [
     "src"
   ],
+  "scripts": {
+    "eval:terra-compare": "tsx scripts/terra-compare-eval.ts"
+  },
   "dependencies": {
-    "@openbento/domain": "workspace:*"
+    "@openbento/domain": "workspace:*",
+    "tsx": "^4.20.5"
   }
 }
