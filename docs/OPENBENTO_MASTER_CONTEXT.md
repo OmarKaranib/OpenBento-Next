@@ -12,9 +12,9 @@
 
 ---
 
-## 0. How every contributor must use this document
+## 0. Using this product reference
 
-Read this document before making product, architecture, UI, data-model, WatchBot, WebMCP, infrastructure, or monetization decisions.
+Read the sections relevant to the task when making a product decision or working in unfamiliar architecture. Routine implementation does not require reading this entire document.
 
 This document captures decisions already made with the product owner. Do not silently reinterpret or replace them because another pattern is more familiar.
 
@@ -934,9 +934,9 @@ Do not leave deployment/video/submission to the final minutes.
 
 ---
 
-# 14. Bot engineering team
+# 14. Optional collaboration roles (historical team plan)
 
-The intended Grok Bot team has five roles:
+The original team plan described five roles. Use only the expertise relevant to the work; these roles do not establish a mandatory team, lead agent, or review chain:
 
 1. **Bento Lead**
 2. **Canvas Engineer**
@@ -944,7 +944,7 @@ The intended Grok Bot team has five roles:
 4. **WatchBot Engineer**
 5. **QA + WebMCP**
 
-They should collaborate in an **OpenBento Build Room** group/channel.
+A shared build room can help when several contributors are actively coordinating. It is optional.
 
 ## Bento Lead
 
